@@ -12,45 +12,32 @@ def build_metadatafile(Y, out_file='database/metadata.tsv'):
         metadata_file.write('%d\n' % (np.argmax(Y[i])))
     metadata_file.close()
 
-def create_embeddings(res, embedding_name,
+def feed_embeddings(embeddings_writer, embedding_var, dataset_t, Pout, Pin,
+            nb_embeddings=1,
             sess=False,
-            checkpoint_dir='.',
-            metadatafile_dir='database/'):
-    if sess is False:
-        sess = tf.get_default_session()
-    # Create the embeddings
-    res = tf.Variable(res, name=embedding_name, trainable=False)
-    sess.run(res.initializer)
-    embeddings_writer = tf.summary.FileWriter(checkpoint_dir + "/",sess.graph)
-    config_projector = projector.ProjectorConfig()
-    embedding = config_projector.embeddings.add()
-    embedding.tensor_name = embedding_name
-    embedding.metadata_path = metadatafile_dir+'/metadata-'+embedding_name+'.tsv'
-    projector.visualize_embeddings(embeddings_writer, config_projector)
-
-def feed_embeddings(dataset_t, Pout, Pin,
-            sess=False,
-            checkpoint_dir='checkpoints/',
-            embedding_name='predictions'):
+            checkpoint_dir='checkpoints/'):
     if sess is False:
         sess = tf.get_default_session()
     # Clean previous embedding for this place
-    with open(checkpoint_dir+'/metadata-'+embedding_name+'.tsv', "w"):
+    with open(checkpoint_dir+'/metadata-'+embedding_var.name.replace('/','-')+'.tsv', "w"):
         pass
     # Feed the network and stoire results
     dataset_t.split_dataset(p=1.0)
-    for i in range(0, dataset_t.batch_train_count()/10):
+    for i in range(0, nb_embeddings):
         bx, by = dataset_t.next_batch_train()
         a = sess.run(Pout,feed_dict={Pin: bx} )
         try:
             res = np.concatenate((res,a), axis=0)
         except NameError:
             res = a
-        build_metadatafile(by, out_file=checkpoint_dir+'/metadata-'+embedding_name+'.tsv')
-    create_embeddings(res, embedding_name,
-                        checkpoint_dir=checkpoint_dir,
-                        metadatafile_dir=checkpoint_dir)
-    print("Embedding create for " + embedding_name)
+        build_metadatafile(by, out_file=checkpoint_dir+'/metadata-'+embedding_var.name.replace('/','-')+'.tsv')
+    embedding_var.assign(res)
+
+    config_projector = projector.ProjectorConfig()
+    embedding = config_projector.embeddings.add()
+    embedding.tensor_name = embedding_var.name
+    embedding.metadata_path = checkpoint_dir+'/metadata-'+embedding_var.name.replace('/','-')+'.tsv'
+    projector.visualize_embeddings(embeddings_writer, config_projector)
 
 ### Feature Map extraction
 def plotNNFilter(units, out=None, show=None):

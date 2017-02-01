@@ -28,6 +28,30 @@ The trainer will load the dataset defined in --train=, train the neural network 
 mkdir checkpoints
 python src/train.py --train=./dataset_150x186 --out=./checkpoints/
 ``
+Help:
+-----
+``
+Usage: train.py --train=dataset --out=folder_dest [options]
+
+Options:
+  -h, --help            show this help message and exit
+  -t TRAIN, --train=TRAIN
+                        Define the dataset to train.
+  -o OUT, --out=OUT     Define output folder to store the neural network and
+                        checkpoints.
+  --embeddings=NB_EMBEDDINGS
+                        Number of embeddings to generate (default: 0).
+  --display-step=DISPLAY_STEP
+                        Period to compute cost and accuracy functions
+                        (Default: 5).
+  --saving-step=SAVING_PERIOD
+                        Period to save the session (Default: 5).
+  --learning-rate=LEARNING_RATE
+                        Set the learning rate (Default: 0.001).
+  --dropout=DROPOUT     Set the dropout probability rate (Default: 0.75).
+  --batchsize=BATCH_SIZE
+                        Set the learning rate (Default: 0.001).
+``
 
 Neural Network vizualisation
 ----------------------------

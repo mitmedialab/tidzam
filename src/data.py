@@ -49,15 +49,13 @@ class Dataset:
 
     def load(self, file):
         try:
-            print("Loading "+file+"_data.npy" )
             self.data = np.load(file+"_data.npy")
-            print("Loading "+file+"_labels.npy" )
             self.labels = np.load(file+"_labels.npy")
 
             self.n_input = self.data.shape[1]
             self.n_classes = self.labels.shape[1]
 
-            print(str(self.data.shape[0]) + " samples ("+ \
+            print(" " +str(self.data.shape[0]) + " samples ("+ \
                 str(self.n_input) +" features) of " + \
                 str(self.n_classes) + " classes")
         except IOError:
