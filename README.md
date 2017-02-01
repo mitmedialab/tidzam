@@ -30,7 +30,7 @@ python src/train.py --train=./dataset_150x186 --out=./checkpoints/
 ``
 Help:
 -----
-``
+```
 Usage: train.py --train=dataset --out=folder_dest [options]
 
 Options:
@@ -51,7 +51,7 @@ Options:
   --dropout=DROPOUT     Set the dropout probability rate (Default: 0.75).
   --batchsize=BATCH_SIZE
                         Set the learning rate (Default: 0.001).
-``
+```
 
 Neural Network vizualisation
 ----------------------------
