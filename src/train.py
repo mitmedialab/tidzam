@@ -44,6 +44,10 @@ parser.add_option("--batchsize",
     action="store", type="int", dest="batch_size",default=128,
     help='Set the learning rate (Default: 0.001).')
 
+parser.add_option("--training-iterations",
+    action="store", type="int", dest="training_iters",default=200,
+    help='Number of training iterations (Default: 200 batchsize).')
+
 (options, args) = parser.parse_args()
 
 # Build a dataset from a folder containing wav files
@@ -61,9 +65,6 @@ print("Loading "+dataset_file+"_labels.npy" )
 dataset = tiddata.Dataset(dataset_file,
         p=0.8,
         data_size=(150,186))
-
-# Training parameters
-training_iters = 200
 
 ############################ Configurations
 config = tf.ConfigProto(
@@ -121,7 +122,7 @@ with tf.Session(config=config) as sess:
     merged = tf.summary.merge_all()
     train_writer = tf.train.SummaryWriter(checkpoint_dir + '/', sess.graph)
 
-    while step < training_iters:
+    while step < options.training_iters:
         batch_x, batch_y = dataset.next_batch_train(batch_size = options.batch_size)
 
         # Run optimization op (backprop)
@@ -157,7 +158,7 @@ with tf.Session(config=config) as sess:
                   "{:.5f}".format(acc))
 
         # Session saving
-        if step % options.saving_period == 0 or training_iters - step == 1:
+        if step % options.saving_period == 0 or options.training_iters - step == 1:
             saver.save(sess, checkpoint_dir + '/VGG.ckpt', global_step= 1 + step)
             print("* Session saved.")
 
