@@ -49,7 +49,7 @@ class AnalyzerVGG:
             quit()
 
     # Function called by the streamer to predic its current sample
-    def run(self, Sxx, fs, t):
+    def run(self, Sxx, fs, t, sound_obj):
         Sxx = np.reshape(Sxx, [1, Sxx.shape[0]*Sxx.shape[1]] )
         res = self.session.run(pred,feed_dict={X: Sxx} )
         a = np.argmax(res)

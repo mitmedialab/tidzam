@@ -1,9 +1,13 @@
+from __future__ import print_function
+
 import sys, optparse
 import numpy as np
 from matplotlib import pyplot as plt
+import glob
+
 from scipy import signal
 import soundfile as sf
-import glob
+import sounddevice as sd
 
 def play_spectrogram_from_stream(file, show=False, callable_objects = []):
     with sf.SoundFile(file, 'r') as f:
@@ -20,9 +24,6 @@ def play_spectrogram_from_stream(file, show=False, callable_objects = []):
                 Sxx = np.maximum(Sxx/np.max(Sxx), np.ones((Sxx.shape[0], Sxx.shape[1]))*0.01)
                 fs = fs[[x for x in range(20,170)]]
 
-                for obj in callable_objects:
-                    obj.run(Sxx, fs, t)
-
                 if show is True:
                     plt.figure(i, figsize=(7, 7))
                     plt.pcolormesh(t, fs, Sxx)
@@ -30,6 +31,9 @@ def play_spectrogram_from_stream(file, show=False, callable_objects = []):
                     plt.xlabel('Time [sec]')
                     plt.show()
                     plt.pause(0.5/f.channels)
+
+                for obj in callable_objects:
+                    obj.run(Sxx, fs, t, [data[:,i], f.samplerate])
 
         return Sxx, t, fs
 
@@ -43,6 +47,10 @@ class Dataset:
         self.dataw = data_size[0]#92
         self.datah =  data_size[1]#300
 
+        self.data = []
+        self.labels = []
+        self.labels_dic = []
+
         if file is not False:
             self.load(file)
             self.split_dataset(p=p)
@@ -51,6 +59,7 @@ class Dataset:
         try:
             self.data = np.load(file+"_data.npy")
             self.labels = np.load(file+"_labels.npy")
+            self.labels_dic = np.load(file+"_labels_dic.npy")
 
             self.n_input = self.data.shape[1]
             self.n_classes = self.labels.shape[1]
@@ -61,7 +70,12 @@ class Dataset:
         except IOError:
             print("File not found: " + file)
 
-    def load_from_wav(self, folder):
+    def save(self,name):
+        np.save(name + "_data", self.data)
+        np.save(name + "_labels", self.labels)
+        np.save(name + "_labels_dic", self.labels_dic)
+
+    def load_from_wav_folder(self, folder):
         print("Folder " + folder)
         labels_dic = []
         labels = []
@@ -85,10 +99,6 @@ class Dataset:
             except ValueError:
                 data = raw
 
-        print(data.shape)
-        print(len(labels))
-        print(len(labels_dic))
-
         # Label reconstruction as vector
         l = np.zeros((len(labels), np.max(labels)))
         for i in range(0,len(labels)):
@@ -97,11 +107,36 @@ class Dataset:
 
         print("Randomization")
         idx = np.random.randint(data.shape[0], size=data.shape[0])
-        labels = labels[idx,:]
-        data   = data[idx,:]
+        self.labels = labels[idx,:]
+        self.data   = data[idx,:]
+        self.labels_dic = labels_dic
 
-        return data, labels, labels_dic
+        self.n_input = self.data.shape[1]
+        self.n_classes = self.labels.shape[1]
 
+        return self.data, self.labels, self.labels_dic
+
+    def print_sample(self,dataX, dataY, classe, print_all=False):
+        id = np.zeros((1, self.n_classes))
+        if classe is not False:
+            id[0][int(classe)] = 1
+
+        for i in range(0, dataY.shape[0]):
+            if np.array_equiv(id,dataY[i,:]) is True or classe is False:
+                print(dataY[i,:])
+                im = dataX[i,:].reshape((self.dataw, self.datah))
+                plt.ion()
+                plt.imshow(im, interpolation='none')
+                plt.show()
+                if print_all is False:
+                    return
+                else:
+                    plt.pause(0.5)
+
+
+    ########################################
+    # Dataset Preparation for training
+    ########################################
     def split_dataset(self, p=0.9):
         self.data_train = self.data[ [x for x in range(0,int(self.data.shape[0]*p))] ,:]
         self.label_train = self.labels[ [x for x in range(0,int(self.data.shape[0]*p))] ,:]
@@ -136,78 +171,102 @@ class Dataset:
     def batch_test_count(self,batch_size=128):
         return int(self.data_test.shape[0]/batch_size)
 
-    def print_sample(self,dataX, dataY, classe, print_all=False):
-        id = np.zeros((1, self.n_classes))
-        #print(id.shape)
-        id[0, classe-1] = 1
-        for i in range(0, dataY.shape[0]):
-            a = dataY[i,:]
-            if np.array_equiv(id,dataY[i,:]) is True:
-                im = dataX[i,:].reshape((self.dataw, self.datah))
-                print(im.shape)
-                plt.ion()
-                plt.imshow(im, interpolation='none')
-                plt.show()
-                if print_all is False:
-                    return
+########################################
+
+class Extractor:
+    def __init__(self,load_dataset=""):
+        print(load_dataset)
+        if load_dataset != "":
+            dataset = Dataset(load_dataset)
+            self.labels = dataset.labels
+            self.data   = dataset.data
+            self.labels_dic = dataset.labels_dic
+            self.init = True
+        else:
+            self.labels_dic = []
+            self.init = False
+
+    def run(self, Sxx, fs, t, sound_obj):
+        while True:
+            sd.play(sound_obj[0], 48000)
+            print("\n===============\n Classe available\n---------------")
+            for i in range(0, len(self.labels_dic)):
+                print(str(i) + " : " + str(self.labels_dic[i]) )
+            print("Actions:\n---------------")
+            print("* (enter): next sample\n* (n): create a new classe\n* (s): save the dataset")
+            print("* (i): dataset info\n * (q): quit\n")
+            a = raw_input()
+
+            if a == 's':
+                if options.out  is not None:
+                    out = options.out
                 else:
-                    plt.pause(0.5)
+                    print("Dataset name: ")
+                    out = raw_input()
+                dataset = Dataset()
+                dataset.data = self.data
+                dataset.labels = self.labels
+                dataset.labels_dic = self.labels_dic
+                dataset.save(out)
+                print('Save')
+            elif a == 'n':
+                print('New classe name: ')
+                name = raw_input()
+                try:
+                    print(self.labels_dic)
+                    self.labels_dic = np.append(self.labels_dic, name)
+                except NameError:
+                    self.labels_dic = name
+            elif a == 'i':
+                print('Informations:\n--------------')
+                try:
+                    print(str(self.data.shape[0]) +" samples of " + str(self.data.shape[1]) + " features in " +
+                    str(self.labels.shape[1]) + " classes.")
+                    print(self.labels_dic)
+                except:
+                    print('No data.')
+            elif a == 'q':
+                quit()
+            elif a == '':
+                break;
+            else:
+                try:
+                    if int(a) < len(self.labels_dic):
+                        if self.init is False:
+                            self.data =  np.reshape(Sxx,[1,Sxx.shape[0]*Sxx.shape[1]])
+                            c = np.zeros((1, len(self.labels_dic)))
+                            c[0][int(a)] = 1
+                            self.labels = c
+                            self.init = True
+                        else:
+                            self.data = np.append(self.data,
+                                np.reshape(Sxx,[1,Sxx.shape[0]*Sxx.shape[1]]), axis=0)
 
+                            # New classe => add a new column to label
+                            if (int(a) >= self.labels.shape[1]):
+                                b = np.zeros((self.labels.shape[0],self.labels.shape[1] + 1))
+                                b[:,:-1] = self.labels
+                                self.labels = b
 
-# Read all MATLAB6 files in folder and return the concatenate database with labels
-def convert_datasets (folder, outfile=None):
-    files = glob.glob(folder+"/*.mat")
-
-    i = 0
-    for f in files:
-        print(f)
-        matc = signal.io.loadmat(f)
-        try:
-            data = np.concatenate((data, matc['database'][0,0]['yes']), axis=0)
-            labels = np.concatenate((labels, [[i, '"'+f+'"'] for x in matc['database'][0,0]['yes'] ]), axis=0)
-        except NameError:
-            data = matc['database'][0,0]['yes']
-            labels = [[i, f] for x in matc['database'][0,0]['yes'] ]
-        i = i + 1
-
-    l = np.zeros((data.shape[0], i))
-    for i in range(l.shape[0]):
-        l[i,labels[i,0]] = 1
-    labels = l
-
-    print("Randomization")
-    idx = np.random.randint(data.shape[0], size=data.shape[0])
-    labels = labels[idx,:]
-    data   = data[idx,:]
-
-    if outfile is not None:
-        print("Saving in "+outfile+"_data.npy" )
-        np.save(outfile+"_data", data)
-        print("Saving in "+outfile+"_labels.npy" )
-        np.save(outfile+"_labels",labels)
-    return data, labels
-
-
-def reshape_dataset(dataset, cutoff, shape_ori=(92,638)):
-    for l in dataset:
-        x = np.reshape(l, shape_ori)
-        x = x[:, [x for x in range(0, cutoff)]]
-        x = np.reshape(x, [1, shape_ori[0] * cutoff])
-        try:
-            res = np.concatenate((res, x), axis=0)
-        except:
-            res = x
-        if res.shape[0] % 100 == 0:
-            print(res.shape[0])
-    return res
+                            # Create the classe vector and add it
+                            c = np.zeros((1, len(self.labels_dic)))
+                            c[0][int(a)] = 1
+                            self.labels = np.append(self.labels, c, axis=0)
+                        print(str(self.labels.shape[0]) + " samples of " + str(self.labels.shape[1]) + " classes")
+                        break
+                except:
+                    pass
 
 if __name__ == "__main__":
     parser = optparse.OptionParser()
-    parser.set_defaults(out=False, build=False, read=False, show=False)
     parser.add_option("-b", "--build", action="store", type="string", dest="build")
     parser.add_option("-o", "--out", action="store", type="string", dest="out")
-    parser.add_option("-r", "--read", action="store", type="string", dest="read")
-    parser.add_option("-s", "--show", action="store", type="string", dest="show")
+    parser.add_option("-r", "--read", action="store", type="string", dest="read", default="")
+    parser.add_option("-s", "--show", action="store", type="string", dest="show",
+        default=False, help="Show spectrogram of the samples")
+
+    parser.add_option("--file", action="store", type="string", dest="file", default="")
+    parser.add_option("--extract", action="store_true")
     (options, args) = parser.parse_args()
 
     # Build a dataset from a folder containing wav files
@@ -215,29 +274,22 @@ if __name__ == "__main__":
         if options.out is False:
             print('Destination filename must be specified --out=filename')
             quit()
-
         data = Dataset()
-        data, labels, labels_dic = data.load_from_wav(options.build)
-        np.save(options.out + "_data", data)
-        np.save(options.out + "_labels", labels)
-        np.save(options.out + "_labels_dic", labels_dic)
+        data.load_from_wav_folder(options.build)
+        data.save(options.out)
+
+
+    if options.extract:
+        if options.file == "":
+            print('Please define an audio stream to open')
+            quit()
+
+        obj_extractor = Extractor(options.read)
+        play_spectrogram_from_stream(options.file,
+                    show=True,
+                    callable_objects = [obj_extractor])
 
     # Read a dataset and plot all example of a classe
-    if options.read:
-        if options.show is False:
-            print('Classe number to view must be specified --show=X')
-            quit()
+    elif options.read:
         data = Dataset(options.read,data_size=(150,186))
-        data.print_sample(np.abs(data.data), data.labels, int(options.show), print_all=True)
-
-# Convert all dataset from Tidzam 1 to new format
-#data, labels = convert_datasets("database/dataset","out")
-#data, labels = load_dataset("out")
-
-# Reshape a dataset
-#data = reshape_dataset(data, 300)
-#print("Saving in out_data_reshape.npy" )
-#np.save("out_data_reshape", data)
-#print("Saving in out_labels_reshape.npy" )
-#np.save("out_labels_reshape",labels)
-#print_sample(data[0], shape=(92,300))
+        data.print_sample(np.abs(data.data), data.labels, options.show, print_all=True)

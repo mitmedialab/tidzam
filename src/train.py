@@ -94,6 +94,7 @@ with tf.name_scope('VGG'):
     tf.summary.scalar('accuracy', accuracy)
 
 ############################ EMBEDDINGS
+# TF Variables to save outputs embedding computations.
 with tf.variable_scope("embeddings"):
     embed1 = tf.get_variable("pred", [ options.nb_embeddings* options.batch_size, dataset.n_classes])
 

@@ -1,4 +1,9 @@
-Trying out Git
+Dependencies
+============
+python-scipy
+python-matplotlib
+pip install sounddevice --user
+TensorFlow
 
 Download Dataset
 ================
@@ -10,8 +15,22 @@ tar -zxvf dataset_tidzam.tar.gz
 Build the dataset
 =================
 The dataset is composed of three files, the dataset_data file contains in line the spectrograms of each wav samples. The dataset_label file stores in line the corresponding classe numbers and the dataset_dic file defines the associations between classe number and their corresponding name extracted from their filename.
+
+Loading from WAV folder
+-----------------------
 ``
 python src/data.py --build=./wav/ --out=./dataset_150x186
+``
+
+Editor from audio stream
+----------------------------
+Create a new dataset to build from --file=stream:
+``
+python src/data.py --file=stream.wav --extract
+``
+Build from an exisiting dataset --read= from --file= audio stream.
+``
+python src/data.py --file=stream.wav --read=out --read=./dataset_150x186 --extract
 ``
 
 Dataset vizualisation
@@ -19,6 +38,10 @@ Dataset vizualisation
 The set of samples in the dataset --read= for a given classe can be vizualised as follow:
 ``
 python src/data.py --read=./dataset_150x186 --show=12
+``
+Print all samples in the dataset:
+``
+python src/data.py --read=./dataset_150x186
 ``
 
 Training of the Neural Network Model
