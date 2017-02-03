@@ -21,8 +21,8 @@ parser.add_option("-o", "--out",
     help='Define output folder to store the neural network and checkpoints.')
 
 parser.add_option("--embeddings",
-    action="store", type="int", dest="nb_embeddings", default=0,
-    help='Number of embeddings to generate (default: 0).')
+    action="store", type="int", dest="nb_embeddings", default=1,
+    help='Embeddings Batchise Packets to compute (default: 1).')
 
 parser.add_option("--display-step",
     action="store", type="int", dest="display_step", default=5,
@@ -102,22 +102,24 @@ with tf.variable_scope("embeddings"):
 ############################ SESSION
 with tf.Session(config=config) as sess:
     sess.run(tf.global_variables_initializer())
+    saver = tf.train.Saver(max_to_keep=2)
     step = 1
 
     # Try to restore previous session
     ckpt = tf.train.get_checkpoint_state(checkpoint_dir + "/")
     if ckpt and ckpt.model_checkpoint_path:
-        saver = tf.train.Saver(max_to_keep=2)
-        saver.restore(sess, ckpt.model_checkpoint_path)
-        step = int(tf.train.global_step(sess, global_step))
-        print("Previous session loaded")
+        try:
+            saver.restore(sess, ckpt.model_checkpoint_path)
+            step = int(tf.train.global_step(sess, global_step))
+            print("Previous session loaded")
+        except NotFoundError:
+            print(+ckpt.model_checkpoint_path + " contents is not compatible (old sessions). NotFoundError")
     else:
         print("\nNew session\n-----------\n")
 
     # Build summaries
     merged = tf.summary.merge_all()
     train_writer = tf.train.SummaryWriter(checkpoint_dir + '/', sess.graph)
-    saver = tf.train.Saver(max_to_keep=2)
 
     while step < training_iters:
         batch_x, batch_y = dataset.next_batch_train(batch_size = options.batch_size)
@@ -141,7 +143,7 @@ with tf.Session(config=config) as sess:
             train_writer.add_summary(summary, step)
 
             # Feed embeddings
-            print("* Generation of #" +str(options.nb_embeddings)+ " embeddings for " + embed1.name)
+            print("* Generation of #" +str(options.nb_embeddings*options.batch_size)+ " embeddings for " + embed1.name)
             if options.nb_embeddings > 0:
                 print("** Loading "+dataset_file+"_labels.npy" )
                 dataset_t = tiddata.Dataset(dataset_file,
@@ -149,16 +151,16 @@ with tf.Session(config=config) as sess:
                 vizu.feed_embeddings(train_writer, embed1, dataset_t, pred, X,
                         nb_embeddings=options.nb_embeddings,
                         checkpoint_dir=checkpoint_dir)
-                print("** Build." )
+
+            print("=> Iter " + str(step*options.batch_size) + ", Minibatch Loss= " + \
+                  "{:.6f}".format(loss) + ", Training Accuracy= " + \
+                  "{:.5f}".format(acc))
 
         # Session saving
         if step % options.saving_period == 0 or training_iters - step == 1:
             saver.save(sess, checkpoint_dir + '/VGG.ckpt', global_step= 1 + step)
             print("* Session saved.")
 
-        print("=> Iter " + str(step*options.batch_size) + ", Minibatch Loss= " + \
-              "{:.6f}".format(loss) + ", Training Accuracy= " + \
-              "{:.5f}".format(acc))
         print("=============================")
         step += 1
     print("Optimization Finished!")

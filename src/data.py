@@ -18,7 +18,7 @@ def play_spectrogram_from_stream(file, show=False, callable_objects = []):
                 fs, t, Sxx = signal.spectrogram(data[:,i], f.samplerate,
                         nfft=1024, noverlap=128)
 
-                # Extract between 1-8 Khz
+                # editor between 1-8 Khz
                 Sxx = Sxx[[x for x in range(20,170)], :]*1000
                 # Normalize and cutoff
                 Sxx = np.maximum(Sxx/np.max(Sxx), np.ones((Sxx.shape[0], Sxx.shape[1]))*0.01)
@@ -196,7 +196,7 @@ class Dataset:
 
 ########################################
 
-class Extractor:
+class Editor:
     def __init__(self,load_dataset=""):
         print(load_dataset)
         if load_dataset != "":
@@ -235,6 +235,7 @@ class Extractor:
                     self.dataset.labels_dic = np.append(self.dataset.labels_dic, name)
                 except NameError:
                     self.dataset.labels_dic = name
+
             elif a == 'm':
                 print("Merge with dataset:")
                 name = raw_input()
@@ -290,38 +291,42 @@ class Extractor:
                     pass
 
 if __name__ == "__main__":
-    parser = optparse.OptionParser()
-    parser.add_option("-b", "--build", action="store", type="string", dest="build")
-    parser.add_option("-o", "--out", action="store", type="string", dest="out")
-    parser.add_option("-r", "--read", action="store", type="string", dest="read", default="")
-    parser.add_option("-s", "--show", action="store", type="string", dest="show",
-        default=False, help="Show spectrogram of the samples")
+    parser = optparse.OptionParser(usage="python src/data.py --input=stream.wav")
+    parser.add_option("-w", "--wav", action="store", type="string", dest="wav")
+    parser.add_option("-d", "--dataset", action="store", type="string", dest="open",
+        default="", help="Open an exisiting dataset")
 
-    parser.add_option("--file", action="store", type="string", dest="file", default="")
-    parser.add_option("--extract", action="store_true")
+    parser.add_option("-o", "--out", action="store", type="string", dest="out",
+                help="Provide output dataset name for wav processing.")
+
+    parser.add_option("-s", "--show", action="store", type="string", dest="classe_id",
+        default=False, help="Show spectrograms for a specific class_id")
+
+    parser.add_option("--input", action="store", type="string", dest="input", default="")
+    parser.add_option("--editor", action="store_true")
     (options, args) = parser.parse_args()
 
     # Build a dataset from a folder containing wav files
-    if options.build:
+    if options.wav:
         if options.out is False:
-            print('Destination filename must be specified --out=filename')
+            print('Destination dataset must be specified --out=filename')
             quit()
         data = Dataset()
-        data.load_from_wav_folder(options.build)
+        data.load_from_wav_folder(options.wav)
         data.save(options.out)
 
 
-    if options.extract:
-        if options.file == "":
+    if options.editor:
+        if options.input == "":
             print('Please define an audio stream to open')
             quit()
 
-        obj_extractor = Extractor(options.read)
-        play_spectrogram_from_stream(options.file,
+        obj_editor = Editor(options.open)
+        play_spectrogram_from_stream(options.input,
                     show=True,
-                    callable_objects = [obj_extractor])
+                    callable_objects = [obj_editor])
 
-    # Read a dataset and plot all example of a classe
-    elif options.read:
-        data = Dataset(options.read,data_size=(150,186))
-        data.print_sample(np.abs(data.data), data.labels, options.show, print_all=True)
+    # Open a dataset and plot all example of a classe
+    elif options.open:
+        data = Dataset(options.open,data_size=(150,186))
+        data.print_sample(np.abs(data.data), data.labels, options.classe_id, print_all=True)
