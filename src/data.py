@@ -106,9 +106,7 @@ class Dataset:
         labels = l
 
         print("Randomization")
-        idx = np.random.randint(data.shape[0], size=data.shape[0])
-        self.labels = labels[idx,:]
-        self.data   = data[idx,:]
+        self.randomize()
         self.labels_dic = labels_dic
 
         self.n_input = self.data.shape[1]
@@ -133,6 +131,31 @@ class Dataset:
                 else:
                     plt.pause(0.5)
 
+    def randomize(self):
+        idx = np.arange(self.data.shape[0])
+        np.random.shuffle(idx)
+        self.data = self.data[idx,:]
+        self.labels = self.labels[idx,:]
+
+    def merge(self,dataset):
+        self.data = np.append(self.data, dataset.data, axis=0)
+
+        # Shift classe positions for alignment and merge labels
+        n_classes = self.labels.shape[1] + dataset.labels.shape[1]
+        print(n_classes)
+        b = np.zeros((self.labels.shape[0], n_classes))
+        b[:,:-dataset.labels.shape[1]] = self.labels
+        self.labels = b
+
+        b = np.zeros((dataset.labels.shape[0], n_classes))
+        b[:, [x for x in range(n_classes - dataset.labels.shape[1], n_classes)]] = dataset.labels
+        dataset.labels = b
+
+        ### Merge labels and dictionary
+        self.labels = np.append(self.labels, dataset.labels, axis=0)
+        self.labels_dic = np.append(self.labels_dic, dataset.labels_dic)
+
+        print(self.labels)
 
     ########################################
     # Dataset Preparation for training
@@ -177,24 +200,22 @@ class Extractor:
     def __init__(self,load_dataset=""):
         print(load_dataset)
         if load_dataset != "":
-            dataset = Dataset(load_dataset)
-            self.labels = dataset.labels
-            self.data   = dataset.data
-            self.labels_dic = dataset.labels_dic
+            self.dataset = Dataset(load_dataset)
             self.init = True
         else:
-            self.labels_dic = []
+            self.dataset = Dataset()
             self.init = False
 
     def run(self, Sxx, fs, t, sound_obj):
         while True:
             sd.play(sound_obj[0], 48000)
             print("\n===============\n Classe available\n---------------")
-            for i in range(0, len(self.labels_dic)):
-                print(str(i) + " : " + str(self.labels_dic[i]) )
+            for i in range(0, len(self.dataset.labels_dic)):
+                print(str(i) + " : " + str(self.dataset.labels_dic[i]) )
             print("Actions:\n---------------")
-            print("* (enter): next sample\n* (n): create a new classe\n* (s): save the dataset")
-            print("* (i): dataset info\n * (q): quit\n")
+            print("* (enter): next sample\n* (n): create a new classe\n* (m) merge with another dataset")
+            print("* (s): save the dataset \n* (i): dataset info\n* (p) print the labels\n"+ \
+                "*(r) randomize the dataset\n* (q): quit\n")
             a = raw_input()
 
             if a == 's':
@@ -203,26 +224,37 @@ class Extractor:
                 else:
                     print("Dataset name: ")
                     out = raw_input()
-                dataset = Dataset()
-                dataset.data = self.data
-                dataset.labels = self.labels
-                dataset.labels_dic = self.labels_dic
-                dataset.save(out)
+                self.dataset.save(out)
                 print('Save')
+
             elif a == 'n':
                 print('New classe name: ')
                 name = raw_input()
                 try:
-                    print(self.labels_dic)
-                    self.labels_dic = np.append(self.labels_dic, name)
+                    print(self.dataset.labels_dic)
+                    self.dataset.labels_dic = np.append(self.dataset.labels_dic, name)
                 except NameError:
-                    self.labels_dic = name
+                    self.dataset.labels_dic = name
+            elif a == 'm':
+                print("Merge with dataset:")
+                name = raw_input()
+                dataset = Dataset(name)
+                self.dataset.merge(dataset)
+
+            elif a == 'p':
+                print("Print labels:")
+                print(self.dataset.labels)
+
+            elif a == 'r':
+                print("Randomization")
+                self.dataset.randomize()
+
             elif a == 'i':
                 print('Informations:\n--------------')
                 try:
-                    print(str(self.data.shape[0]) +" samples of " + str(self.data.shape[1]) + " features in " +
-                    str(self.labels.shape[1]) + " classes.")
-                    print(self.labels_dic)
+                    print(str(self.dataset.data.shape[0]) +" samples of " + str(self.dataset.data.shape[1]) + " features in " +
+                    str(self.dataset.labels.shape[1]) + " classes.")
+                    print(self.dataset.labels_dic)
                 except:
                     print('No data.')
             elif a == 'q':
@@ -231,28 +263,28 @@ class Extractor:
                 break;
             else:
                 try:
-                    if int(a) < len(self.labels_dic):
+                    if int(a) < len(self.dataset.labels_dic):
                         if self.init is False:
-                            self.data =  np.reshape(Sxx,[1,Sxx.shape[0]*Sxx.shape[1]])
-                            c = np.zeros((1, len(self.labels_dic)))
+                            self.dataset.data =  np.reshape(Sxx,[1,Sxx.shape[0]*Sxx.shape[1]])
+                            c = np.zeros((1, len(self.dataset.labels_dic)))
                             c[0][int(a)] = 1
-                            self.labels = c
+                            self.dataset.labels = c
                             self.init = True
                         else:
-                            self.data = np.append(self.data,
+                            self.dataset.data = np.append(self.dataset.data,
                                 np.reshape(Sxx,[1,Sxx.shape[0]*Sxx.shape[1]]), axis=0)
 
                             # New classe => add a new column to label
-                            if (int(a) >= self.labels.shape[1]):
-                                b = np.zeros((self.labels.shape[0],self.labels.shape[1] + 1))
-                                b[:,:-1] = self.labels
-                                self.labels = b
+                            if (int(a) >= self.dataset.labels.shape[1]):
+                                b = np.zeros((self.dataset.labels.shape[0],self.dataset.labels.shape[1] + 1))
+                                b[:,:-1] = self.dataset.labels
+                                self.dataset.labels = b
 
                             # Create the classe vector and add it
-                            c = np.zeros((1, len(self.labels_dic)))
+                            c = np.zeros((1, len(self.dataset.labels_dic)))
                             c[0][int(a)] = 1
-                            self.labels = np.append(self.labels, c, axis=0)
-                        print(str(self.labels.shape[0]) + " samples of " + str(self.labels.shape[1]) + " classes")
+                            self.dataset.labels = np.append(self.dataset.labels, c, axis=0)
+                        print(str(self.dataset.labels.shape[0]) + " samples of " + str(self.dataset.labels.shape[1]) + " classes")
                         break
                 except:
                     pass
