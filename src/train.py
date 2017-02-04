@@ -5,170 +5,93 @@ import numpy as np
 import math
 
 import tensorflow as tf
+import tflearn
 
 import vizualisation as vizu
-import data as tiddata
-import model as net
+import models.vgg as models
 
-usage = "usage: %prog --train=dataset --out=folder_dest [options]"
-parser = optparse.OptionParser(usage=usage)
-parser.add_option("-t", "--train",
-    action="store", type="string", dest="train",
+import data as tiddata
+
+parser = optparse.OptionParser()
+parser.add_option("-d", "--dataset",
+    action="store", type="string", dest="dataset",
     help='Define the dataset to train.')
+
+parser.add_option("--load",
+    action="store", type="string", dest="load",
+    help='Folder to load a previous training session.')
 
 parser.add_option("-o", "--out",
     action="store", type="string", dest="out",
+    default="/tmp/tflearn_logs/vgg-model/",
     help='Define output folder to store the neural network and checkpoints.')
-
-parser.add_option("--embeddings",
-    action="store", type="int", dest="nb_embeddings", default=1,
-    help='Embeddings Batchise Packets to compute (default: 1).')
-
-parser.add_option("--display-step",
-    action="store", type="int", dest="display_step", default=5,
-    help='Period to compute cost and accuracy functions (Default: 5).')
-
-parser.add_option("--saving-step",
-    action="store", type="int", dest="saving_period",default=5,
-    help='Period to save the session (Default: 5).')
-
-parser.add_option("--learning-rate",
-    action="store", type="float", dest="learning_rate",default=0.001,
-    help='Set the learning rate (Default: 0.001).')
-
-parser.add_option("--dropout",
-    action="store", type="float", dest="dropout",default=0.75,
-    help='Set the dropout probability rate (Default: 0.75).')
-
-parser.add_option("--batchsize",
-    action="store", type="int", dest="batch_size",default=128,
-    help='Set the learning rate (Default: 0.001).')
 
 parser.add_option("--training-iterations",
     action="store", type="int", dest="training_iters",default=200,
     help='Number of training iterations (Default: 200 batchsize).')
 
+parser.add_option("--batchsize",
+    action="store", type="int", dest="batch_size",default=128,
+    help='Set the learning rate (Default: 0.001).')
+
+parser.add_option("--embeddings",
+    action="store", type="int", dest="nb_embeddings", default=1,
+    help='Embeddings Batchise Packets to compute (default: 1).')
+
 (options, args) = parser.parse_args()
 
-# Build a dataset from a folder containing wav files
-if options.train:
-    if options.out is False:
-        print("You must specified an output folder to save the neural networks.")
-        quit()
-    dataset_file = options.train
-    checkpoint_dir = options.out
-
-print("Display step %d" % options.display_step)
-
-# Load and prepare dataset
-print("Loading "+dataset_file+"_labels.npy" )
-dataset = tiddata.Dataset(dataset_file,
-        p=0.8,
-        data_size=(150,186))
-
-############################ Configurations
 config = tf.ConfigProto(
         device_count = {'GPU': 0}
     )
 
-############################ INPUTS
-with tf.name_scope('input'):
-    X = tf.placeholder(tf.float32, [None, dataset.n_input])
-    y = tf.placeholder(tf.float32, [None, dataset.n_classes])
-    keep_prob = tf.placeholder(tf.float32)
+###################################
 
-############################  Model
-with tf.name_scope('VGG'):
-    global_step = tf.Variable(0, trainable=False, name='global_step')
-    pred, biases, weights = net.vgg(X, options.dropout, dataset.n_classes,
-            data_size=(dataset.dataw, dataset.datah))
+# Load data
+data_size=[150,186]
+dataset = tiddata.Dataset(options.dataset, p=0.8, data_size=data_size)
 
-    # Define loss and optimizer
-    with tf.name_scope('Optimizer'):
-        cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=y))
-        optimizer = tf.train.AdamOptimizer(learning_rate=options.learning_rate).minimize(cost, global_step=global_step)
-        correct_pred = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
-        accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
-
-    tf.summary.scalar('dropout', keep_prob)
-    tf.summary.scalar('cross_entropy', cost)
-    tf.summary.scalar('accuracy', accuracy)
-
-############################ EMBEDDINGS
 # TF Variables to save outputs embedding computations.
 with tf.variable_scope("embeddings"):
-    embed1 = tf.get_variable("pred", [ options.nb_embeddings* options.batch_size, dataset.n_classes])
+    embed1 = tf.get_variable("pred",
+        [ options.nb_embeddings* options.batch_size, dataset.n_classes])
 
-
-############################ SESSION
 with tf.Session(config=config) as sess:
-    sess.run(tf.global_variables_initializer())
-    saver = tf.train.Saver(max_to_keep=2)
-    step = 1
+    # Load a network model
+    vgg = models.VGG(data_size, dataset.n_classes)
+    train_writer = tf.train.SummaryWriter(options.out + "/" + vgg.name+"/")
 
-    # Try to restore previous session
-    ckpt = tf.train.get_checkpoint_state(checkpoint_dir + "/")
-    if ckpt and ckpt.model_checkpoint_path:
+    # Define optimizer and cost function
+    adam = tflearn.Adam(learning_rate=0.001, beta1=0.99)
+    net = tflearn.regression(vgg.out, optimizer=adam, batch_size=options.batch_size)
+
+    model = tflearn.DNN(net, session=sess,
+        tensorboard_dir= options.out + "/",
+        tensorboard_verbose=0)
+
+    if options.load:
         try:
-            saver.restore(sess, ckpt.model_checkpoint_path)
-            step = int(tf.train.global_step(sess, global_step))
-            print("Previous session loaded")
-        except NotFoundError:
-            print(+ckpt.model_checkpoint_path + " contents is not compatible (old sessions). NotFoundError")
+            model.load(options.load + "/" + vgg.name)
+        except:
+            print('Unable to load model: ' + options.load)
     else:
-        print("\nNew session\n-----------\n")
+        sess.run(tf.global_variables_initializer())
 
-    # Build summaries
-    merged = tf.summary.merge_all()
-    train_writer = tf.train.SummaryWriter(checkpoint_dir + '/', sess.graph)
-
+    step = 1
     while step < options.training_iters:
-        batch_x, batch_y = dataset.next_batch_train(batch_size = options.batch_size)
+        batch_x, batch_y            = dataset.next_batch_train(batch_size = options.batch_size)
+        batch_test_x, batch_test_y  = dataset.next_batch_test(batch_size = options.batch_size)
 
-        # Run optimization op (backprop)
-        print("* Run optimization ")
-        sess.run(optimizer, feed_dict={X: batch_x, y: batch_y,
-                                       keep_prob: options.dropout})
+        model.fit(batch_x, batch_y, n_epoch=1, validation_set=(batch_test_x, batch_test_y),
+              show_metric=True, run_id=vgg.name)
 
-        # Calculate batch loss and accuracy
-        if step % options.display_step == 0:
-            print("* Compute cost, accurancy and summaries ")
-            run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-            run_metadata = tf.RunMetadata()
-            summary, loss, acc = sess.run([merged, cost, accuracy],
-                            feed_dict={X: batch_x, y: batch_y, keep_prob: 1.},
-                            options=run_options,
-                            run_metadata=run_metadata
-                            )
-            train_writer.add_run_metadata(run_metadata, 'step%d' % step)
-            train_writer.add_summary(summary, step)
+        print("* Generation of #" +str(options.nb_embeddings*options.batch_size)+ " embeddings for " + embed1.name)
+        if options.nb_embeddings > 0:
+            print("** Loading "+options.dataset+"_labels.npy" )
+            dataset_t = tiddata.Dataset(options.dataset, data_size=(dataset.dataw,dataset.datah))
+            vizu.feed_embeddings(train_writer, embed1, dataset_t, vgg.out, vgg.input,
+                    nb_embeddings=options.nb_embeddings,sess=sess,
+                    checkpoint_dir=options.out + "/" + vgg.name+"/" )
 
-            # Feed embeddings
-            print("* Generation of #" +str(options.nb_embeddings*options.batch_size)+ " embeddings for " + embed1.name)
-            if options.nb_embeddings > 0:
-                print("** Loading "+dataset_file+"_labels.npy" )
-                dataset_t = tiddata.Dataset(dataset_file,
-                        data_size=(dataset.dataw,dataset.datah))
-                vizu.feed_embeddings(train_writer, embed1, dataset_t, pred, X,
-                        nb_embeddings=options.nb_embeddings,
-                        checkpoint_dir=checkpoint_dir)
-
-            print("=> Iter " + str(step*options.batch_size) + ", Minibatch Loss= " + \
-                  "{:.6f}".format(loss) + ", Training Accuracy= " + \
-                  "{:.5f}".format(acc))
-
-        # Session saving
-        if step % options.saving_period == 0 or options.training_iters - step == 1:
-            saver.save(sess, checkpoint_dir + '/VGG.ckpt', global_step= 1 + step)
-            print("* Session saved.")
-
-        print("=============================")
-        step += 1
-    print("Optimization Finished!")
-
-    # Calculate accuracy for 256 mnist test images
-    print("Testing Accuracy:")
-    dataset.cur_batch_test = 0
-    for step in range (0, int(dataset.batch_test_count())-1 ):
-        batch_x, batch_y = dataset.next_batch_test()
-        print(sess.run(accuracy, feed_dict={X: batch_x, y: batch_y, keep_prob: 1.}))
+        print("Saving in " + options.out + "/" + vgg.name)
+        model.save(options.out + "/" + vgg.name)
+        step = step + 1

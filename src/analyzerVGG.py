@@ -3,10 +3,11 @@ import math
 import sys, optparse
 
 import tensorflow as tf
+import tflearn
 
 import vizualisation as vizu
+import models.vgg as models
 import data as tiddata
-import model as net
 
 config = tf.ConfigProto(
         device_count = {'GPU': 0}
@@ -20,47 +21,37 @@ class AnalyzerVGG:
         self.label_dic = label_dictionary
         self.dataw = 150
         self.datah = 186
+        self.checkpoint_dir = checkpoint_dir
 
         # Load the network
         self.load()
 
-        # Load the session
-        ckpt = tf.train.get_checkpoint_state(checkpoint_dir + "/")
-        if ckpt and ckpt.model_checkpoint_path:
-            saver = tf.train.Saver(max_to_keep=2)
-            print(ckpt.model_checkpoint_path)
-            saver.restore(self.session, ckpt.model_checkpoint_path)
-            print("Previous session loaded")
-        else:
-            print("Not Neural Network found in " + checkpoint_dir)
-            quit()
-
     # Load the network
     def load(self):
         #Create input places
-        with tf.name_scope('input'):
-            self.X = tf.placeholder(tf.float32, [None, self.dataw*self.datah])
-            self.y = tf.placeholder(tf.float32, [None, self.label_dic.shape[0]])
-            keep_prob = tf.placeholder(tf.float32)
+        self.vgg = models.VGG([self.dataw, self.datah], len(self.label_dic))
+        self.session = tf.InteractiveSession(config=config)
 
-        ### Build the Neural Net model
-        with tf.name_scope('VGG'):
-            tf.summary.scalar('dropout_keep_probability', keep_prob)
-            global_step = tf.Variable(0, trainable=False, name='global_step')
-            self.pred, biases, weights = net.vgg(self.X, dropout, self.label_dic.shape[0],
-                    data_size=(self.dataw,self.datah))
-            correct_pred = tf.equal(tf.argmax(self.pred, 1), tf.argmax(self.y, 1))
-            accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
-            tf.summary.scalar('accuracy', accuracy)
+        adam = tflearn.Adam(learning_rate=0.001, beta1=0.99)
+        net = tflearn.regression(self.vgg.out, optimizer=adam, batch_size=128)
 
-        init = tf.global_variables_initializer()
-        self.session = session = tf.InteractiveSession(config=config)
-        self.session.run(init)
+        self.model = tflearn.DNN(net, session=self.session,
+            tensorboard_dir= self.checkpoint_dir,
+            tensorboard_verbose=0)
+
+        try:
+            self.model.load(self.checkpoint_dir)
+            print('Loading : ' + self.checkpoint_dir)
+        except:
+            print('Unable to load model: ' + self.checkpoint_dir)
+            quit()
+
+        self.session.run(tf.global_variables_initializer())
 
     # Function called by the streamer to predic its current sample
     def run(self, Sxx, fs, t, sound_obj):
         Sxx = np.reshape(Sxx, [1, Sxx.shape[0]*Sxx.shape[1]] )
-        res = self.session.run(self.pred,feed_dict={self.X: Sxx} )
+        res = self.model.predict(Sxx)
         a = np.argmax(res)
         print(self.label_dic[a])
 
@@ -72,8 +63,6 @@ if __name__ == "__main__":
     parser.add_option("-d", "--dic", action="store", type="string", dest="dic")
     parser.add_option("-n", "--nn", action="store", type="string", dest="nn")
     (options, args) = parser.parse_args()
-
-    checkpoint_dir = options.nn
 
     if options.play and options.dic and options.nn:
         label_dic = np.load(options.dic + "_labels_dic.npy")
