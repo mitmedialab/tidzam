@@ -4,6 +4,7 @@ import sys, optparse
 import numpy as np
 import math
 
+from tensorflow.contrib.tensorboard.plugins import projector
 import tensorflow as tf
 import tflearn
 
@@ -12,33 +13,39 @@ import models.vgg as models
 
 import data as tiddata
 
-parser = optparse.OptionParser()
+usage="train.py --dataset=dataset_150x186 --out=save/ [OPTIONS]"
+parser = optparse.OptionParser(usage=usage)
 parser.add_option("-d", "--dataset",
     action="store", type="string", dest="dataset",
     help='Define the dataset to train.')
 
-parser.add_option("--load",
-    action="store", type="string", dest="load",
-    help='Folder to load a previous training session.')
-
 parser.add_option("-o", "--out",
     action="store", type="string", dest="out",
-    default="/tmp/tflearn_logs/vgg-model/",
+    default="/tmp/tflearn_logs",
     help='Define output folder to store the neural network and checkpoints.')
+
+
+parser.add_option("--load",
+    action="store", type="string", dest="load",
+    help='Restore a previous training session.')
 
 parser.add_option("--training-iterations",
     action="store", type="int", dest="training_iters",default=200,
     help='Number of training iterations (Default: 200 batchsize).')
 
 parser.add_option("--batchsize",
-    action="store", type="int", dest="batch_size",default=128,
-    help='Set the learning rate (Default: 0.001).')
+    action="store", type="int", dest="batch_size",default=64,
+    help='Size of the training batch (Default:64).')
 
 parser.add_option("--embeddings",
-    action="store", type="int", dest="nb_embeddings", default=1,
-    help='Embeddings Batchise Packets to compute (default: 1).')
+    action="store", type="int", dest="nb_embeddings", default=50,
+    help='Number of embeddings to compute (default: 50)..')
 
-(options, args) = parser.parse_args()
+parser.add_option("--learning-rate",
+    action="store", type="float", dest="learning_rate", default=0.001,
+    help='Learning rate (default: 0.001).')
+
+(opts, args) = parser.parse_args()
 
 config = tf.ConfigProto(
         device_count = {'GPU': 0}
@@ -48,50 +55,53 @@ config = tf.ConfigProto(
 
 # Load data
 data_size=[150,186]
-dataset = tiddata.Dataset(options.dataset, p=0.8, data_size=data_size)
+dataset = tiddata.Dataset(opts.dataset, p=0.8, data_size=data_size)
+dataset_t = tiddata.Dataset(opts.dataset, data_size=(dataset.dataw,dataset.datah))
 
-# TF Variables to save outputs embedding computations.
 with tf.variable_scope("embeddings"):
-    embed1 = tf.get_variable("pred",
-        [ options.nb_embeddings* options.batch_size, dataset.n_classes])
+    embed1 = tf.get_variable("pred", [ opts.nb_embeddings, dataset.n_classes], trainable=False)
 
 with tf.Session(config=config) as sess:
-    # Load a network model
-    vgg = models.VGG(data_size, dataset.n_classes)
-    train_writer = tf.train.SummaryWriter(options.out + "/" + vgg.name+"/")
 
-    # Define optimizer and cost function
-    adam = tflearn.Adam(learning_rate=0.001, beta1=0.99)
-    net = tflearn.regression(vgg.out, optimizer=adam, batch_size=options.batch_size)
+    ### Load the network model
+    net = models.VGG(data_size, dataset.n_classes)
 
-    model = tflearn.DNN(net, session=sess,
-        tensorboard_dir= options.out + "/",
+    ### Define optimizer and cost function
+    adam = tflearn.Adam(learning_rate=opts.learning_rate, beta1=0.99)
+
+    ### Initialize the session and trainer
+    trainer = tflearn.DNN(tflearn.regression(net.out, optimizer=adam),
+        session=sess,
+        tensorboard_dir= opts.out + "/",
         tensorboard_verbose=0)
 
-    if options.load:
-        try:
-            model.load(options.load + "/" + vgg.name)
-        except:
-            print('Unable to load model: ' + options.load)
-    else:
-        sess.run(tf.global_variables_initializer())
+    sess.run(tf.global_variables_initializer())
 
+
+    ### Load a previous session
+    if opts.load:
+        #try:
+            print('Loading: ' + opts.load + "/" + net.name)
+            trainer.load(opts.load + "/" + net.name, create_new_session=False)
+        #except:
+        #    print('Unable to load network: ' + opts.load)
+        #    quit()
+
+    ### Run the training process
     step = 1
-    while step < options.training_iters:
-        batch_x, batch_y            = dataset.next_batch_train(batch_size = options.batch_size)
-        batch_test_x, batch_test_y  = dataset.next_batch_test(batch_size = options.batch_size)
+    while step < opts.training_iters:
+        batch_x, batch_y            = dataset.next_batch_train(batch_size = opts.batch_size)
+        batch_test_x, batch_test_y  = dataset.next_batch_test(batch_size = opts.batch_size)
 
-        model.fit(batch_x, batch_y, n_epoch=1, validation_set=(batch_test_x, batch_test_y),
-              show_metric=True, run_id=vgg.name)
+        trainer.fit(batch_x, batch_y, n_epoch=1, validation_set=(batch_test_x, batch_test_y),
+              show_metric=True, run_id=net.name)
 
-        print("* Generation of #" +str(options.nb_embeddings*options.batch_size)+ " embeddings for " + embed1.name)
-        if options.nb_embeddings > 0:
-            print("** Loading "+options.dataset+"_labels.npy" )
-            dataset_t = tiddata.Dataset(options.dataset, data_size=(dataset.dataw,dataset.datah))
-            vizu.feed_embeddings(train_writer, embed1, dataset_t, vgg.out, vgg.input,
-                    nb_embeddings=options.nb_embeddings,sess=sess,
-                    checkpoint_dir=options.out + "/" + vgg.name+"/" )
+        if opts.nb_embeddings > 0:
+            print("* Generation of #" +str(opts.nb_embeddings)+ " embeddings for " + embed1.name)
+            vizu.feed_embeddings(embed1, dataset_t, net.out, net.input,
+                        nb_embeddings=opts.nb_embeddings,
+                        checkpoint_dir=opts.out + "/" + net.name)
 
-        print("Saving in " + options.out + "/" + vgg.name)
-        model.save(options.out + "/" + vgg.name)
+        print("Saving in " + opts.out + "/" + net.name)
+        trainer.save(opts.out + "/" + net.name)
         step = step + 1

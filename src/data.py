@@ -173,7 +173,7 @@ class Dataset:
         b = ((self.cur_batch_train+1)*batch_size) % self.data_train.shape[0]
         batch_x = self.data_train[ [x for x in range(a,b)], :]
         batch_y = self.label_train[ [x for x in range(a,b)], :]
-        print("#({3}) Batch #{0}: {1} samples of {2} features".format(
+        print("#({3}) Batch (train) #{0}: {1} samples of {2} features".format(
                 self.cur_batch_train,
                 batch_x.shape[0],
                 batch_x.shape[1],
@@ -189,8 +189,11 @@ class Dataset:
         b = ((self.cur_batch_test+1)*batch_size) % self.data_test.shape[0]
         batch_x = self.data_test[ [x for x in range(a,b)], :]
         batch_y = self.label_test[ [x for x in range(a,b)], :]
-        print("Batch #{0}: {1} samples of {2} features".format(
-                self.cur_batch_test, batch_x.shape[0],batch_x.shape[1]))
+        print("#({3}) Batch (test) #{0}: {1} samples of {2} features".format(
+                self.cur_batch_test,
+                batch_x.shape[0],
+                batch_x.shape[1],
+                self.cur_batch_test/self.data_test.shape[0] ))
         self.cur_batch_test += 1
         return batch_x, batch_y
 

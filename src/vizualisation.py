@@ -12,7 +12,7 @@ def build_metadatafile(Y, out_file='database/metadata.tsv'):
         metadata_file.write('%d\n' % (np.argmax(Y[i])))
     metadata_file.close()
 
-def feed_embeddings(embeddings_writer, embedding_var, dataset_t, Pout, Pin,
+def feed_embeddings(embedding_var, dataset_t, Pout, Pin,
             nb_embeddings=1,
             sess=False,
             checkpoint_dir='checkpoints/'):
@@ -23,16 +23,12 @@ def feed_embeddings(embeddings_writer, embedding_var, dataset_t, Pout, Pin,
         pass
     # Feed the network and stoire results
     dataset_t.split_dataset(p=1.0)
-    for i in range(0, nb_embeddings):
-        bx, by = dataset_t.next_batch_train()
-        a = sess.run(Pout,feed_dict={Pin: bx} )
-        try:
-            res = np.concatenate((res,a), axis=0)
-        except NameError:
-            res = a
-        build_metadatafile(by, out_file=checkpoint_dir+'/metadata-'+embedding_var.name.replace('/','-')+'.tsv')
+    bx, by = dataset_t.next_batch_train(batch_size=nb_embeddings)
+    res = sess.run(Pout,feed_dict={Pin: bx} )
     embedding_var.assign(res)
+    build_metadatafile(by, out_file=checkpoint_dir+'/metadata-'+embedding_var.name.replace('/','-')+'.tsv')
 
+    embeddings_writer = tf.train.SummaryWriter(checkpoint_dir)
     config_projector = projector.ProjectorConfig()
     embedding = config_projector.embeddings.add()
     embedding.tensor_name = embedding_var.name

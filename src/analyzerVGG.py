@@ -17,20 +17,23 @@ dropout = 1
 
 
 class AnalyzerVGG:
-    def __init__(self, checkpoint_dir, label_dictionary):
+    def __init__(self, checkpoint_dir, label_dictionary,session=False):
         self.label_dic = label_dictionary
         self.dataw = 150
         self.datah = 186
         self.checkpoint_dir = checkpoint_dir
 
-        # Load the network
+        # Open an session
+        if session is False:
+            self.session = tf.Session(config=config)
+        else:
+            self.session = session
         self.load()
 
     # Load the network
     def load(self):
         #Create input places
         self.vgg = models.VGG([self.dataw, self.datah], len(self.label_dic))
-        self.session = tf.InteractiveSession(config=config)
 
         adam = tflearn.Adam(learning_rate=0.001, beta1=0.99)
         net = tflearn.regression(self.vgg.out, optimizer=adam, batch_size=128)
@@ -39,9 +42,10 @@ class AnalyzerVGG:
             tensorboard_dir= self.checkpoint_dir,
             tensorboard_verbose=0)
 
+        self.session.run(tf.global_variables_initializer())
         try:
-            self.model.load(self.checkpoint_dir)
             print('Loading : ' + self.checkpoint_dir)
+            self.model.load(self.checkpoint_dir, create_new_session=False)
         except:
             print('Unable to load model: ' + self.checkpoint_dir)
             quit()
