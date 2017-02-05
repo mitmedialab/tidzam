@@ -32,6 +32,9 @@ class VGG:
         # Pooling 2
         self.pool2 = tflearn.layers.conv.max_pool_2d (self.conv4, 2, strides=2, padding='same', name='pool2')
         # Fully Connected
-        self.fc1 = tflearn.fully_connected(self.pool2, 2048, name="fc1")
-        self.fc2 = tflearn.fully_connected(self.fc1, 2048, name="fc2")
-        self.out = tflearn.fully_connected(self.fc2, n_classes, activation='softmax', name="out")
+        self.fc1 = tflearn.fully_connected(self.pool2, 2048, activation='relu', name="fc1")
+        self.drop1 = tflearn.layers.core.dropout (self.fc1, 0.5, name='Dropout1')
+
+        self.fc2 = tflearn.fully_connected(self.drop1, 2048, activation='relu', name="fc2")
+        self.drop2 = tflearn.layers.core.dropout (self.fc2, 0.5, name='Dropout2')
+        self.out = tflearn.fully_connected(self.drop2, n_classes, activation='softmax', name="out")
