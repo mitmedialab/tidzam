@@ -34,8 +34,8 @@ parser.add_option("--load",
     help='Restore a previous training session.')
 
 parser.add_option("--training-iterations",
-    action="store", type="int", dest="training_iters",default=200,
-    help='Number of training iterations (Default: 200 batchsize).')
+    action="store", type="int", dest="training_iters",default=400,
+    help='Number of training iterations (Default: 400 batchsize).')
 
 parser.add_option("--batchsize",
     action="store", type="int", dest="batch_size",default=64,
@@ -105,16 +105,16 @@ with tf.Session(config=config) as sess:
         batch_x, batch_y            = dataset.next_batch_train(batch_size = opts.batch_size)
         batch_test_x, batch_test_y  = dataset.next_batch_test(batch_size = opts.batch_size)
 
-        tflearn.is_training(True, session=sess)
-        trainer.fit(batch_x, batch_y, n_epoch=1, validation_set=(batch_test_x, batch_test_y),
-              show_metric=True, run_id=net.name)
-
         if opts.nb_embeddings > 0:
             tflearn.is_training(False, session=sess)
             print("* Generation of #" +str(opts.nb_embeddings)+ " embeddings for " + embed1.name)
             vizu.feed_embeddings(embed1, dataset_t, net.out, net.input,
                         nb_embeddings=opts.nb_embeddings,
                         checkpoint_dir=opts.out + "/" + net.name)
+
+        tflearn.is_training(True, session=sess)
+        trainer.fit(batch_x, batch_y, n_epoch=1, validation_set=(batch_test_x, batch_test_y),
+              show_metric=True, run_id=net.name)
 
         print("Saving in " + opts.out + "/" + net.name)
         trainer.save(opts.out + "/" + net.name)
