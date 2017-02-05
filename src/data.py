@@ -171,8 +171,14 @@ class Dataset:
     def next_batch_train(self, batch_size=128):
         a = (self.cur_batch_train*batch_size) % self.data_train.shape[0]
         b = ((self.cur_batch_train+1)*batch_size) % self.data_train.shape[0]
-        batch_x = self.data_train[ [x for x in range(a,b)], :]
-        batch_y = self.label_train[ [x for x in range(a,b)], :]
+        if a < b:
+            batch_x = self.data_train[ [x for x in range(a,b)], :]
+            batch_y = self.label_train[ [x for x in range(a,b)], :]
+        else :
+            batch_x = self.data_train[
+                [x for x in range(a,self.data_train.shape[0]) +range(0,b)], :]
+            batch_y = self.label_train[
+                [x for x in range(a,self.data_train.shape[0]) +range(0,b)], :]
         print("#({3}) Batch (train) #{0}: {1} samples of {2} features".format(
                 self.cur_batch_train,
                 batch_x.shape[0],
@@ -187,8 +193,19 @@ class Dataset:
     def next_batch_test(self, batch_size=128):
         a = (self.cur_batch_test*batch_size) % self.data_test.shape[0]
         b = ((self.cur_batch_test+1)*batch_size) % self.data_test.shape[0]
-        batch_x = self.data_test[ [x for x in range(a,b)], :]
-        batch_y = self.label_test[ [x for x in range(a,b)], :]
+        if a < b:
+            batch_x = self.data_test[ [x for x in range(a,b)], :]
+            batch_y = self.label_test[ [x for x in range(a,b)], :]
+        else :
+            batch_x = self.data_test[
+                [x for x in range(a,self.data_test.shape[0]) + range(0,b)], :]
+            batch_y = self.label_test[
+                [x for x in range(a,self.label_test.shape[0]) + range(0,b)], :]
+        print("#({3}) Batch (train) #{0}: {1} samples of {2} features".format(
+                self.cur_batch_train,
+                batch_x.shape[0],
+                batch_x.shape[1],
+                self.cur_batch_train/self.data_train.shape[0] ))
         print("#({3}) Batch (test) #{0}: {1} samples of {2} features".format(
                 self.cur_batch_test,
                 batch_x.shape[0],
