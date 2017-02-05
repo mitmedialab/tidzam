@@ -97,7 +97,7 @@ with tf.Session(config=config) as sess:
             trainer.load(opts.load + "/" + net.name, create_new_session=False)
         except:
             print('Unable to load network: ' + opts.load)
-            quit()
+    #        quit()
 
     ### Run the training process
     step = 1
@@ -105,7 +105,7 @@ with tf.Session(config=config) as sess:
         batch_x, batch_y            = dataset.next_batch_train(batch_size = opts.batch_size)
         batch_test_x, batch_test_y  = dataset.next_batch_test(batch_size = opts.batch_size)
 
-        if opts.nb_embeddings > 0:
+        if opts.nb_embeddings > 0 and step > 1:
             tflearn.is_training(False, session=sess)
             print("* Generation of #" +str(opts.nb_embeddings)+ " embeddings for " + embed1.name)
             vizu.feed_embeddings(embed1, dataset_t, net.out, net.input,

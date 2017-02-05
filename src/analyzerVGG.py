@@ -9,12 +9,11 @@ import vizualisation as vizu
 import models.vgg as models
 import data as tiddata
 
-config = tf.ConfigProto(
-        device_count = {'GPU': 0}
-    )
+config = tflearn.config.init_graph (
+    num_cores=3,
+    gpu_memory_fraction=0.75,
+    soft_placement=False)
 dropout = 1
-
-
 
 class AnalyzerVGG:
     def __init__(self, checkpoint_dir, label_dictionary,session=False):
@@ -35,22 +34,18 @@ class AnalyzerVGG:
         #Create input places
         self.vgg = models.VGG([self.dataw, self.datah], len(self.label_dic))
 
-        adam = tflearn.Adam(learning_rate=0.001, beta1=0.99)
-        net = tflearn.regression(self.vgg.out, optimizer=adam, batch_size=128)
-
-        self.model = tflearn.DNN(net, session=self.session,
-            tensorboard_dir= self.checkpoint_dir,
+        self.model = tflearn.DNN(self.vgg.out,
+            session=self.session,
+            tensorboard_dir= self.checkpoint_dir + "/",
             tensorboard_verbose=0)
 
         self.session.run(tf.global_variables_initializer())
         try:
-            print('Loading : ' + self.checkpoint_dir)
-            self.model.load(self.checkpoint_dir, create_new_session=False)
+            print('Loading : ' + self.checkpoint_dir + "/" + self.vgg.name)
+            self.model.load(self.checkpoint_dir + "/" + self.vgg.name, create_new_session=False)
         except:
             print('Unable to load model: ' + self.checkpoint_dir)
             quit()
-
-        self.session.run(tf.global_variables_initializer())
 
     # Function called by the streamer to predic its current sample
     def run(self, Sxx, fs, t, sound_obj):
@@ -58,7 +53,6 @@ class AnalyzerVGG:
         res = self.model.predict(Sxx)
         a = np.argmax(res)
         print(self.label_dic[a])
-
 
 if __name__ == "__main__":
     parser = optparse.OptionParser()
