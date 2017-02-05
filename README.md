@@ -62,6 +62,13 @@ python src/data.py --input=./dataset_150x186
 Training of the Neural Network Model
 ====================================
 The trainer will load the dataset defined in --train=, train the neural network defined in src/model.py and store the checkpoints in --out=/
+
+Disable GPU ?
+-------------
+Need 6GB RAM memory on GPU
+``
+export CUDA_VISIBLE_DEVICES=''
+``
 ```
 Usage: train.py --dataset=dataset_150x186 --out=save/ [OPTIONS]
 

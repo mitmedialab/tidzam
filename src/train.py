@@ -13,6 +13,10 @@ import models.vgg as models
 
 import data as tiddata
 
+###################################
+### System configurations
+###################################
+
 usage="train.py --dataset=dataset_150x186 --out=save/ [OPTIONS]"
 parser = optparse.OptionParser(usage=usage)
 parser.add_option("-d", "--dataset",
@@ -47,17 +51,22 @@ parser.add_option("--learning-rate",
 
 (opts, args) = parser.parse_args()
 
-config = tf.ConfigProto(
-        device_count = {'GPU': 0}
-    )
+
+config = tflearn.config.init_graph (
+    num_cores=3,
+    gpu_memory_fraction=0.75,
+    soft_placement=False)
 
 ###################################
-
-# Load data
+# Load the data
+###################################
 data_size=[150,186]
-dataset = tiddata.Dataset(opts.dataset, p=0.8, data_size=data_size)
-dataset_t = tiddata.Dataset(opts.dataset, data_size=(dataset.dataw,dataset.datah))
+dataset     = tiddata.Dataset(opts.dataset, p=0.8, data_size=data_size)
+dataset_t   = tiddata.Dataset(opts.dataset, data_size=(dataset.dataw,dataset.datah))
 
+###################################
+# Build graphs and session
+###################################
 with tf.variable_scope("embeddings"):
     embed1 = tf.get_variable("pred", [ opts.nb_embeddings, dataset.n_classes], trainable=False)
 
@@ -67,25 +76,28 @@ with tf.Session(config=config) as sess:
     net = models.VGG(data_size, dataset.n_classes)
 
     ### Define optimizer and cost function
-    adam = tflearn.Adam(learning_rate=opts.learning_rate, beta1=0.99)
+    cost = tflearn.regression( net.out,
+        optimizer='adam',
+        learning_rate=opts.learning_rate,
+        loss='softmax_categorical_crossentropy')
 
-    ### Initialize the session and trainer
-    trainer = tflearn.DNN(tflearn.regression(net.out, optimizer=adam),
+    ### Initialize the session
+    trainer = tflearn.DNN(cost,
         session=sess,
         tensorboard_dir= opts.out + "/",
         tensorboard_verbose=0)
 
+    # Build the graph
     sess.run(tf.global_variables_initializer())
-
 
     ### Load a previous session
     if opts.load:
-        #try:
+        try:
             print('Loading: ' + opts.load + "/" + net.name)
             trainer.load(opts.load + "/" + net.name, create_new_session=False)
-        #except:
-        #    print('Unable to load network: ' + opts.load)
-        #    quit()
+        except:
+            print('Unable to load network: ' + opts.load)
+            quit()
 
     ### Run the training process
     step = 1
@@ -93,10 +105,12 @@ with tf.Session(config=config) as sess:
         batch_x, batch_y            = dataset.next_batch_train(batch_size = opts.batch_size)
         batch_test_x, batch_test_y  = dataset.next_batch_test(batch_size = opts.batch_size)
 
+        tflearn.is_training(True, session=sess)
         trainer.fit(batch_x, batch_y, n_epoch=1, validation_set=(batch_test_x, batch_test_y),
               show_metric=True, run_id=net.name)
 
         if opts.nb_embeddings > 0:
+            tflearn.is_training(False, session=sess)
             print("* Generation of #" +str(opts.nb_embeddings)+ " embeddings for " + embed1.name)
             vizu.feed_embeddings(embed1, dataset_t, net.out, net.input,
                         nb_embeddings=opts.nb_embeddings,
