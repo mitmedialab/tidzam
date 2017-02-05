@@ -37,4 +37,4 @@ class VGG:
 
         self.fc2 = tflearn.fully_connected(self.drop1, 2048, activation='relu', name="fc2")
         self.drop2 = tflearn.layers.core.dropout (self.fc2, 0.5, name='Dropout2')
-        self.out = tflearn.fully_connected(self.drop2, n_classes, activation='softmax', name="out")
+        self.out = tflearn.fully_connected(self.drop2, n_classes, activation='linear', name="out")
