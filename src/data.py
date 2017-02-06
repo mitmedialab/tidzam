@@ -13,11 +13,15 @@ def play_spectrogram_from_stream(file, show=False, callable_objects = []):
     with sf.SoundFile(file, 'r') as f:
         while f.tell() < len(f):
             data = f.read(24000)
+            print(len(data))
             for i in range(0,f.channels):
                 plt.ion()
-                fs, t, Sxx = signal.spectrogram(data[:,i], f.samplerate,
-                        nfft=1024, noverlap=128)
-
+                if f.channels > 1:
+                    fs, t, Sxx = signal.spectrogram(data[:,i], f.samplerate,
+                            nfft=1024, noverlap=128)
+                else:
+                    fs, t, Sxx = signal.spectrogram(data, f.samplerate,
+                            nfft=1024, noverlap=128)
                 # editor between 1-8 Khz
                 Sxx = Sxx[[x for x in range(20,170)], :]*1000
                 # Normalize and cutoff
@@ -86,24 +90,38 @@ class Dataset:
             classe = f.split('+')[1]
             classe = classe.split('(')[0]
             print(classe)
-            # Check if the classe is known, else create it
-            try:
-                pos = labels_dic.index(classe)+1
-                labels.append(pos)
-            except ValueError:
-                labels_dic.append(classe)
-                labels.append(len(labels_dic))
+
             # Add the raw to dataset
             try:
                 data = np.concatenate((data, raw), axis=0)
             except ValueError:
                 data = raw
 
+            # Check if the classe is known, else create it
+            n_classes = len(labels_dic)
+            try:
+                pos = labels_dic.index(classe)
+                b = np.zeros((1, n_classes))
+                b[pos] = 1
+            except ValueError:
+                labels_dic.append(classe)
+
+                # Shift classe positions for alignment and merge labels
+                b = np.zeros((data.shape[0], n_classes + 1))
+                b[:,:-n_classes] = self.labels
+                self.labels = b
+                b = np.zeros((1, n_classes +1))
+                b[n_classes] = 1
+
+            try:
+                labels = np.concatenate((labels, b), axis=0)
+            except ValueError:
+                labels = b
+
+        self.data = data
+        self.labels = labels
+        self.labels_dic = labels_dic
         # Label reconstruction as vector
-        l = np.zeros((len(labels), np.max(labels)))
-        for i in range(0,len(labels)):
-            l[i,labels[i]-1] = 1
-        labels = l
 
         print("Randomization")
         self.randomize()
@@ -137,25 +155,49 @@ class Dataset:
         self.data = self.data[idx,:]
         self.labels = self.labels[idx,:]
 
-    def merge(self,dataset):
-        self.data = np.append(self.data, dataset.data, axis=0)
+    def merge(self,dataset, asOneClasse=False):
 
-        # Shift classe positions for alignment and merge labels
-        n_classes = self.labels.shape[1] + dataset.labels.shape[1]
-        print(n_classes)
-        b = np.zeros((self.labels.shape[0], n_classes))
-        b[:,:-dataset.labels.shape[1]] = self.labels
-        self.labels = b
+        if asOneClasse is not False:
+            nb_max = np.max(self.get_sample_count_by_classe())
+            if nb_max > 0:
+                nb_max = int(np.min([nb_max, dataset.data.shape[0]], axis=0))
+            else:
+                nb_max = dataset.data.shape[0]
+            print(nb_max)
+            dataset.randomize()
+            dataset.data = dataset.data[1:nb_max,:]
+            dataset.labels = np.ones((dataset.data.shape[0], 1))
+            dataset.labels_dic = []
+            dataset.labels_dic.append(asOneClasse)
 
-        b = np.zeros((dataset.labels.shape[0], n_classes))
-        b[:, [x for x in range(n_classes - dataset.labels.shape[1], n_classes)]] = dataset.labels
-        dataset.labels = b
+        try:
+            self.data = np.append(self.data, dataset.data, axis=0)
+            # Shift classe positions for alignment and merge labels
+            n_classes = self.labels.shape[1] + dataset.labels.shape[1]
+            b = np.zeros((self.labels.shape[0], n_classes))
+            b[:,:-dataset.labels.shape[1]] = self.labels
+            self.labels = b
 
-        ### Merge labels and dictionary
-        self.labels = np.append(self.labels, dataset.labels, axis=0)
-        self.labels_dic = np.append(self.labels_dic, dataset.labels_dic)
+            b = np.zeros((dataset.labels.shape[0], n_classes))
+            b[:, [x for x in range(n_classes - dataset.labels.shape[1], n_classes)]] = dataset.labels
+            dataset.labels = b
 
-        print(self.labels)
+            ### Merge labels and dictionary
+            self.labels = np.append(self.labels, dataset.labels, axis=0)
+            self.labels_dic = np.append(self.labels_dic, dataset.labels_dic)
+
+        # There is no data, first add
+        except:
+            self.data = dataset.data
+            self.labels = dataset.labels
+            self.labels_dic = dataset.labels_dic
+
+        print("Randomization")
+        for i in range(0,10):
+            self.randomize()
+
+    def get_sample_count_by_classe(self):
+        return np.sum(self.labels, axis=0)
 
     ########################################
     # Dataset Preparation for training
@@ -183,7 +225,7 @@ class Dataset:
                 self.cur_batch_train,
                 batch_x.shape[0],
                 batch_x.shape[1],
-                self.cur_batch_train/self.data_train.shape[0] ))
+                self.cur_batch_train*batch_size/self.data_train.shape[0] ))
         self.cur_batch_train += 1
         return batch_x, batch_y
 
@@ -201,16 +243,11 @@ class Dataset:
                 [x for x in range(a,self.data_test.shape[0]) + range(0,b)], :]
             batch_y = self.label_test[
                 [x for x in range(a,self.label_test.shape[0]) + range(0,b)], :]
-        print("#({3}) Batch (train) #{0}: {1} samples of {2} features".format(
-                self.cur_batch_train,
-                batch_x.shape[0],
-                batch_x.shape[1],
-                self.cur_batch_train/self.data_train.shape[0] ))
         print("#({3}) Batch (test) #{0}: {1} samples of {2} features".format(
                 self.cur_batch_test,
                 batch_x.shape[0],
                 batch_x.shape[1],
-                self.cur_batch_test/self.data_test.shape[0] ))
+                self.cur_batch_test*batch_size/self.data_test.shape[0] ))
         self.cur_batch_test += 1
         return batch_x, batch_y
 
@@ -238,7 +275,7 @@ class Editor:
             print("Actions:\n---------------")
             print("* (enter): next sample\n* (n): create a new classe\n* (m) merge with another dataset")
             print("* (s): save the dataset \n* (i): dataset info\n* (p) print the labels\n"+ \
-                "*(r) randomize the dataset\n* (q): quit\n")
+                "* (r) randomize the dataset\n* (q): quit\n")
             a = raw_input()
 
             if a == 's':
@@ -263,7 +300,14 @@ class Editor:
                 print("Merge with dataset:")
                 name = raw_input()
                 dataset = Dataset(name)
-                self.dataset.merge(dataset)
+                print("As a single classe ? (y/N)")
+                a = raw_input()
+                if a == 'y':
+                    print("Mother classe name to create:")
+                    classe = raw_input()
+                    self.dataset.merge(dataset, asOneClasse=classe)
+                else:
+                    self.dataset.merge(dataset)
 
             elif a == 'p':
                 print("Print labels:")
@@ -279,6 +323,8 @@ class Editor:
                     print(str(self.dataset.data.shape[0]) +" samples of " + str(self.dataset.data.shape[1]) + " features in " +
                     str(self.dataset.labels.shape[1]) + " classes.")
                     print(self.dataset.labels_dic)
+                    print("Samples distribution:")
+                    print(self.dataset.get_sample_count_by_classe())
                 except:
                     print('No data.')
             elif a == 'q':
