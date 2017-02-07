@@ -4,6 +4,7 @@ import sys, optparse
 import numpy as np
 from matplotlib import pyplot as plt
 import glob
+import time
 
 from scipy import signal
 import soundfile as sf
@@ -13,7 +14,6 @@ def play_spectrogram_from_stream(file, show=False, callable_objects = []):
     with sf.SoundFile(file, 'r') as f:
         while f.tell() < len(f):
             data = f.read(24000)
-            print(len(data))
             for i in range(0,f.channels):
                 plt.ion()
                 if f.channels > 1:
@@ -34,10 +34,23 @@ def play_spectrogram_from_stream(file, show=False, callable_objects = []):
                     plt.ylabel('Frequency [Hz]')
                     plt.xlabel('Time [sec]')
                     plt.show()
-                    plt.pause(0.5/f.channels)
+                    plt.pause(0.1)
+                    sd.play(data[:,i], f.samplerate)
+                    time.sleep(0.5)
 
-                for obj in callable_objects:
-                    obj.run(Sxx, fs, t, [data[:,i], f.samplerate])
+                Sxx = np.reshape(Sxx, [1, Sxx.shape[0]*Sxx.shape[1]] )
+
+                if i == 0:
+                    Sxxs = Sxx
+                    fss = fs
+                    ts = t
+                else:
+                    Sxxs = np.concatenate((Sxxs, Sxx), axis=0)
+                    fss = np.concatenate((fss, fs), axis=0)
+                    ts = np.concatenate((ts, t), axis=0)
+
+            for obj in callable_objects:
+                obj.run(Sxxs, fss, ts, [data, f.samplerate])
 
         return Sxx, t, fs
 

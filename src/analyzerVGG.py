@@ -2,12 +2,15 @@ import numpy as np
 import math
 import sys, optparse
 
+import soundfile as sf
 import tensorflow as tf
 import tflearn
 
 import vizualisation as vizu
 import models.vgg as models
 import data as tiddata
+
+import sounddevice as sd
 
 config = tflearn.config.init_graph (
     num_cores=3,
@@ -21,6 +24,7 @@ class AnalyzerVGG:
         self.dataw = 150
         self.datah = 186
         self.checkpoint_dir = checkpoint_dir
+        self.count_run = -1
 
         # Open an session
         if session is False:
@@ -31,15 +35,14 @@ class AnalyzerVGG:
 
     # Load the network
     def load(self):
-        #Create input places
-        self.vgg = models.VGG([self.dataw, self.datah], len(self.label_dic))
 
+        self.vgg = models.VGG([self.dataw, self.datah], len(self.label_dic))
         self.model = tflearn.DNN(self.vgg.out,
             session=self.session,
             tensorboard_dir= self.checkpoint_dir + "/",
             tensorboard_verbose=0)
-
         self.session.run(tf.global_variables_initializer())
+
         try:
             print('Loading : ' + self.checkpoint_dir + "/" + self.vgg.name)
             self.model.load(self.checkpoint_dir + "/" + self.vgg.name, create_new_session=False)
@@ -48,11 +51,26 @@ class AnalyzerVGG:
             quit()
 
     # Function called by the streamer to predic its current sample
-    def run(self, Sxx, fs, t, sound_obj):
-        Sxx = np.reshape(Sxx, [1, Sxx.shape[0]*Sxx.shape[1]] )
-        res = self.model.predict(Sxx)
-        a = np.argmax(res)
-        print(self.label_dic[a])
+    def run(self, Sxxs, fs, t, sound_obj, wav_folder="wav/"):
+        self.count_run = self.count_run + 1
+        time = str(int(self.count_run * 0.5) / 3600) + ":" + \
+                str( int(self.count_run * 0.5 % 3600)/60) + ":" + \
+                str( int(self.count_run * 0.5 % 3600 % 60)) + ":" + \
+                str( int( ((self.count_run * 0.5 % 3600 % 60) * 1000) % 1000) ) + "ms"
+        print("----------------------------------- " + time)
+
+        res = self.model.predict(Sxxs)
+        for channel in range(0, Sxxs.shape[0]):
+            a = np.abs(np.max(res[channel]) / np.mean(res[channel]))
+            if a < 5:
+                classe = 'unknow'
+            else:
+                classe = str(self.label_dic[ np.argmax(res[channel]) ])
+            print( "channel " + str(channel) + ' | ' + classe + ' (' + str(a) + ')')
+
+            # Save the file on the disk
+            sf.write (wav_folder + '/+' + classe + '(' + str(channel) + ')_' + time +'.wav',
+                sound_obj[0][:,channel], sound_obj[1])
 
 if __name__ == "__main__":
     parser = optparse.OptionParser()
