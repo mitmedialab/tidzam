@@ -22,13 +22,13 @@ class VGG:
 
         net = tf.reshape(self.input, shape=[-1, data_size[0], data_size[1], 1])
         # Conv 1 - 2
-        self.conv1 = tflearn.conv_2d(net, 64, 5, activation='relu', regularizer='L2', name="conv1")
-        self.conv2 = tflearn.conv_2d(self.conv1, 64, 5, activation='relu', regularizer='L2', name="conv2")
+        self.conv1 = tflearn.conv_2d(net, 128, 5, activation='relu', regularizer='L2', name="conv1")
+        self.conv2 = tflearn.conv_2d(self.conv1, 128, 5, activation='relu', regularizer='L2', name="conv2")
         # Pooling 1
         self.pool1 = tflearn.layers.conv.max_pool_2d (self.conv2, 2, strides=2, padding='same', name='pool1')
         # Conv 3 - 4
-        self.conv3 = tflearn.conv_2d(self.pool1, 64, 5, activation='relu', regularizer='L2', name="conv3")
-        self.conv4 = tflearn.conv_2d(self.conv3, 64, 5, activation='relu', regularizer='L2', name="conv4")
+        self.conv3 = tflearn.conv_2d(self.pool1, 128, 5, activation='relu', regularizer='L2', name="conv3")
+        self.conv4 = tflearn.conv_2d(self.conv3, 128, 5, activation='relu', regularizer='L2', name="conv4")
         # Pooling 2
         self.pool2 = tflearn.layers.conv.max_pool_2d (self.conv4, 2, strides=2, padding='same', name='pool2')
         # Fully Connected
