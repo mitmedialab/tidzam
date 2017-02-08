@@ -9,6 +9,7 @@ import tflearn
 import vizualisation as vizu
 import models.vgg as models
 import data as tiddata
+from models import *
 
 import sounddevice as sd
 
@@ -35,8 +36,12 @@ class AnalyzerVGG:
 
     # Load the network
     def load(self):
+        model = self.checkpoint_dir.split('/')
+        print(model)
+        model = model[len(model) - 1 ]
+        print(model)
+        self.vgg = net = eval( model + ".DNN([self.dataw, self.datah], len(self.label_dic))")
 
-        self.vgg = models.VGG([self.dataw, self.datah], len(self.label_dic))
         self.model = tflearn.DNN(self.vgg.out,
             session=self.session,
             tensorboard_dir= self.checkpoint_dir + "/",
@@ -62,7 +67,7 @@ class AnalyzerVGG:
         res = self.model.predict(Sxxs)
         for channel in range(0, Sxxs.shape[0]):
             a = np.abs(np.max(res[channel]) / np.mean(res[channel]))
-            if a < 5:
+            if a < 2:
                 classe = 'unknow'
             else:
                 classe = str(self.label_dic[ np.argmax(res[channel]) ])

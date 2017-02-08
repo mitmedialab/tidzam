@@ -9,7 +9,7 @@ import tensorflow as tf
 import tflearn
 
 import vizualisation as vizu
-import models.vgg as models
+from models import *
 
 import data as tiddata
 
@@ -49,6 +49,16 @@ parser.add_option("--learning-rate",
     action="store", type="float", dest="learning_rate", default=0.001,
     help='Learning rate (default: 0.001).')
 
+parser.add_option("--dnn",
+    action="store", type="string", dest="dnn", default="default",
+    help='DNN model to train (Default: ).')
+
+parser.add_option("--embeddings-step",
+    action="store", type="int", dest="EMBEDDINGS_STEP", default="1",
+    help='Step period to compute embeddings and feature maps (Default: 1).')
+
+
+
 (opts, args) = parser.parse_args()
 
 
@@ -70,10 +80,18 @@ dataset_t   = tiddata.Dataset(opts.dataset, data_size=(dataset.dataw,dataset.dat
 with tf.variable_scope("embeddings"):
     embed1 = tf.get_variable("pred", [ opts.nb_embeddings, dataset.n_classes], trainable=False)
 
+
+
 with tf.Session(config=config) as sess:
 
     ### Load the network model
-    net = models.VGG(data_size, dataset.n_classes)
+    net = eval( opts.dnn + ".DNN(data_size, dataset.n_classes)")
+
+    ## Build summaries
+    writer = tf.train.SummaryWriter(opts.out + "/" + net.name)
+    img1 = vizu.getFilter(net.conv1.W)
+    tf.summary.image("Visualize_kernels", img1)
+    merged = tf.merge_all_summaries()
 
     ### Define optimizer and cost function
     cost = tflearn.regression( net.out,
@@ -81,11 +99,11 @@ with tf.Session(config=config) as sess:
         learning_rate=opts.learning_rate,
         loss='softmax_categorical_crossentropy')
 
-    ### Initialize the session
+    ### Init the trainer
     trainer = tflearn.DNN(cost,
         session=sess,
         tensorboard_dir= opts.out + "/",
-        tensorboard_verbose=0)
+        tensorboard_verbose=3)
 
     # Build the graph
     sess.run(tf.global_variables_initializer())
@@ -97,16 +115,21 @@ with tf.Session(config=config) as sess:
             trainer.load(opts.load + "/" + net.name, create_new_session=False)
         except:
             print('Unable to load network: ' + opts.load)
-    #        quit()
+            quit()
 
     ### Run the training process
     step = 1
     while step < opts.training_iters:
-        batch_x, batch_y            = dataset.next_batch_train(batch_size = opts.batch_size)
-        batch_test_x, batch_test_y  = dataset.next_batch_test(batch_size = opts.batch_size)
+        batch_x, batch_y            = dataset.next_batch_train(batch_size=opts.batch_size)
+        batch_test_x, batch_test_y  = dataset.next_batch_test(batch_size=opts.batch_size)
 
-        if opts.nb_embeddings > 0 and step > 1:
+        if opts.nb_embeddings > 0 and step % opts.EMBEDDINGS_STEP == 0 and step > 1:
             tflearn.is_training(False, session=sess)
+
+            print("* Kernel feature map rendering")
+            merged_res  = sess.run([merged], feed_dict={ net.input: batch_x} )
+            writer.add_summary(merged_res[0], step)
+
             print("* Generation of #" +str(opts.nb_embeddings)+ " embeddings for " + embed1.name)
             vizu.feed_embeddings(embed1, dataset_t, net.out, net.input,
                         nb_embeddings=opts.nb_embeddings,

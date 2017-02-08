@@ -1,9 +1,9 @@
 import tensorflow as tf
 import tflearn
 
-class VGG:
+class DNN:
     def __init__(self,data_size, n_classes):
-        self.name = "VGG"
+        self.name = "DNN"
         self.img_prep = tflearn.ImagePreprocessing()
         # Zero Center (With mean computed over the whole dataset)
         self.img_prep.add_featurewise_zero_center()
