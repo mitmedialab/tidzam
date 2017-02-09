@@ -87,14 +87,20 @@ with tf.Session(config=config) as sess:
 
     ## Build summaries
     try:
-        writer = tf.train.SummaryWriter(opts.out + "/" + net.name)
-        merged = None
-        for conv in net.show_kernel_map:
-            img = vizu.print_kernel_filters(conv)
-            tf.summary.image("Visualize_kernels of " + str(conv.name), img)
-            merged = tf.merge_all_summaries()
+    writer = tf.train.SummaryWriter(opts.out + "/" + net.name)
+    merged = None
+    for conv in net.show_kernel_map:
+        img = vizu.print_kernel_filters(conv)
+        tf.summary.image("Visualize_kernels of " + str(conv.name), img)
+
+    #with tf.name_scope('Build_audio_from_filters') as scope:
+    #    W_c = tf.split(3, 32, net.conv1)
+    #    tf.summary.audio("Visualize_audio", W_c[0][0], 48100)
+
+    merged = tf.merge_all_summaries()
     except:
         print("No kernel map generated.")
+
 
     ### Define optimizer and cost function
     cost = tflearn.regression( net.out,
