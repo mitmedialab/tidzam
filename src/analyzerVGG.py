@@ -37,9 +37,7 @@ class AnalyzerVGG:
     # Load the network
     def load(self):
         model = self.checkpoint_dir.split('/')
-        print(model)
         model = model[len(model) - 1 ]
-        print(model)
         self.vgg = net = eval( model + ".DNN([self.dataw, self.datah], len(self.label_dic))")
 
         self.model = tflearn.DNN(self.vgg.out,
@@ -49,7 +47,7 @@ class AnalyzerVGG:
         self.session.run(tf.global_variables_initializer())
 
         try:
-            print('Loading : ' + self.checkpoint_dir + "/" + self.vgg.name)
+            print('Loading : ' + self.checkpoint_dir + "." + self.vgg.name)
             self.model.load(self.checkpoint_dir + "/" + self.vgg.name, create_new_session=False)
         except:
             print('Unable to load model: ' + self.checkpoint_dir)
@@ -83,12 +81,13 @@ if __name__ == "__main__":
     parser.add_option("-p", "--play", action="store", type="string", dest="play")
     parser.add_option("-d", "--dic", action="store", type="string", dest="dic")
     parser.add_option("-n", "--nn", action="store", type="string", dest="nn")
+    parser.add_option("--show", action="store_true", dest="show", default=False)
     (options, args) = parser.parse_args()
 
     if options.play and options.dic and options.nn:
         label_dic = np.load(options.dic + "_labels_dic.npy")
         player = AnalyzerVGG(options.nn, label_dic)
         tiddata.play_spectrogram_from_stream(options.play,
-                show=True, callable_objects = [player])
+                show=options.show, callable_objects = [player])
     else:
         print('Wrong options : ')

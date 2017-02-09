@@ -279,9 +279,11 @@ class Editor:
             self.dataset = Dataset()
             self.init = False
 
-    def run(self, Sxx, fs, t, sound_obj):
+    def run(self, Sxx=None, fs=None, t=None, sound_obj=None):
         while True:
-            sd.play(sound_obj[0], 48000)
+            if sound_obj is not None:
+                sd.play(sound_obj[0], 48000)
+
             print("\n===============\n Classe available\n---------------")
             for i in range(0, len(self.dataset.labels_dic)):
                 print(str(i) + " : " + str(self.dataset.labels_dic[i]) )
@@ -344,7 +346,7 @@ class Editor:
                 quit()
             elif a == '':
                 break;
-            else:
+            elif Sxx is not None:
                 try:
                     if int(a) < len(self.dataset.labels_dic):
                         if self.init is False:
@@ -384,7 +386,8 @@ if __name__ == "__main__":
     parser.add_option("-s", "--show", action="store", type="string", dest="classe_id",
         default=False, help="Show spectrograms for a specific class_id")
 
-    parser.add_option("--input", action="store", type="string", dest="input", default="")
+    parser.add_option("--input", action="store", type="string", dest="input",
+        default=None, help="Editor mode.")
     parser.add_option("--editor", action="store_true")
     (options, args) = parser.parse_args()
 
@@ -399,14 +402,13 @@ if __name__ == "__main__":
 
 
     if options.editor:
-        if options.input == "":
-            print('Please define an audio stream to open')
-            quit()
-
         obj_editor = Editor(options.open)
-        play_spectrogram_from_stream(options.input,
-                    show=True,
-                    callable_objects = [obj_editor])
+        if options.input is not None:
+            play_spectrogram_from_stream(options.input,
+                        show=True,
+                        callable_objects = [obj_editor])
+        else:
+            obj_editor.run()
 
     # Open a dataset and plot all example of a classe
     elif options.open:
