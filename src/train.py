@@ -28,7 +28,6 @@ parser.add_option("-o", "--out",
     default="/tmp/tflearn_logs",
     help='Define output folder to store the neural network and checkpoints.')
 
-
 parser.add_option("--load",
     action="store", type="string", dest="load",
     help='Restore a previous training session.')
@@ -57,11 +56,11 @@ parser.add_option("--embeddings-step",
     action="store", type="int", dest="EMBEDDINGS_STEP", default="1",
     help='Step period to compute embeddings and feature maps (Default: 1).')
 
-
-
 (opts, args) = parser.parse_args()
 
-
+###################################
+# System configuration
+###################################
 config = tflearn.config.init_graph (
     num_cores=3,
     gpu_memory_fraction=0.75,
@@ -80,18 +79,22 @@ dataset_t   = tiddata.Dataset(opts.dataset, data_size=(dataset.dataw,dataset.dat
 with tf.variable_scope("embeddings"):
     embed1 = tf.get_variable("pred", [ opts.nb_embeddings, dataset.n_classes], trainable=False)
 
-
-
 with tf.Session(config=config) as sess:
 
     ### Load the network model
-    net = eval( opts.dnn + ".DNN(data_size, dataset.n_classes)")
+    print("* Loading Neural Network:  models/" + opts.dnn + ".py")
+    net = eval(opts.dnn + ".DNN(data_size, dataset.n_classes)")
 
     ## Build summaries
-    writer = tf.train.SummaryWriter(opts.out + "/" + net.name)
-    img1 = vizu.getFilter(net.conv1.W)
-    tf.summary.image("Visualize_kernels", img1)
-    merged = tf.merge_all_summaries()
+    try:
+        writer = tf.train.SummaryWriter(opts.out + "/" + net.name)
+        merged = None
+        for conv in net.show_kernel_map:
+            img = vizu.print_kernel_filters(conv)
+            tf.summary.image("Visualize_kernels of " + str(conv.name), img)
+            merged = tf.merge_all_summaries()
+    except:
+        print("No kernel map generated.")
 
     ### Define optimizer and cost function
     cost = tflearn.regression( net.out,
@@ -126,9 +129,10 @@ with tf.Session(config=config) as sess:
         if opts.nb_embeddings > 0 and step % opts.EMBEDDINGS_STEP == 0 and step > 1:
             tflearn.is_training(False, session=sess)
 
-            print("* Kernel feature map rendering")
-            merged_res  = sess.run([merged], feed_dict={ net.input: batch_x} )
-            writer.add_summary(merged_res[0], step)
+            if merged is not None:
+                print("* Kernel feature map rendering")
+                merged_res  = sess.run([merged], feed_dict={ net.input: batch_x} )
+                writer.add_summary(merged_res[0], step)
 
             print("* Generation of #" +str(opts.nb_embeddings)+ " embeddings for " + embed1.name)
             vizu.feed_embeddings(embed1, dataset_t, net.out, net.input,
