@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import sys, optparse
 import numpy as np
+import shutil
 import math
 
 from tensorflow.contrib.tensorboard.plugins import projector
@@ -17,7 +18,7 @@ import data as tiddata
 ### System configurations
 ###################################
 
-usage="train.py --dataset=dataset_150x186 --out=save/ [OPTIONS]"
+usage="train.py --dataset=dataset_150x186 --out=build/ -dnn=test [OPTIONS]"
 parser = optparse.OptionParser(usage=usage)
 parser.add_option("-d", "--dataset",
     action="store", type="string", dest="dataset",
@@ -25,12 +26,8 @@ parser.add_option("-d", "--dataset",
 
 parser.add_option("-o", "--out",
     action="store", type="string", dest="out",
-    default="/tmp/tflearn_logs",
+    default="build/",
     help='Define output folder to store the neural network and checkpoints.')
-
-parser.add_option("--load",
-    action="store", type="string", dest="load",
-    help='Restore a previous training session.')
 
 parser.add_option("--training-iterations",
     action="store", type="int", dest="training_iters",default=400,
@@ -70,7 +67,7 @@ config = tflearn.config.init_graph (
 # Load the data
 ###################################
 data_size=[150,186]
-dataset     = tiddata.Dataset(opts.dataset, p=0.8, data_size=data_size)
+dataset     = tiddata.Dataset(opts.dataset, p=0.7, data_size=data_size)
 dataset_t   = tiddata.Dataset(opts.dataset, data_size=(dataset.dataw,dataset.datah))
 
 ###################################
@@ -82,22 +79,27 @@ with tf.variable_scope("embeddings"):
 with tf.Session(config=config) as sess:
 
     ### Load the network model
-    print("* Loading Neural Network:  models/" + opts.dnn + ".py")
+    print("Loading Neural Network:  models/" + opts.dnn + ".py")
     net = eval(opts.dnn + ".DNN(data_size, dataset.n_classes)")
 
     ## Build summaries
     try:
-    writer = tf.train.SummaryWriter(opts.out + "/" + net.name)
-    merged = None
-    for conv in net.show_kernel_map:
-        img = vizu.print_kernel_filters(conv)
-        tf.summary.image("Visualize_kernels of " + str(conv.name), img)
+        merged = None
+        writer = tf.train.SummaryWriter(opts.out + "/" + net.name)
 
-    #with tf.name_scope('Build_audio_from_filters') as scope:
-    #    W_c = tf.split(3, 32, net.conv1)
-    #    tf.summary.audio("Visualize_audio", W_c[0][0], 48100)
+        for conv in net.show_kernel_map:
+            img = vizu.print_kernel_filters(conv)
+            nb_kernel = conv.get_shape()[3].__int__()
+            tf.summary.image("Visualize_kernels of " + str(conv.name), img,
+                max_outputs=nb_kernel)
 
-    merged = tf.merge_all_summaries()
+        with tf.name_scope('Build_audio_from_filters') as scope:
+            nb_kernel = net.conv1.get_shape()[3].__int__()
+            W_c = tf.split(3, nb_kernel, net.conv1)
+            tf.summary.audio("Visualize_audio", W_c[0][0], 48100,
+                max_outputs=6)
+
+        merged = tf.merge_all_summaries()
     except:
         print("No kernel map generated.")
 
@@ -108,33 +110,44 @@ with tf.Session(config=config) as sess:
         learning_rate=opts.learning_rate,
         loss='softmax_categorical_crossentropy')
 
+
     ### Init the trainer
     trainer = tflearn.DNN(cost,
         session=sess,
         tensorboard_dir= opts.out + "/",
         tensorboard_verbose=3)
 
+
     # Build the graph
     sess.run(tf.global_variables_initializer())
 
+
     ### Load a previous session
-    if opts.load:
-        try:
-            print('Loading: ' + opts.load + "/" + net.name)
-            trainer.load(opts.load + "/" + net.name, create_new_session=False)
-        except:
-            print('Unable to load network: ' + opts.load)
+    #if opts.load:
+    try:
+        print('Loading: ' + opts.out + "/" + net.name)
+        trainer.load(opts.out + "/" + net.name, create_new_session=False)
+    except:
+        print("The destination folder contains a previous session.\nDo you want to erase it ? [y/N]")
+        a = raw_input()
+        if a == 'y':
+            shutil.rmtree(opts.out)
+        else:
+            print('Unable to load network: ' + opts.out)
             quit()
+
+
 
     ### Run the training process
     step = 1
     while step < opts.training_iters:
+        print("Load batchs")
         batch_x, batch_y            = dataset.next_batch_train(batch_size=opts.batch_size)
         batch_test_x, batch_test_y  = dataset.next_batch_test(batch_size=opts.batch_size)
 
         if opts.nb_embeddings > 0 and step % opts.EMBEDDINGS_STEP == 0 and step > 1:
             tflearn.is_training(False, session=sess)
-
+            print("--\nSummaries and Embeddings")
             if merged is not None:
                 print("* Kernel feature map rendering")
                 merged_res  = sess.run([merged], feed_dict={ net.input: batch_x} )
@@ -149,6 +162,11 @@ with tf.Session(config=config) as sess:
         trainer.fit(batch_x, batch_y, n_epoch=1, validation_set=(batch_test_x, batch_test_y),
               show_metric=True, run_id=net.name)
 
-        print("Saving in " + opts.out + "/" + net.name)
+        print("Saving in " + opts.out + "/" + net.name + "\n--")
         trainer.save(opts.out + "/" + net.name)
+
+        if step == 1:
+            # Save the label dictionnary in out file
+            np.save(opts.out + "/labels.dic", dataset.labels_dic)
+
         step = step + 1

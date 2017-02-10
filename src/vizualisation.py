@@ -25,8 +25,8 @@ def feed_embeddings(embedding_var, dataset_t, Pout, Pin,
     with open(checkpoint_dir+'/metadata-'+embedding_var.name.replace('/','-')+'.tsv', "w"):
         pass
     # Feed the network and stoire results
-    dataset_t.split_dataset(p=1.0)
-    bx, by = dataset_t.next_batch_train(batch_size=nb_embeddings)
+    dataset_t.split_dataset(p=0)
+    bx, by = dataset_t.next_batch_test(batch_size=nb_embeddings)
     res = sess.run(Pout,feed_dict={Pin: bx} )
     embedding_var.assign(res)
     build_metadatafile(by, out_file=checkpoint_dir+'/metadata-'+embedding_var.name.replace('/','-')+'.tsv')
@@ -38,21 +38,21 @@ def feed_embeddings(embedding_var, dataset_t, Pout, Pin,
     embedding.metadata_path = checkpoint_dir+'/metadata-'+embedding_var.name.replace('/','-')+'.tsv'
     projector.visualize_embeddings(embeddings_writer, config_projector)
 
-def print_kernel_filters(conv_layer): # [5, 5, 1, 32]
+def print_kernel_filters(conv_layer):
     with tf.name_scope('Visualize_filters') as scope:
-        print('* Visualize_filters ' + conv_layer.name)
-        W_kernels = conv_layer.W
-        kernel_size = W_kernels.get_shape()[0].__int__()
-        nb_kernel = W_kernels.get_shape()[3].__int__()
-        img_size = int(math.ceil(math.sqrt(nb_kernel)))
-        dim_features = W_kernels.get_shape()[2].__int__()
+        print('* Load filter kernel printer for ' + conv_layer.name)
+
+        kernel_size  = conv_layer.W.get_shape()[0].__int__()
+        nb_kernel    = conv_layer.W.get_shape()[3].__int__()
+        img_size     = int(math.ceil(math.sqrt(nb_kernel)))
+        dim_features = conv_layer.W.get_shape()[2].__int__()
 
         # Add padding to feed the image if need
         nb_pad = img_size * img_size - nb_kernel
         Wpad= tf.zeros([kernel_size, kernel_size, dim_features , 1])
         for i in range(0,nb_pad):
-            W_kernels = tf.concat(3, [W_kernels, Wpad])
-        W_c = tf.split(3, img_size**2, W_kernels)
+            conv_layer.W = tf.concat(3, [conv_layer.W, Wpad])
+        W_c = tf.split(3, img_size**2, conv_layer.W)
 
         # Build the image
         W_row = []
@@ -61,5 +61,4 @@ def print_kernel_filters(conv_layer): # [5, 5, 1, 32]
         W_d = tf.concat(1, W_row)
         W_e = tf.reshape(W_d, [dim_features, img_size * kernel_size, img_size * kernel_size, 1])
         Wtag = tf.placeholder(tf.string, None)
-
         return W_e

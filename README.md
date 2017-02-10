@@ -18,7 +18,7 @@ Build the dataset
 The dataset is composed of three files, the dataset_data file contains in line the spectrograms of each wav samples. The dataset_label file stores in line the corresponding classe numbers and the dataset_dic file defines the associations between classe number and their corresponding name extracted from their filename.
 
 ```
-Usage: python src/data.py --input=stream.wav
+Usage: python src/data.py --stream=stream.wav
 
 Options:
   -h, --help            show this help message and exit
@@ -28,8 +28,8 @@ Options:
   -o OUT, --out=OUT     Provide output dataset name for wav processing.
   -s CLASSE_ID, --show=CLASSE_ID
                         Show spectrograms for a specific class_id
-  --input=INPUT         
-  --editor  
+  --stream=STREAM       Sample extraction from an audio stream [WAV/OGG/MP3].
+  --editor              Interractive mode.
 ```
 Loading from WAV folder
 -----------------------
@@ -70,7 +70,7 @@ Need 6GB RAM memory on GPU
 export CUDA_VISIBLE_DEVICES=''
 ``
 ```
-Usage: train.py --dataset=dataset_150x186 --out=save/ [OPTIONS]
+Usage: train.py --dataset=dataset_150x186 --out=build/ -dnn=test [OPTIONS]
 
 Options:
   -h, --help            show this help message and exit
@@ -78,9 +78,8 @@ Options:
                         Define the dataset to train.
   -o OUT, --out=OUT     Define output folder to store the neural network and
                         checkpoints.
-  --load=LOAD           Restore a previous training session.
   --training-iterations=TRAINING_ITERS
-                        Number of training iterations (Default: 200
+                        Number of training iterations (Default: 400
                         batchsize).
   --batchsize=BATCH_SIZE
                         Size of the training batch (Default:64).
@@ -88,6 +87,10 @@ Options:
                         Number of embeddings to compute (default: 50)..
   --learning-rate=LEARNING_RATE
                         Learning rate (default: 0.001).
+  --dnn=DNN             DNN model to train (Default: ).
+  --embeddings-step=EMBEDDINGS_STEP
+                        Step period to compute embeddings and feature maps
+                        (Default: 1).
 ```
 
 Neural Network vizualisation
@@ -99,7 +102,15 @@ tensorboard --logdir=checkpoints
 
 Play the Neural Network
 =======================
-The following command plays the trained neural network --nn on the stream --play according to classe dictionary --dic. The operation is operated on windows of 500ms.
-``
-python src/analyzerVGG.py --play=stream.wav --dic=./dataset_150x186 --nn=save/VGG
-``
+The following command return the output predictions of the neural network on all channels of the audio stream withe time windows of 500ms.
+
+```
+Usage: analyzer.py --nn=build/test --stream=stream.wav [--show, -h]
+
+Options:
+  -h, --help            show this help message and exit
+  -s STREAM, --stream=STREAM
+                        Input audio stream to analyze.
+  -n NN, --nn=NN        Neural Network session to load.
+  --show                Play the audio samples and show their spectrogram.
+```

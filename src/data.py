@@ -69,6 +69,7 @@ class Dataset:
         self.labels_dic = []
 
         if file is not False:
+            self.name = file
             self.load(file)
             self.split_dataset(p=p)
 
@@ -375,7 +376,7 @@ class Editor:
                     pass
 
 if __name__ == "__main__":
-    parser = optparse.OptionParser(usage="python src/data.py --input=stream.wav")
+    parser = optparse.OptionParser(usage="python src/data.py --stream=stream.wav")
     parser.add_option("-w", "--wav", action="store", type="string", dest="wav")
     parser.add_option("-d", "--dataset", action="store", type="string", dest="open",
         default="", help="Open an exisiting dataset")
@@ -386,9 +387,9 @@ if __name__ == "__main__":
     parser.add_option("-s", "--show", action="store", type="string", dest="classe_id",
         default=False, help="Show spectrograms for a specific class_id")
 
-    parser.add_option("--input", action="store", type="string", dest="input",
-        default=None, help="Editor mode.")
-    parser.add_option("--editor", action="store_true")
+    parser.add_option("--stream", action="store", type="string", dest="stream",
+        default=None, help="Sample extraction from an audio stream [WAV/OGG/MP3].")
+    parser.add_option("--editor", action="store_true", help="Interractive mode.")
     (options, args) = parser.parse_args()
 
     # Build a dataset from a folder containing wav files
@@ -403,8 +404,8 @@ if __name__ == "__main__":
 
     if options.editor:
         obj_editor = Editor(options.open)
-        if options.input is not None:
-            play_spectrogram_from_stream(options.input,
+        if options.stream is not None:
+            play_spectrogram_from_stream(options.stream,
                         show=True,
                         callable_objects = [obj_editor])
         else:

@@ -14,12 +14,11 @@ from models import *
 import sounddevice as sd
 
 config = tflearn.config.init_graph (
-    num_cores=3,
+    num_cores=1,
     gpu_memory_fraction=0.75,
     soft_placement=False)
-dropout = 1
 
-class AnalyzerVGG:
+class Analyzer:
     def __init__(self, checkpoint_dir, label_dictionary,session=False):
         self.label_dic = label_dictionary
         self.dataw = 150
@@ -36,9 +35,11 @@ class AnalyzerVGG:
 
     # Load the network
     def load(self):
-        model = self.checkpoint_dir.split('/')
-        model = model[len(model) - 1 ]
-        self.vgg = net = eval( model + ".DNN([self.dataw, self.datah], len(self.label_dic))")
+        path = self.checkpoint_dir.split('/')
+        a = path[len(path) - 1 ]
+        if a == '':
+            a = path[len(path) - 2 ]
+        self.vgg = net = eval( a + ".DNN([self.dataw, self.datah], len(self.label_dic))")
 
         self.model = tflearn.DNN(self.vgg.out,
             session=self.session,
@@ -76,18 +77,25 @@ class AnalyzerVGG:
                 sound_obj[0][:,channel], sound_obj[1])
 
 if __name__ == "__main__":
-    parser = optparse.OptionParser()
-    parser.set_defaults(play=False,dic=False,nn="checkpoints/")
-    parser.add_option("-p", "--play", action="store", type="string", dest="play")
-    parser.add_option("-d", "--dic", action="store", type="string", dest="dic")
-    parser.add_option("-n", "--nn", action="store", type="string", dest="nn")
-    parser.add_option("--show", action="store_true", dest="show", default=False)
-    (options, args) = parser.parse_args()
+    usage = 'analyzer.py --nn=build/test --stream=stream.wav [--show, -h]'
+    parser = optparse.OptionParser(usage=usage)
+    parser.set_defaults(stream=False,dic=False,nn="build/default")
 
-    if options.play and options.dic and options.nn:
-        label_dic = np.load(options.dic + "_labels_dic.npy")
-        player = AnalyzerVGG(options.nn, label_dic)
-        tiddata.play_spectrogram_from_stream(options.play,
-                show=options.show, callable_objects = [player])
+    parser.add_option("-s", "--stream", action="store", type="string", dest="stream",
+        help="Input audio stream to analyze.")
+
+    parser.add_option("-n", "--nn", action="store", type="string", dest="nn",
+        help="Neural Network session to load.")
+
+    parser.add_option("--show", action="store_true", dest="show", default=False,
+        help="Play the audio samples and show their spectrogram.")
+
+    (opts, args) = parser.parse_args()
+
+    if opts.stream and opts.nn:
+        labels_dic = np.load(opts.nn + "/labels.dic.npy")
+        streamer = Analyzer(opts.nn, labels_dic)
+        tiddata.play_spectrogram_from_stream(opts.stream,
+                show=opts.show, callable_objects = [streamer])
     else:
-        print('Wrong options : ')
+        print(parser.usage)
