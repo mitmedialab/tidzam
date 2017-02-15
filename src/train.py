@@ -18,7 +18,7 @@ import data as tiddata
 ### System configurations
 ###################################
 
-usage="train.py --dataset=dataset_150x186 --out=build/ -dnn=test [OPTIONS]"
+usage="train.py --dataset=dataset_150x186 --out=save/ [OPTIONS]"
 parser = optparse.OptionParser(usage=usage)
 parser.add_option("-d", "--dataset",
     action="store", type="string", dest="dataset",
@@ -26,7 +26,7 @@ parser.add_option("-d", "--dataset",
 
 parser.add_option("-o", "--out",
     action="store", type="string", dest="out",
-    default="build/",
+    default="/tmp/tflearn_logs",
     help='Define output folder to store the neural network and checkpoints.')
 
 parser.add_option("--training-iterations",
@@ -85,7 +85,7 @@ with tf.Session(config=config) as sess:
     ## Build summaries
     try:
         merged = None
-        writer = tf.train.SummaryWriter(opts.out + "/" + net.name)
+        writer = tf.train.SummaryWriter(opts.out + "/" + net.name + "")
 
         for conv in net.show_kernel_map:
             img = vizu.print_kernel_filters(conv)
