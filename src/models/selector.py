@@ -4,6 +4,8 @@ import tflearn
 class DNN:
     def __init__(self,data_size, n_classes):
         self.name = "selector"
+        self.show_kernel_map = []
+
         self.img_prep = tflearn.ImagePreprocessing()
         # Zero Center (With mean computed over the whole dataset)
         self.img_prep.add_featurewise_zero_center()
@@ -22,7 +24,9 @@ class DNN:
 
         net = tf.reshape(self.input, shape=[-1, data_size[0], data_size[1], 1])
         # Conv 1 - 2
-        self.conv1 = tflearn.conv_2d(net, 32, 5, activation='relu', regularizer='L2', name="conv1")
+        self.conv1 = tflearn.conv_2d(net, 64, 5, activation='relu', regularizer='L2', name="conv1")
+        self.show_kernel_map.append(self.conv1)
+
         # Pooling 1
         self.pool1 = tflearn.layers.conv.max_pool_2d (self.conv1, 2, strides=2, padding='same', name='pool1')
         # Conv 3 - 4

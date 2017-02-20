@@ -108,7 +108,8 @@ with tf.Session(config=config) as sess:
     cost = tflearn.regression( net.out,
         optimizer='adam',
         learning_rate=opts.learning_rate,
-        loss='softmax_categorical_crossentropy')
+        loss='binary_crossentropy')
+        #loss='softmax_categorical_crossentropy')
 
 
     ### Init the trainer
