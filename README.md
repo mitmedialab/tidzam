@@ -5,6 +5,8 @@ python-matplotlib
 pip install sounddevice --user
 TensorFlow
 TFlearn
+jack-mixer
+mpv
 
 Download Dataset
 ================
@@ -21,15 +23,13 @@ The dataset is composed of three files, the dataset_data file contains in line t
 Usage: python src/data.py --stream=stream.wav
 
 Options:
-  -h, --help            show this help message and exit
+  -h, --help                          show this help message and exit
   -w WAV, --wav=WAV     
-  -d OPEN, --dataset=OPEN
-                        Open an exisiting dataset
-  -o OUT, --out=OUT     Provide output dataset name for wav processing.
-  -s CLASSE_ID, --show=CLASSE_ID
-                        Show spectrograms for a specific class_id
-  --stream=STREAM       Sample extraction from an audio stream [WAV/OGG/MP3].
-  --editor              Interractive mode.
+  -d OPEN, --dataset=OPEN              Open an exisiting dataset
+  -o OUT, --out=OUT                    Provide output dataset name for wav processing.
+  -s CLASSE_ID, --show=CLASSE_ID       Show spectrograms for a specific class_id
+  --stream=STREAM                      Sample extraction from an audio stream [WAV/OGG/MP3].
+  --editor                             Interractive mode.
 ```
 Loading from WAV folder
 -----------------------
@@ -73,24 +73,15 @@ export CUDA_VISIBLE_DEVICES=''
 Usage: train.py --dataset=dataset_150x186 --out=build/ -dnn=test [OPTIONS]
 
 Options:
-  -h, --help            show this help message and exit
-  -d DATASET, --dataset=DATASET
-                        Define the dataset to train.
-  -o OUT, --out=OUT     Define output folder to store the neural network and
-                        checkpoints.
-  --training-iterations=TRAINING_ITERS
-                        Number of training iterations (Default: 400
-                        batchsize).
-  --batchsize=BATCH_SIZE
-                        Size of the training batch (Default:64).
-  --embeddings=NB_EMBEDDINGS
-                        Number of embeddings to compute (default: 50)..
-  --learning-rate=LEARNING_RATE
-                        Learning rate (default: 0.001).
-  --dnn=DNN             DNN model to train (Default: ).
-  --embeddings-step=EMBEDDINGS_STEP
-                        Step period to compute embeddings and feature maps
-                        (Default: 1).
+  -h, --help                            show this help message and exit
+  -d DATASET, --dataset=DATASET         Define the dataset to train.
+  -o OUT, --out=OUT                     Define output folder to store the neural network and checkpoints.
+  --training-iterations=TRAINING_ITERS  Number of training iterations (Default: 400 batchsize).
+  --batchsize=BATCH_SIZE                Size of the training batch (Default:64).
+  --embeddings=NB_EMBEDDINGS            Number of embeddings to compute (default: 50)..
+  --learning-rate=LEARNING_RATE         Learning rate (default: 0.001).
+  --dnn=DNN                             DNN model to train (Default: ).
+  --embeddings-step=EMBEDDINGS_STEP     Step period to compute embeddings and feature maps (Default: 1).
 ```
 
 Neural Network vizualisation
@@ -108,9 +99,10 @@ The following command return the output predictions of the neural network on all
 Usage: analyzer.py --nn=build/test --stream=stream.wav [--show, -h]
 
 Options:
-  -h, --help            show this help message and exit
-  -s STREAM, --stream=STREAM
-                        Input audio stream to analyze.
-  -n NN, --nn=NN        Neural Network session to load.
-  --show                Play the audio samples and show their spectrogram.
+  -h, --help                    show this help message and exit
+  -s STREAM, --stream=STREAM    Input audio stream to analyze.
+  -j JACK, --jack=JACK          Input audio stream from Jack audio mixer to analyze.
+  -n NN, --nn=NN                Neural Network session to load.
+  -o OUT, --out=OUT             Output folder for audio sound extraction.
+  --show                        Play the audio samples and show their spectrogram.
 ```
