@@ -59,6 +59,8 @@ class Analyzer:
         self.wav_folder = wav_folder
         self.load()
 
+        print("WAV destination folder: " + wav_folder)
+
     # Load the network
     def load(self):
         # For each neural network
@@ -67,7 +69,7 @@ class Analyzer:
             self.classifiers.append(Classifier(f))
 
     # Function called by the streamer to predic its current sample
-    def run(self, Sxxs, fs, t, sound_obj, overlap=0.5):
+    def execute(self, Sxxs, fs, t, sound_obj, overlap=0.5):
 
         self.count_run = self.count_run + 1
         time = str(int(self.count_run * 0.5 * (1-overlap) / 3600)) + ":" + \
@@ -137,26 +139,37 @@ if __name__ == "__main__":
 
     (opts, args) = parser.parse_args()
 
+    import analyzer_vizualizer as tv
+
     if (opts.stream or opts.jack) and opts.nn:
         if opts.stream is not None:
+            import connector_audiofile as ca
             # Build folder to store wav file
             a = opts.stream.split('/')
             a = a[len(a)-1].split('.')[0]
             wav_folder = opts.out + '/' + a + '/'
-            print("WAV destination folder: " + wav_folder)
+
             if not os.path.exists(wav_folder):
                 os.makedirs(wav_folder)
 
-            streamer = Analyzer(opts.nn, wav_folder=wav_folder)
-            tiddata.play_spectrogram_from_stream(opts.stream,
-                show=opts.show, callable_objects = [streamer], overlap=0)
+            analyzer = Analyzer(opts.nn, wav_folder=wav_folder)
+            vizu     = tv.TidzamVizualizer()
+            connector = ca.TidzamAudiofile(opts.stream,
+                callable_objects = [analyzer, vizu],
+                overlap=0)
+            connector.start()
+
 
         elif opts.jack is not None:
             import connector_jack as cj
+
             if not os.path.exists(opts.out):
                 os.makedirs(opts.out)
-            streamer = Analyzer(opts.nn, wav_folder=opts.out)
-            connector = cj.TidzamJack(opts.jack, callable_objects=[streamer])
-            connector.vizualize()
+
+            analyzer = Analyzer(opts.nn, wav_folder=opts.out)
+            vizu = tv.TidzamVizualizer()
+            connector = cj.TidzamJack(opts.jack, callable_objects=[analyzer, vizu])
+            connector.start()
+            a = raw_input()
     else:
         print(parser.usage)

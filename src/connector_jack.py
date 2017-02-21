@@ -11,7 +11,6 @@ import data as tiddata
 
 class TidzamJack:
     def __init__(self, port_name, callable_objects=[]):
-        self.show = False
         self.data_size = (150,186)
         self.callable_objects = callable_objects
         self.lock = threading.Lock()
@@ -19,22 +18,22 @@ class TidzamJack:
         self.client = jack.Client("tidzam")
         self.ports = self.client.get_ports(port_name)
 
-        self.first = True
         self.samplerate = -1
         self.blocksize = -1
         self.buffer_size = 24000
 
         self.channels = []
         self.channels_data = []
-        self.out_queue_show = []
 
         for i in range(0, len(self.ports)):
             self.channels.append(self.client.inports.register("chan"+str(i)))
-            self.out_queue_show.append(mp.Queue())
 
         self.client.set_samplerate_callback(self.callback_samplerate)
         self.client.set_blocksize_callback(self.callback_blocksize)
         self.client.set_process_callback(self.callback)
+
+
+    def start(self):
         self.client.activate()
 
         for i in range(0, len(self.ports)): #p in ports:
@@ -69,11 +68,8 @@ class TidzamJack:
                 fs, t, Sxx = tiddata.get_spectrogram(data.astype(float),
                             self.samplerate)
 
-                if self.show:
-                    self.out_queue_show[i].put([fs, t, Sxx])
-
                 if i == 0:
-                    datas = data
+                    datas = np.transpose(data)
                     Sxxs = Sxx
                     fss = fs
                     ts = t
@@ -85,50 +81,5 @@ class TidzamJack:
 
         if run is True:
             for obj in self.callable_objects:
-                obj.run(Sxxs, fss, ts, [datas, self.samplerate], overlap=0)
+                obj.execute(Sxxs, fss, ts, [np.transpose(datas), self.samplerate], overlap=0)
         self.lock.release()
-
-    ### Functions to draw channel spectrograms
-    def vizualize(self, channels_to_print=[] ):
-        self.show = True
-        self.ims = []
-        self.channels_to_print = channels_to_print
-
-        nb_plot = len(self.channels_to_print)
-        if nb_plot == 0:
-            self.channels_to_print = range(len(self.channels))
-            nb_plot = len(self.channels_to_print)
-        elif nb_plot < 2:
-            nb_plot = 2
-
-        self.fig, self.ax = plt.subplots(nb_plot, sharex=True)
-        self.win = self.fig.canvas.manager.window
-
-        for i in range(len(self.channels_to_print)):
-            self.ims.append(self.ax[i].pcolormesh(np.ones(self.data_size,dtype=float),
-                vmin=0,
-                vmax=1))
-        plt.ylabel('Frequency [Hz]')
-        plt.xlabel('Time [sec]')
-        self.win.after(100, self.animate)
-        plt.show()
-
-    def animate(self):
-        self.lock.acquire()
-        for i in range(len(self.channels_to_print)):
-            try:
-                sample = self.out_queue_show[self.channels_to_print[i]].get_nowait()
-            except Queue.Empty:
-                print('empty')
-                pass
-            else:
-                Sxx = np.reshape(sample[2], [self.data_size[0],self.data_size[1]] )
-                self.ims[i].set_array(Sxx.ravel())
-        self.fig.canvas.draw()  # redraw the canvas
-        print('Spectrogram Updated')
-        self.lock.release()
-        self.win.after(100, self.animate)
-
-if __name__ == "__main__":
-    connector = TidzamJack("mpv:out*")
-    connector.vizualize()

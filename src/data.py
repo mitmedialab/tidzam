@@ -37,7 +37,6 @@ def play_spectrogram_from_stream(file, show=False, callable_objects = [], overla
         while f.tell() < len(f):
             data = f.read(24000)
             for i in range(0,f.channels):
-                plt.ion()
                 if f.channels > 1:
                     fs, t, Sxx = get_spectrogram(data[:,i], f.samplerate, i,  show=show)
                 else:
