@@ -50,7 +50,6 @@ class TidzamJack:
 
     def callback(self, frame):
         run = False
-        datas = []
 
         self.lock.acquire()
         for i in range(0, len(self.channels)):
@@ -63,7 +62,7 @@ class TidzamJack:
             # If the buffer contains the required data, we truncate it and send result
             if len(self.channels_data[i]) >= self.buffer_size:
                 run = True
-                data = self.channels_data[i][0:self.buffer_size]
+                data = np.transpose(self.channels_data[i][0:self.buffer_size])
                 self.channels_data[i] = self.channels_data[i][self.buffer_size:len(self.channels_data[i])]
 
                 #print("Buffer " + str(i) + ": "+ str(len(data)) + " Bytes" )
@@ -73,15 +72,16 @@ class TidzamJack:
                 if self.show:
                     self.out_queue_show[i].put([fs, t, Sxx])
 
-                datas.append(data)
                 if i == 0:
+                    datas = data
                     Sxxs = Sxx
                     fss = fs
                     ts = t
                 else:
-                    Sxxs = np.concatenate((Sxxs, Sxx), axis=0)
-                    fss = np.concatenate((fss, fs), axis=0)
-                    ts = np.concatenate((ts, t), axis=0)
+                    Sxxs = np.vstack((Sxxs, Sxx))
+                    fss = np.vstack((fss, fs))
+                    ts = np.vstack((ts, t))
+                    datas = np.vstack((datas, data))
 
         if run is True:
             for obj in self.callable_objects:

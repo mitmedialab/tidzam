@@ -153,6 +153,8 @@ if __name__ == "__main__":
 
         elif opts.jack is not None:
             import connector_jack as cj
+            if not os.path.exists(opts.out):
+                os.makedirs(opts.out)
             streamer = Analyzer(opts.nn, wav_folder=opts.out)
             connector = cj.TidzamJack(opts.jack, callable_objects=[streamer])
             connector.vizualize()
