@@ -170,6 +170,11 @@ if __name__ == "__main__":
             vizu = tv.TidzamVizualizer()
             connector = cj.TidzamJack(opts.jack, callable_objects=[analyzer, vizu])
             connector.start()
+
             a = raw_input()
+            vizu.stop()
+            connector.stop()
+            print('Program exited')
+            os._exit(0)
     else:
         print(parser.usage)

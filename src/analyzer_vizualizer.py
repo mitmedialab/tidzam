@@ -17,6 +17,8 @@ class TidzamVizualizer (Thread):
         self.out_queue_show = mp.Queue()
         self.lock = threading.Lock()
 
+        self.stopFlag = False
+
     def execute(self, Sxxs, fs, t, sound_obj, overlap=0.5):
         if self.init:
             self.init = False
@@ -25,6 +27,9 @@ class TidzamVizualizer (Thread):
             self.start()
 
         self.out_queue_show.put([fs, t, Sxxs])
+
+    def stop(self):
+        self.stopFlag = True
 
     def run(self):
         self.vizualize(self.channels_to_print )
@@ -60,8 +65,12 @@ class TidzamVizualizer (Thread):
                 Sxx = np.reshape(sample, [self.data_size[0],self.data_size[1]] )
                 self.ims[i].set_array(Sxx.ravel())
             self.fig.canvas.draw()  # redraw the canvas
-        except Queue.Empty:
-            print('Waiting data ...')
-        else:
             print('Spectrogram Updated')
-        self.win.after(100, self.animate)
+        except Queue.Empty:
+            pass
+            #print('Waiting data ...')
+
+        if self.stopFlag is False:
+            self.win.after(100, self.animate)
+        else:
+            plt.close('all')
