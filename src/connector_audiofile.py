@@ -1,15 +1,20 @@
 import soundfile as sf
 import numpy as np
+from threading import Thread
 
 import data as tiddata
 
-class TidzamAudiofile:
+class TidzamAudiofile(Thread):
     def __init__(self, audiofilename, callable_objects=[], overlap=0):
+        Thread.__init__(self)
         self.audiofilename      = audiofilename
         self.callable_objects   = callable_objects
         self.overlap            = overlap
 
-    def start(self):
+    def stop(self):
+        return
+
+    def run(self):
         with sf.SoundFile(self.audiofilename, 'r') as f:
             while f.tell() < len(f):
                 data = f.read(24000)

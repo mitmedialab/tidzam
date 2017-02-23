@@ -139,42 +139,44 @@ if __name__ == "__main__":
 
     (opts, args) = parser.parse_args()
 
-    import analyzer_vizualizer as tv
+
 
     if (opts.stream or opts.jack) and opts.nn:
+        callable_objects = []
+
         if opts.stream is not None:
-            import connector_audiofile as ca
             # Build folder to store wav file
             a = opts.stream.split('/')
             a = a[len(a)-1].split('.')[0]
             wav_folder = opts.out + '/' + a + '/'
+        else:
+            wav_folder = opts.out
 
-            if not os.path.exists(wav_folder):
-                os.makedirs(wav_folder)
+        if not os.path.exists(wav_folder):
+            os.makedirs(wav_folder)
 
-            analyzer = Analyzer(opts.nn, wav_folder=wav_folder)
+        analyzer = Analyzer(opts.nn, wav_folder=wav_folder)
+        callable_objects.append(analyzer)
+
+        if opts.show is True:
+            import analyzer_vizualizer as tv
             vizu     = tv.TidzamVizualizer()
-            connector = ca.TidzamAudiofile(opts.stream,
-                callable_objects = [analyzer, vizu],
-                overlap=0)
-            connector.start()
+            callable_objects.append(vizu)
 
+        if opts.stream is not None:
+            import connector_audiofile as ca
+            connector = ca.TidzamAudiofile(opts.stream,
+                callable_objects = callable_objects,  overlap=0)
 
         elif opts.jack is not None:
             import connector_jack as cj
+            connector = cj.TidzamJack(opts.jack, callable_objects=callable_objects)
 
-            if not os.path.exists(opts.out):
-                os.makedirs(opts.out)
+        connector.start()
 
-            analyzer = Analyzer(opts.nn, wav_folder=opts.out)
-            vizu = tv.TidzamVizualizer()
-            connector = cj.TidzamJack(opts.jack, callable_objects=[analyzer, vizu])
-            connector.start()
-
-            a = raw_input()
-            vizu.stop()
-            connector.stop()
-            print('Program exited')
-            os._exit(0)
+        a = raw_input()
+        connector.stop()
+        print('Program exited')
+        os._exit(0)
     else:
         print(parser.usage)
