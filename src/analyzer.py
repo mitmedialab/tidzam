@@ -73,7 +73,7 @@ class Analyzer:
 
         self.count_run = self.count_run + 1
         time = str(int(self.count_run * 0.5 * (1-overlap) / 3600)) + ":" + \
-                str( int(self.count_run * 0.5 * (1-overlap) % 3600)/60) + ":" + \
+                str( int((self.count_run * 0.5 * (1-overlap) % 3600)/60)) + ":" + \
                 str( int(self.count_run * 0.5 * (1-overlap) % 3600 % 60)) + ":" + \
                 str( int( ((self.count_run * 0.5 * (1-overlap) % 3600 % 60) * 1000) % 1000) ) + "ms"
         print("----------------------------------- " + time)
@@ -174,7 +174,7 @@ if __name__ == "__main__":
 
         connector.start()
 
-        a = raw_input()
+        a = input()
         connector.stop()
         print('Program exited')
         os._exit(0)

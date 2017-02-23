@@ -7,6 +7,7 @@ TensorFlow
 TFlearn
 jack-mixer
 mpv
+python-socketio
 
 Download Dataset
 ================

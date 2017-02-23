@@ -321,11 +321,11 @@ class Editor:
                         print("* (enter): next sample\n* (g): go to\n* (n): create a new classe\n* (m) merge with another dataset")
                         print("* (s): save the dataset \n* (i): dataset info\n* (p) print the labels\n"+ \
                             "* (r) randomize the dataset\n* (q): quit\n")
-                        a = raw_input()
+                        a = input()
 
                         if a == 'g':
                             print('Timestamp destination: (hh:mm:s:ms)')
-                            d = raw_input()
+                            d = input()
                             d = d.split(':')
                             self.count_run = (int(d[0])*3600 + int(d[1])*60 + int(d[2]) + (int(d[3])*2))*2
                             f.seek(self.count_run * self.sample_size)
@@ -339,13 +339,13 @@ class Editor:
                                 out = options.out
                             else:
                                 print("Dataset name: ")
-                                out = raw_input()
+                                out = input()
                             self.dataset.save(out)
                             print('Save')
 
                         elif a == 'n':
                             print('New classe name: ')
-                            name = raw_input()
+                            name = input()
                             try:
                                 print(self.dataset.labels_dic)
                                 self.dataset.labels_dic = np.append(self.dataset.labels_dic, name)
@@ -354,13 +354,13 @@ class Editor:
 
                         elif a == 'm':
                             print("Merge with dataset:")
-                            name = raw_input()
+                            name = input()
                             dataset = Dataset(name)
                             print("As a single classe ? (y/N)")
-                            a = raw_input()
+                            a = input()
                             if a == 'y':
                                 print("Mother classe name to create:")
-                                classe = raw_input()
+                                classe = input()
                                 self.dataset.merge(dataset, asOneClasse=classe)
                             else:
                                 self.dataset.merge(dataset)
