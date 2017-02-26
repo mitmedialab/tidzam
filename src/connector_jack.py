@@ -62,34 +62,37 @@ class TidzamJack(Thread):
         run = False
         while not self.stopFlag.wait(0.1):
             for i in range(len(self.channels)):
-                data = self.ring_buffer[i].read(self.buffer_jack)
-                data = np.frombuffer(data, dtype='float32')
                 try:
-                    self.channels_data[i] = np.concatenate((self.channels_data[i], data ))
-                except:
-                    self.channels_data.append( data )
+                    data = self.ring_buffer[i].read(self.buffer_jack)
+                    data = np.frombuffer(data, dtype='float32')
+                    try:
+                        self.channels_data[i] = np.concatenate((self.channels_data[i], data ))
+                    except:
+                        self.channels_data.append( data )
 
-                # If the buffer contains the required data, we truncate it and send result
-                if len(self.channels_data[i]) >= self.buffer_size:
-                    run = True
-                    data = self.channels_data[i][0:self.buffer_size]
-                    self.channels_data[i] = self.channels_data[i][self.buffer_size:len(self.channels_data[i])]
-                    fs, t, Sxx = tiddata.get_spectrogram(data, self.samplerate)
+                    # If the buffer contains the required data, we truncate it and send result
+                    if len(self.channels_data[i]) >= self.buffer_size:
+                        run = True
+                        data = self.channels_data[i][0:self.buffer_size]
+                        self.channels_data[i] = self.channels_data[i][self.buffer_size:len(self.channels_data[i])]
+                        fs, t, Sxx = tiddata.get_spectrogram(data, self.samplerate)
 
-                    if i == 0:
-                        print("-----------------------------------")
-                        print("Buffer load: " + str(int(len(self.channels_data[i])/self.buffer_size)) + " samples" )
-                        datas   = data
-                        Sxxs    = Sxx
-                        fss     = fs
-                        ts      = t
+                        if i == 0:
+                            print("-----------------------------------")
+                            print("Buffer load: " + str(int(len(self.channels_data[i])/self.buffer_size)) + " samples" )
+                            datas   = data
+                            Sxxs    = Sxx
+                            fss     = fs
+                            ts      = t
+                        else:
+                            Sxxs    = np.vstack((Sxxs, Sxx))
+                            fss     = np.vstack((fss, fs))
+                            ts      = np.vstack((ts, t))
+                            datas   = np.vstack((datas, data))
                     else:
-                        Sxxs    = np.vstack((Sxxs, Sxx))
-                        fss     = np.vstack((fss, fs))
-                        ts      = np.vstack((ts, t))
-                        datas   = np.vstack((datas, data))
-                else:
-                    run = False
+                        run = False
+                except:
+                    print("Sample error")
 
             if run is True:
                 for obj in self.callable_objects:

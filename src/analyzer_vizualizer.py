@@ -65,9 +65,8 @@ class TidzamVizualizer (Thread):
                 self.ims[i].set_array(Sxx.ravel())
             self.fig.canvas.draw()  # redraw the canvas
             print('Spectrogram Updated')
-        except Queue.Empty:
-            pass
-            #print('Waiting data ...')
+        except :
+            print('Waiting data to print...')
 
         if self.stopFlag is False:
             self.win.after(100, self.animate)

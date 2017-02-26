@@ -24,7 +24,7 @@ class Classifier:
         self.dataw = 150
         self.datah = 186
         self.nn_folder = folder
-        self.label_dic = np.load(folder + "/labels.dic.npy")
+        self.label_dic = np.load(folder + "/labels.dic.npy").astype(str)
 
         # Get Neural Net name
         path = self.nn_folder.split('/')
@@ -53,10 +53,11 @@ class Classifier:
             quit()
 
 class Analyzer:
-    def __init__(self, nn_folder,session=False, wav_folder="wav/"):
+    def __init__(self, nn_folder,session=False, wav_folder="wav/", callable_objects=[]):
         self.nn_folder = nn_folder
         self.count_run = -1
         self.wav_folder = wav_folder
+        self.callable_objects = callable_objects
         self.load()
 
         print("WAV destination folder: " + wav_folder)
@@ -111,6 +112,11 @@ class Analyzer:
             if classes[channel] == 'birds':
                 sf.write (self.wav_folder + '/+' + classes[channel] + '(' + str(channel) + ')_' + time +'.wav',
                     sound_obj[0][:,channel], sound_obj[1])
+
+
+        for obj in self.callable_objects:
+            obj.execute(res, classes, nn.label_dic)
+
 #            # Save the file on the disk
 
 #
@@ -155,8 +161,13 @@ if __name__ == "__main__":
         if not os.path.exists(wav_folder):
             os.makedirs(wav_folder)
 
-        analyzer = Analyzer(opts.nn, wav_folder=wav_folder)
+
+        import connector_socketio as socketio
+        socket = socketio.create_socket("/")
+
+        analyzer = Analyzer(opts.nn, callable_objects=[socket], wav_folder=wav_folder)
         callable_objects.append(analyzer)
+
 
         if opts.show is True:
             import analyzer_vizualizer as tv
@@ -173,7 +184,7 @@ if __name__ == "__main__":
             connector = cj.TidzamJack(opts.jack, callable_objects=callable_objects)
 
         connector.start()
-
+        socket.start()
         a = input()
         connector.stop()
         print('Program exited')

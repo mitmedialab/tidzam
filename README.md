@@ -107,3 +107,30 @@ Options:
   -o OUT, --out=OUT             Output folder for audio sound extraction.
   --show                        Play the audio samples and show their spectrogram.
 ```
+Socket.IO Interface
+-------------------
+The socket emits on the event 'sys' with the following data at each sample analyzes.
+```
+[
+  {
+    "chan":channel_id,
+    "analysis":{
+      "result":[ classe2 ],
+      "predicitions":{
+        classe1: 0.001,
+        classe2: 0.91
+      }
+    }
+  }
+]
+```
+The socket fills in the following object on a request of event 'sys' :
+```
+ {
+   'sys':{
+     'classifier':{
+       'list':''
+       }
+    }
+  }
+ ```
