@@ -3,7 +3,6 @@ import math
 import sys, optparse
 import glob, os
 
-import soundfile as sf
 import tensorflow as tf
 import tflearn
 
@@ -11,8 +10,6 @@ import vizualisation as vizu
 import models.vgg as models
 import data as tiddata
 from models import *
-
-import sounddevice as sd
 
 config = tflearn.config.init_graph (
     num_cores=1,
@@ -85,14 +82,10 @@ class Analyzer:
                 res = nn.classifier.predict(Sxxs)
                 for channel in range(0, Sxxs.shape[0]):
                     a = np.max(res[channel])
-
-                    #if np.abs(a / np.mean(res[channel])) > 2 and a > 0:
-                    #if np.abs(a) < 0.5:
                     if a > 0:
                         classes.append(str(nn.label_dic[ np.argmax(res[channel]) ]) ) #+ '-'+str(a))
                     else:
                         classes.append('unknow')
-                    #    classes.append('unknow-') #+str(a))
                 break
 
         for channel in range(0, Sxxs.shape[0]):
@@ -109,13 +102,8 @@ class Analyzer:
 
             print( "channel " + str(channel) + ' | ' + classes[channel])
 
-            if classes[channel] == 'birds':
-                sf.write (self.wav_folder + '/+' + classes[channel] + '(' + str(channel) + ')_' + time +'.wav',
-                    sound_obj[0][:,channel], sound_obj[1])
-
-
         for obj in self.callable_objects:
-            obj.execute(res, classes, nn.label_dic)
+            obj.execute(res, classes, nn.label_dic, sound_obj, time)
 
 #            # Save the file on the disk
 
@@ -158,14 +146,14 @@ if __name__ == "__main__":
         else:
             wav_folder = opts.out
 
-        if not os.path.exists(wav_folder):
-            os.makedirs(wav_folder)
 
+        import connector_SampleExtractor as SampleExtractor
+        extractor = SampleExtractor.SampleExtractor(['birds'], wav_folder)
 
         import connector_socketio as socketio
         socket = socketio.create_socket("/")
 
-        analyzer = Analyzer(opts.nn, callable_objects=[socket], wav_folder=wav_folder)
+        analyzer = Analyzer(opts.nn, callable_objects=[socket, extractor], wav_folder=wav_folder)
         callable_objects.append(analyzer)
 
 
@@ -175,12 +163,12 @@ if __name__ == "__main__":
             callable_objects.append(vizu)
 
         if opts.stream is not None:
-            import connector_audiofile as ca
+            import input_audiofile as ca
             connector = ca.TidzamAudiofile(opts.stream,
                 callable_objects = callable_objects,  overlap=0)
 
         elif opts.jack is not None:
-            import connector_jack as cj
+            import input_jack as cj
             connector = cj.TidzamJack(opts.jack, callable_objects=callable_objects)
 
         connector.start()

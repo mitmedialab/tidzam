@@ -44,7 +44,7 @@ class TidzamSocketIO(socketio.AsyncNamespace):
         print(obj)
         return obj
 
-    def execute(self, prob_classes, predictions, classes_dic):
+    def execute(self, prob_classes, predictions, classes_dic, sound_obj=None, time=None):
         if self.external_sio is None:
             self.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.loop)
