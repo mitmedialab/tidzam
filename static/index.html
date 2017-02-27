@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Tid'Zam</title>
+  <link rel="stylesheet" href="//code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+  <script src="//code.jquery.com/jquery-1.10.2.js"></script>
+  <script src="//code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+  <script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
+  <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+
+  <script src="static/menu.js"></script>
+  <script src="static/player.js"></script>
+  <script src="static/recorder.js"></script>
+  <script src="static/dataset.js"></script>
+  <script src="static/controller.js"></script>
+  <script src="static/classifiers.js"></script>
+  <script src="static/speaker_stats.js"></script>
+  <script src="static/classifier_chart.js"></script>
+
+  <!--  <link rel="stylesheet" href="/resources/demos/style.css">-->
+
+  <script>
+  google.load('visualization', '1.1', {'packages':['line','corechart']});
+
+
+  ready = false;
+  google.setOnLoadCallback(function(){ready = true;});
+
+  window.onload =   function() {
+    socket = socket = io();
+
+    var main          = document.getElementById("main");
+    controller        = new Controller(main);
+//    dataset_train     = new Dataset(main);
+//    recorder          = new Recorder(main);
+//    classifiers       = new Classifier(main);
+    menu              = new Menu(controller, main);
+  };
+  </script>
+  <style>
+  .ui-menu { width: 250px; }
+  .table_info {
+    border-marging:12px;
+    font-size:13px;
+    text-align:center;
+  }
+  .plot{margin-bottom: 20px;}
+
+  .console{
+    background-color:black;
+    color:white;
+  }
+
+  #speaker_stats_piechart{
+
+  }
+
+  #results{
+    margin: 10px;
+    width:100%;
+    text-align:center;
+    font-size:20px;
+    font-style:bold;
+  }
+
+  body{
+    font-size:12px;
+  }
+  </style>
+</head>
+<body>
+  <div id="main"></diV>
+  </body>
+  </html>
