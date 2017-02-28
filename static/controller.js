@@ -89,7 +89,7 @@ function Controller(parent){
     setTimeout(function(){
       charts.process(json);
       done[i] = true
-    }, i*2);
+    }, i*10);
   }
 
   // SOCKET. IO CONNECTOR

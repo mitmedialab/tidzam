@@ -187,7 +187,7 @@ function Chart (parent, name, classifier_list) {
   var chart = this.chart = new google.charts.Line(document.getElementById('plot-'+this.name));
   chart.chan = this.name;
   this.options 	= {
-    'height':150,
+    'height':250,
     'width':'100%',
     chart: {
       title: 'Stream Channel ' + this.name,
@@ -225,7 +225,7 @@ function Chart (parent, name, classifier_list) {
       var tmp = new Array();
 
       // Add column of labelled results
-      var result = new String();
+      var result = obj.time + '\n';
       for (var key in obj.result){
         result += obj.result[key] + '\n';
       }

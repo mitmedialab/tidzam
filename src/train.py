@@ -4,6 +4,7 @@ import sys, optparse
 import numpy as np
 import shutil
 import math
+import os
 
 from tensorflow.contrib.tensorboard.plugins import projector
 import tensorflow as tf
@@ -66,7 +67,8 @@ config = tflearn.config.init_graph (
 ###################################
 # Load the data
 ###################################
-data_size=[150,186]
+data_size=[31,26]
+#data_size=[150,186]
 dataset     = tiddata.Dataset(opts.dataset, p=0.7, data_size=data_size)
 dataset_t   = tiddata.Dataset(opts.dataset, data_size=(dataset.dataw,dataset.datah))
 
@@ -108,15 +110,15 @@ with tf.Session(config=config) as sess:
     cost = tflearn.regression( net.out,
         optimizer='adam',
         learning_rate=opts.learning_rate,
-        loss='binary_crossentropy')
-        #loss='softmax_categorical_crossentropy')
+        #loss='binary_crossentropy')
+        loss='softmax_categorical_crossentropy')
 
 
     ### Init the trainer
     trainer = tflearn.DNN(cost,
         session=sess,
         tensorboard_dir= opts.out + "/",
-        tensorboard_verbose=3)
+        tensorboard_verbose=0)
 
 
     # Build the graph
@@ -125,17 +127,21 @@ with tf.Session(config=config) as sess:
 
     ### Load a previous session
     #if opts.load:
-    try:
-        print('Loading: ' + opts.out + "/" + net.name)
-        trainer.load(opts.out + "/" + net.name, create_new_session=False)
-    except:
-        print("The destination folder contains a previous session.\nDo you want to erase it ? [y/N]")
-        a = raw_input()
-        if a == 'y':
-            shutil.rmtree(opts.out)
-        else:
-            print('Unable to load network: ' + opts.out)
-            quit()
+    if not os.path.exists(opts.out + "/"):
+        print("Create output folder : " + opts.out + "/")
+        os.makedirs(opts.out + "/")
+    else :
+        try:
+            print('Loading: ' + opts.out + "/" + net.name)
+            trainer.load(opts.out + "/" + net.name, create_new_session=False)
+        except:
+            print("The destination folder contains a previous session.\nDo you want to erase it ? [y/N]")
+            a = raw_input()
+            if a == 'y':
+                shutil.rmtree(opts.out)
+            else:
+                print('Unable to load network: ' + opts.out)
+                quit()
 
 
 

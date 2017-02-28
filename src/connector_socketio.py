@@ -65,8 +65,9 @@ class TidzamSocketIO(socketio.AsyncNamespace):
             obj = {
                     "chan":channel,
                     "analysis":{
+                        "time":time,
                         "result":[predictions[channel]],
-                        "predicitions":json.dumps(pred)
+                        "predicitions":pred
                     }
                 }
             resp.append(obj)

@@ -45,6 +45,11 @@ class Classifier:
         try:
             print('Loading : ' + self.nn_folder + "." + network.name)
             self.classifier.load(self.nn_folder + "/" + network.name, create_new_session=False)
+
+            # Add Softmax layer for decision function
+            self.classifier.net = tflearn.activations.softmax (self.classifier.net)
+            self.classifier.predictor = tflearn.Evaluator([self.classifier.net],
+                                   session=self.classifier.session,model=None)
         except:
             print('Unable to load model: ' + self.nn_folder)
             quit()
@@ -81,11 +86,13 @@ class Analyzer:
             if nn.name == 'selector':
                 res = nn.classifier.predict(Sxxs)
                 for channel in range(0, Sxxs.shape[0]):
-                    a = np.max(res[channel])
-                    if a > 0:
-                        classes.append(str(nn.label_dic[ np.argmax(res[channel]) ]) ) #+ '-'+str(a))
-                    else:
-                        classes.append('unknow')
+                    out_classes = ""
+                    for idx, val in enumerate(res[channel]):
+                        if val > 0.5: # If the neural network is confiant more than 50%
+                            out_classes += str(nn.label_dic[idx])
+                    if out_classes == "":
+                        out_classes = 'unknow'
+                    classes.append(out_classes)
                 break
 
         for channel in range(0, Sxxs.shape[0]):
@@ -101,6 +108,7 @@ class Analyzer:
 #                    break
 
             print( "channel " + str(channel) + ' | ' + classes[channel])
+            #print(res)
 
         for obj in self.callable_objects:
             obj.execute(res, classes, nn.label_dic, sound_obj, time)
