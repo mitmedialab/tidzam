@@ -31,7 +31,7 @@ def feed_embeddings(embedding_var, dataset_t, Pout, Pin,
     embedding_var.assign(res)
     build_metadatafile(by, out_file=checkpoint_dir+'/metadata-'+embedding_var.name.replace('/','-')+'.tsv')
 
-    embeddings_writer = tf.train.SummaryWriter(checkpoint_dir)
+    embeddings_writer = tf.summary.FileWriter(checkpoint_dir)
     config_projector = projector.ProjectorConfig()
     embedding = config_projector.embeddings.add()
     embedding.tensor_name = embedding_var.name
@@ -52,13 +52,13 @@ def print_kernel_filters(conv_layer):
         Wpad= tf.zeros([kernel_size, kernel_size, dim_features , 1])
         for i in range(0,nb_pad):
             conv_layer.W = tf.concat(3, [conv_layer.W, Wpad])
-        W_c = tf.split(3, img_size**2, conv_layer.W)
+        W_c = tf.split(conv_layer.W, img_size**2, 3)
 
         # Build the image
         W_row = []
         for i in range (0, img_size):
-            W_row.append(tf.concat(0, W_c[i*img_size: (i+1)*img_size ]))
-        W_d = tf.concat(1, W_row)
+            W_row.append(tf.concat(W_c[i*img_size: (i+1)*img_size ],0))
+        W_d = tf.concat(W_row, 1)
         W_e = tf.reshape(W_d, [dim_features, img_size * kernel_size, img_size * kernel_size, 1])
         Wtag = tf.placeholder(tf.string, None)
         return W_e

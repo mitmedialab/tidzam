@@ -59,7 +59,7 @@ def play_spectrogram_from_stream(file, show=False, callable_objects = [], overla
         return Sxx, t, fs
 
 class Dataset:
-    def __init__(self, file=False,p=0.9, data_size=(92,300)):
+    def __init__(self, file=False,p=0.9, data_size=(150,186)):
         self.cur_batch_train = 0
         self.cur_batch_test = 0
         self.n_classes = -1
@@ -78,7 +78,14 @@ class Dataset:
             self.split_dataset(p=p)
 
     def load(self, file):
+        a = file.split('(')
+        if len(a) > 1:
+            a = a[1].split(')')
+            a = a[0].split(',')
+            self.dataw = int(a[0])
+            self.datah = int(a[1])
         try:
+
             self.data = np.load(file+"_data.npy")
             self.labels = np.load(file+"_labels.npy")
             self.labels_dic = np.load(file+"_labels_dic.npy")
@@ -236,14 +243,14 @@ class Dataset:
             batch_y = self.label_train[ [x for x in range(a,b)], :]
         else :
             batch_x = self.data_train[
-                [x for x in range(a,self.data_train.shape[0]) +range(0,b)], :]
+                [x for x in list(range(a,self.data_train.shape[0])) + list(range(0,b))], :]
             batch_y = self.label_train[
-                [x for x in range(a,self.data_train.shape[0]) +range(0,b)], :]
+                [x for x in list(range(a,self.data_train.shape[0])) + list(range(0,b))], :]
         print("#({3}) Batch (train) #{0}: {1} samples of {2} features".format(
                 self.cur_batch_train,
                 batch_x.shape[0],
                 batch_x.shape[1],
-                self.cur_batch_train*batch_size/self.data_train.shape[0] ))
+                int(self.cur_batch_train*batch_size/self.data_train.shape[0] )))
         self.cur_batch_train += 1
         return batch_x, batch_y
 
@@ -258,14 +265,14 @@ class Dataset:
             batch_y = self.label_test[ [x for x in range(a,b)], :]
         else :
             batch_x = self.data_test[
-                [x for x in range(a,self.data_test.shape[0]) + range(0,b)], :]
+                [x for x in list(range(a,self.data_test.shape[0])) + list(range(0,b))], :]
             batch_y = self.label_test[
-                [x for x in range(a,self.label_test.shape[0]) + range(0,b)], :]
+                [x for x in list(range(a,self.label_test.shape[0])) + list(range(0,b))], :]
         print("#({3}) Batch (test) #{0}: {1} samples of {2} features".format(
                 self.cur_batch_test,
                 batch_x.shape[0],
                 batch_x.shape[1],
-                self.cur_batch_test*batch_size/self.data_test.shape[0] ))
+                int(self.cur_batch_test*batch_size/self.data_test.shape[0] )))
         self.cur_batch_test += 1
         return batch_x, batch_y
 

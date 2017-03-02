@@ -11,6 +11,8 @@ import models.vgg as models
 import data as tiddata
 from models import *
 
+print("TensorFlow "+ tf.__version__)
+
 config = tflearn.config.init_graph (
     num_cores=1,
     gpu_memory_fraction=0.75,

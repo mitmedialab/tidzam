@@ -15,6 +15,8 @@ from models import *
 
 import data as tiddata
 
+
+print("TensorFlow "+ tf.__version__)
 ###################################
 ### System configurations
 ###################################
@@ -67,10 +69,12 @@ config = tflearn.config.init_graph (
 ###################################
 # Load the data
 ###################################
-data_size=[31,26]
-#data_size=[150,186]
-dataset     = tiddata.Dataset(opts.dataset, p=0.7, data_size=data_size)
-dataset_t   = tiddata.Dataset(opts.dataset, data_size=(dataset.dataw,dataset.datah))
+dataset     = tiddata.Dataset(opts.dataset, p=0.7)
+dataset_t   = tiddata.Dataset(opts.dataset)
+print("Sample size: " + str(dataset.dataw) + 'x' + str(dataset.datah))
+
+# Check limit of generable embeddings
+opts.nb_embeddings = min(opts.nb_embeddings, dataset.data.shape[0])
 
 ###################################
 # Build graphs and session
@@ -82,12 +86,13 @@ with tf.Session(config=config) as sess:
 
     ### Load the network model
     print("Loading Neural Network:  models/" + opts.dnn + ".py")
-    net = eval(opts.dnn + ".DNN(data_size, dataset.n_classes)")
+    net = eval(opts.dnn + ".DNN([dataset.dataw, dataset.datah], dataset.n_classes)")
 
     ## Build summaries
-    try:
+#    try:
+    if True:
         merged = None
-        writer = tf.train.SummaryWriter(opts.out + "/" + net.name + "")
+        writer = tf.summary.FileWriter(opts.out + "/" + net.name + "")
 
         for conv in net.show_kernel_map:
             img = vizu.print_kernel_filters(conv)
@@ -97,13 +102,13 @@ with tf.Session(config=config) as sess:
 
         with tf.name_scope('Build_audio_from_filters') as scope:
             nb_kernel = net.conv1.get_shape()[3].__int__()
-            W_c = tf.split(3, nb_kernel, net.conv1)
+            W_c = tf.split(net.conv1, nb_kernel, 3)
             tf.summary.audio("Visualize_audio", W_c[0][0], 48100,
                 max_outputs=6)
 
-        merged = tf.merge_all_summaries()
-    except:
-        print("No kernel map generated.")
+        merged = tf.summary.merge_all()
+#    except:
+#        print("No kernel map generated.")
 
 
     ### Define optimizer and cost function
@@ -136,7 +141,7 @@ with tf.Session(config=config) as sess:
             trainer.load(opts.out + "/" + net.name, create_new_session=False)
         except:
             print("The destination folder contains a previous session.\nDo you want to erase it ? [y/N]")
-            a = raw_input()
+            a = input()
             if a == 'y':
                 shutil.rmtree(opts.out)
             else:
