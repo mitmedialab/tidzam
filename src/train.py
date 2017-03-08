@@ -92,6 +92,7 @@ with tf.name_scope('Accurancy-Score'):
     precision = tf.Variable(0.0, trainable=False)
     recall = tf.Variable(0.0, trainable=False)
     f1 = tf.Variable(0.0, trainable=False)
+    matrix_conf = tf.get_variable("matric_conf", [1, dataset.n_classes, dataset.n_classes,1], trainable=False)
 
 with tf.Session(config=config) as sess:
 
@@ -104,6 +105,7 @@ with tf.Session(config=config) as sess:
         tf.summary.scalar('Precision', precision)
         tf.summary.scalar('Recall', recall)
         tf.summary.scalar('F1', f1)
+        tf.summary.image("Confusion Matrix", matrix_conf)
 
     try:
         for conv in net.show_kernel_map:
@@ -179,7 +181,8 @@ with tf.Session(config=config) as sess:
             sess.run( [
                 precision.assign(metrics.precision_score(y_true, y_pred, average='micro')),
                 recall.assign(metrics.recall_score(y_true, y_pred, average='micro')),
-                f1.assign(metrics.f1_score(y_true, y_pred, average='micro'))
+                f1.assign(metrics.f1_score(y_true, y_pred, average='micro')),
+                matrix_conf.assign(np.reshape(metrics.confusion_matrix(y_true, y_pred), [1, dataset.n_classes, dataset.n_classes , 1]))
                 ])
 
             print("* Kernel feature map rendering")
