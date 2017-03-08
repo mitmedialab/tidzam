@@ -18,7 +18,8 @@ def build_metadatafile(Y, out_file='database/metadata.tsv'):
 def feed_embeddings(embedding_var, dataset_t, Pout, Pin,
             nb_embeddings=1,
             sess=False,
-            checkpoint_dir='checkpoints/'):
+            checkpoint_dir='checkpoints/',
+            embeddings_writer=None):
     if sess is False:
         sess = tf.get_default_session()
     # Clean previous embedding for this place
@@ -27,16 +28,19 @@ def feed_embeddings(embedding_var, dataset_t, Pout, Pin,
     # Feed the network and stoire results
     dataset_t.split_dataset(p=0)
     bx, by = dataset_t.next_batch_test(batch_size=nb_embeddings)
-    res = sess.run(Pout,feed_dict={Pin: bx} )
-    embedding_var.assign(res)
+    sess.run([embedding_var.assign(Pout)],feed_dict={Pin: bx})
     build_metadatafile(by, out_file=checkpoint_dir+'/metadata-'+embedding_var.name.replace('/','-')+'.tsv')
 
-    embeddings_writer = tf.summary.FileWriter(checkpoint_dir)
+    if embeddings_writer is None:
+        embeddings_writer = tf.summary.FileWriter(checkpoint_dir)
+    else:
+        embeddings_writer.reopen()
     config_projector = projector.ProjectorConfig()
     embedding = config_projector.embeddings.add()
     embedding.tensor_name = embedding_var.name
     embedding.metadata_path = checkpoint_dir+'/metadata-'+embedding_var.name.replace('/','-')+'.tsv'
     projector.visualize_embeddings(embeddings_writer, config_projector)
+    embeddings_writer.close()
 
 def print_kernel_filters(conv_layer):
     with tf.name_scope('Visualize_filters') as scope:
