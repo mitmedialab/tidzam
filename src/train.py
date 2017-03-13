@@ -12,7 +12,8 @@ import tflearn
 from sklearn import *
 
 import vizualisation as vizu
-from models import *
+
+#from models import *
 
 import data as tiddata
 
@@ -97,8 +98,11 @@ with tf.name_scope('Accurancy-Score'):
 with tf.Session(config=config) as sess:
 
     ### Load the network model
-    print("Loading Neural Network:  models/" + opts.dnn + ".py")
-    net = eval(opts.dnn + ".DNN([dataset.dataw, dataset.datah], dataset.n_classes)")
+    print("Loading DNN model from:  " + opts.dnn)
+    sys.path.append('./')
+
+    exec("import "+os.path.dirname(opts.dnn)+"."+os.path.basename(opts.dnn).replace(".py","")+" as model")
+    net = eval("model.DNN([dataset.dataw, dataset.datah], dataset.n_classes)")
 
     ## Build summaries
     with tf.name_scope('Stats'):
@@ -208,5 +212,7 @@ with tf.Session(config=config) as sess:
         if step == 1:
             # Save the label dictionnary in out file
             np.save(opts.out + "/labels.dic", dataset.labels_dic)
+            shutil.copyfile(opts.dnn, opts.out + "/model.py")
+
 
         step = step + 1
