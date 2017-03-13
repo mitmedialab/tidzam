@@ -5,11 +5,10 @@ import glob, os
 
 import tensorflow as tf
 import tflearn
+import importlib
 
 import vizualisation as vizu
-import models.vgg as models
 import data as tiddata
-from models import *
 
 print("TensorFlow "+ tf.__version__)
 
@@ -31,10 +30,14 @@ class Classifier:
         if name_file == '':
             name_file = path[len(path) - 2 ]
 
+        # import the model
+        sys.path.append('./')
+        exec("import "+self.nn_folder.replace("/",".")+".model as model")
+
         # Create a new graph and load it in a new session
         g = tf.Graph()
         with g.as_default() as g:
-            network = eval( name_file + ".DNN([self.dataw, self.datah], len(self.label_dic))")
+            network = eval("model.DNN([self.dataw, self.datah], len(self.label_dic))")
             self.name = network.name
 
             with tf.Session( graph = g ) as sess:
@@ -44,7 +47,8 @@ class Classifier:
 
                 sess.run(tf.global_variables_initializer())
 
-        try:
+        #try:
+        if True:
             print('Loading : ' + self.nn_folder + "." + network.name)
             self.classifier.load(self.nn_folder + "/" + network.name, create_new_session=False)
 
@@ -52,9 +56,9 @@ class Classifier:
             self.classifier.net = tflearn.activations.softmax (self.classifier.net)
             self.classifier.predictor = tflearn.Evaluator([self.classifier.net],
                                    session=self.classifier.session,model=None)
-        except:
-            print('Unable to load model: ' + self.nn_folder)
-            quit()
+        #except:
+        #    print('Unable to load model: ' + self.nn_folder)
+        #    quit()
 
 class Analyzer:
     def __init__(self, nn_folder,session=False, wav_folder="wav/", callable_objects=[]):
@@ -71,7 +75,12 @@ class Analyzer:
         # For each neural network
         self.classifiers = []
         for f in glob.glob(self.nn_folder + "/*"):
-            self.classifiers.append(Classifier(f))
+            if os.path.isdir(f) and "__pycache__" not in f :
+                self.classifiers.append(Classifier(f))
+
+        if len(self.classifiers) < 1:
+            print("No classifier found in: " + self.nn_folder)
+            quit()
 
     # Function called by the streamer to predic its current sample
     def execute(self, Sxxs, fs, t, sound_obj, overlap=0.5):
