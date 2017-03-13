@@ -164,8 +164,6 @@ with tf.Session(config=config) as sess:
                 print('Unable to load network: ' + opts.out)
                 quit()
 
-
-
     ### Run the training process
     step = 1
     while step < opts.training_iters:

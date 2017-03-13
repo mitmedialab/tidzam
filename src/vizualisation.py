@@ -51,7 +51,7 @@ def print_kernel_filters(conv_layer):
         nb_pad = img_size * img_size - nb_kernel
         Wpad= tf.zeros([kernel_size, kernel_size, dim_features , 1])
         for i in range(0,nb_pad):
-            conv_layer.W = tf.concat(3, [conv_layer.W, Wpad])
+            conv_layer.W = tf.concat([conv_layer.W, Wpad], 3)
         W_c = tf.split(conv_layer.W, img_size**2, 3)
 
         # Build the image
