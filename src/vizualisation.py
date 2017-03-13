@@ -31,16 +31,12 @@ def feed_embeddings(embedding_var, dataset_t, Pout, Pin,
     sess.run([embedding_var.assign(Pout)],feed_dict={Pin: bx})
     build_metadatafile(by, out_file=checkpoint_dir+'/metadata-'+embedding_var.name.replace('/','-')+'.tsv')
 
-    if embeddings_writer is None:
-        embeddings_writer = tf.summary.FileWriter(checkpoint_dir)
-    else:
-        embeddings_writer.reopen()
     config_projector = projector.ProjectorConfig()
     embedding = config_projector.embeddings.add()
     embedding.tensor_name = embedding_var.name
     embedding.metadata_path = checkpoint_dir+'/metadata-'+embedding_var.name.replace('/','-')+'.tsv'
     projector.visualize_embeddings(embeddings_writer, config_projector)
-    embeddings_writer.close()
+
 
 def print_kernel_filters(conv_layer):
     with tf.name_scope('Visualize_filters') as scope:

@@ -123,7 +123,6 @@ with tf.Session(config=config) as sess:
         print("No kernel map generated.")
 
     merged = tf.summary.merge_all()
-    writer = tf.summary.FileWriter(opts.out + "/" + net.name + "")
 
     ### Define optimizer and cost function
     cost = tflearn.regression( net.out,
@@ -136,7 +135,7 @@ with tf.Session(config=config) as sess:
     trainer = tflearn.DNN(cost,
         session=sess,
         tensorboard_dir= opts.out + "/",
-        tensorboard_verbose=2)
+        tensorboard_verbose=0)
 
 
     # Build the graph
@@ -165,7 +164,6 @@ with tf.Session(config=config) as sess:
 
     ### Run the training process
     step = 1
-    writer.close()
     while step < opts.training_iters:
         print("Load batchs")
         batch_x, batch_y            = dataset.next_batch_train(batch_size=opts.batch_size)
@@ -187,20 +185,22 @@ with tf.Session(config=config) as sess:
 
             print("* Kernel feature map rendering")
             merged_res  = sess.run([merged], feed_dict={ net.input: batch_x} )
-            writer.reopen()
-            writer.add_summary(merged_res[0], step)
-            writer.close()
+            trainer.trainer.summ_writer.reopen()
+            trainer.trainer.summ_writer.add_summary(merged_res[0], trainer.trainer.global_step.eval())
 
             print("* Generation of #" +str(opts.nb_embeddings)+ " embeddings for " + embed1.name)
             vizu.feed_embeddings(embed1, dataset_t, net.out, net.input,
                         nb_embeddings=opts.nb_embeddings,
                         checkpoint_dir=opts.out + "/" + net.name,
-                        embeddings_writer=writer)
+                        embeddings_writer=trainer.trainer.summ_writer)
+            trainer.trainer.summ_writer.close()
 
         tflearn.is_training(True, session=sess)
-        trainer.fit(batch_x, batch_y, n_epoch=1, validation_set=(batch_test_x, batch_test_y),
-              show_metric=True, run_id=net.name)
-
+        trainer.fit(batch_x, batch_y,
+                n_epoch=1,
+                validation_set=(batch_test_x, batch_test_y),
+                show_metric=True,
+                run_id=net.name)
 
         print("Saving in " + opts.out + "/" + net.name + "\n--")
         trainer.save(opts.out + "/" + net.name)
