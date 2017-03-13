@@ -73,6 +73,10 @@ class Analyzer:
         for f in glob.glob(self.nn_folder + "/*"):
             self.classifiers.append(Classifier(f))
 
+        if len(self.classifiers) < 1:
+            print("No classifier found in: " + self.nn_folder)
+            quit()
+
     # Function called by the streamer to predic its current sample
     def execute(self, Sxxs, fs, t, sound_obj, overlap=0.5):
 
