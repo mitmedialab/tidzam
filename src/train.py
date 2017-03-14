@@ -87,16 +87,15 @@ opts.nb_embeddings = min(opts.nb_embeddings, dataset.data.shape[0])
 # Build graphs and session
 ###################################
 with tf.variable_scope("embeddings"):
-    embed1 = tf.get_variable("pred", [ opts.nb_embeddings, dataset.n_classes], trainable=False)
+    embedding_var = tf.get_variable("pred", [ opts.nb_embeddings, dataset.n_classes], trainable=False)
 
 with tf.name_scope('Accurancy-Score'):
-    precision = tf.Variable(0.0, trainable=False)
-    recall = tf.Variable(0.0, trainable=False)
-    f1 = tf.Variable(0.0, trainable=False)
+    precision   = tf.Variable(0.0, trainable=False)
+    recall      = tf.Variable(0.0, trainable=False)
+    f1          = tf.Variable(0.0, trainable=False)
     matrix_conf = tf.get_variable("matric_conf", [1, dataset.n_classes, dataset.n_classes,1], trainable=False)
 
 with tf.Session(config=config) as sess:
-
     ### Load the network model
     print("Loading DNN model from:  " + opts.dnn)
     sys.path.append('./')
@@ -105,6 +104,8 @@ with tf.Session(config=config) as sess:
     net = eval("model.DNN([dataset.dataw, dataset.datah], dataset.n_classes)")
 
     ## Build summaries
+    embed = vizu.Embedding(net.input, net.out, embedding_var, opts.out)
+
     with tf.name_scope('Stats'):
         tf.summary.scalar('Precision', precision)
         tf.summary.scalar('Recall', recall)
@@ -139,15 +140,12 @@ with tf.Session(config=config) as sess:
     trainer = tflearn.DNN(cost,
         session=sess,
         tensorboard_dir= opts.out + "/",
-        tensorboard_verbose=0)
-
+        tensorboard_verbose=3)
 
     # Build the graph
     sess.run(tf.global_variables_initializer())
 
-
     ### Load a previous session
-    #if opts.load:
     if not os.path.exists(opts.out + "/"):
         print("Create output folder : " + opts.out + "/")
         os.makedirs(opts.out + "/")
@@ -171,9 +169,17 @@ with tf.Session(config=config) as sess:
         batch_x, batch_y            = dataset.next_batch_train(batch_size=opts.batch_size)
         batch_test_x, batch_test_y  = dataset.next_batch_test(batch_size=opts.batch_size)
 
+        tflearn.is_training(True, session=sess)
+        trainer.fit(batch_x, batch_y,
+                n_epoch=1,
+                validation_set=(batch_test_x, batch_test_y),
+                show_metric=True,
+                run_id=net.name)
+
         if opts.nb_embeddings > 0 and step % opts.EMBEDDINGS_STEP == 0 and step > 1:
-            tflearn.is_training(False, session=sess)
             print("--\nSummaries and Embeddings")
+            tflearn.is_training(False, session=sess)
+            trainer.trainer.summ_writer.reopen()
 
             y_pred = trainer.predict(batch_test_x)
             y_pred = np.argmax(y_pred,1)
@@ -187,30 +193,23 @@ with tf.Session(config=config) as sess:
 
             print("* Kernel feature map rendering")
             merged_res  = sess.run([merged], feed_dict={ net.input: batch_x} )
-            trainer.trainer.summ_writer.reopen()
             trainer.trainer.summ_writer.add_summary(merged_res[0], trainer.trainer.global_step.eval())
 
-            print("* Generation of #" +str(opts.nb_embeddings)+ " embeddings for " + embed1.name)
-            vizu.feed_embeddings(embed1, dataset_t, net.out, net.input,
-                        nb_embeddings=opts.nb_embeddings,
-                        checkpoint_dir=opts.out + "/" + net.name,
-                        embeddings_writer=trainer.trainer.summ_writer)
+            print("* Generation of #" +str(opts.nb_embeddings)+ " embeddings for " + embedding_var.name)
+            embed.evaluate(dataset_t, opts.nb_embeddings, sess,
+                        dic=dataset_t.labels_dic)
+
             trainer.trainer.summ_writer.close()
 
-        tflearn.is_training(True, session=sess)
-        trainer.fit(batch_x, batch_y,
-                n_epoch=1,
-                validation_set=(batch_test_x, batch_test_y),
-                show_metric=True,
-                run_id=net.name)
-
-        print("Saving in " + opts.out + "/" + net.name + "\n--")
-        trainer.save(opts.out + "/" + net.name)
+            print("Saving in " + opts.out + "/" + net.name + "\n--")
+            trainer.save(opts.out + "/" + net.name)
 
         if step == 1:
-            # Save the label dictionnary in out file
+            projector.visualize_embeddings(
+                    trainer.trainer.summ_writer,
+                    embed.config_projector)
+
             np.save(opts.out + "/labels.dic", dataset.labels_dic)
             shutil.copyfile(opts.dnn, opts.out + "/model.py")
-
 
         step = step + 1

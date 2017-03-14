@@ -6,37 +6,37 @@ import data as tiddata
 import numpy as np
 import math
 
-# Build Metadata file for tensorflow Embedding Vizualisation
-# For each row in Y, right its classes number in out_file file
-def build_metadatafile(Y, out_file='database/metadata.tsv'):
-    names = [a for a in range(0,Y.shape[1])]
-    metadata_file = open(out_file, 'a')
-    for i in range(Y.shape[0]):
-        metadata_file.write('%d\n' % (np.argmax(Y[i])))
-    metadata_file.close()
+class Embedding:
+    def __init__(self, Pin, Pout, embedding_var, checkpoint_dir):
+        self.Pin = Pin
+        self.Pout = Pout
+        self.checkpoint_dir = checkpoint_dir
+        self.embedding_var = embedding_var
 
-def feed_embeddings(embedding_var, dataset_t, Pout, Pin,
-            nb_embeddings=1,
-            sess=False,
-            checkpoint_dir='checkpoints/',
-            embeddings_writer=None):
-    if sess is False:
-        sess = tf.get_default_session()
-    # Clean previous embedding for this place
-    with open(checkpoint_dir+'/metadata-'+embedding_var.name.replace('/','-')+'.tsv', "w"):
-        pass
-    # Feed the network and stoire results
-    dataset_t.split_dataset(p=0)
-    bx, by = dataset_t.next_batch_test(batch_size=nb_embeddings)
-    sess.run([embedding_var.assign(Pout)],feed_dict={Pin: bx})
-    build_metadatafile(by, out_file=checkpoint_dir+'/metadata-'+embedding_var.name.replace('/','-')+'.tsv')
+        self.config_projector = projector.ProjectorConfig()
+        self.embedding = self.config_projector.embeddings.add()
+        self.embedding.tensor_name = self.embedding_var.name
+        self.embedding.metadata_path = self.checkpoint_dir+'/metadata-'+embedding_var.name.replace('/','-')+'.tsv'
 
-    config_projector = projector.ProjectorConfig()
-    embedding = config_projector.embeddings.add()
-    embedding.tensor_name = embedding_var.name
-    embedding.metadata_path = checkpoint_dir+'/metadata-'+embedding_var.name.replace('/','-')+'.tsv'
-    projector.visualize_embeddings(embeddings_writer, config_projector)
+    def evaluate(self, dataset_t,  nb_embeddings, sess,dic=None):
+        dataset_t.split_dataset(p=0)
+        bx, by = dataset_t.next_batch_test(batch_size=nb_embeddings)
+        sess.run([self.embedding_var.assign(self.Pout)],feed_dict={self.Pin: bx})
+        self.build_metadatafile(by, dic=dic, out_file=self.checkpoint_dir+'/metadata-'+self.embedding_var.name.replace('/','-')+'.tsv')
 
+    def build_metadatafile(self, Y, dic=None, out_file='database/metadata.tsv'):
+        # Clean previous embedding for this place
+        with open(out_file, "w"):
+            pass
+        names = [a for a in range(0,Y.shape[1])]
+        metadata_file = open(out_file, 'a')
+        for i in range(Y.shape[0]):
+            l = np.argmax(Y[i])
+            if dic is None:
+                metadata_file.write('%d\n' % (l))
+            else:
+                metadata_file.write('%s\n' % ( str(dic[int(l)]) ))
+        metadata_file.close()
 
 def print_kernel_filters(conv_layer):
     with tf.name_scope('Visualize_filters') as scope:
