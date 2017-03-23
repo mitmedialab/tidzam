@@ -1,6 +1,7 @@
 import soundfile as sf
 import numpy as np
 from threading import Thread
+import os
 
 import data as tiddata
 
@@ -18,6 +19,11 @@ class TidzamAudiofile(Thread):
         with sf.SoundFile(self.audiofilename, 'r') as f:
             while f.tell() < len(f):
                 data = f.read(24000)
+
+                if (len(data) < 24000):
+                    print("End of stream ...")
+                    os._exit(0)
+
                 for i in range(0,f.channels):
                     if f.channels > 1:
                         fs, t, Sxx = tiddata.get_spectrogram(data[:,i], f.samplerate, i)
@@ -34,6 +40,6 @@ class TidzamAudiofile(Thread):
                         ts = np.concatenate((ts, t), axis=0)
 
                 for obj in self.callable_objects:
-                    obj.execute(Sxxs, fss, ts, [data, f.samplerate], overlap=self.overlap)
+                    obj.execute(Sxxs, fss, ts, [data, f.samplerate], overlap=self.overlap,stream=self.audiofilename)
 
                 f.seek(int(-24000*self.overlap), whence=sf.SEEK_CUR)

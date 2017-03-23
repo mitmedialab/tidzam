@@ -2,6 +2,8 @@ import numpy as np
 import math
 import sys, optparse
 import glob, os
+from datetime import *
+import time
 
 import tensorflow as tf
 import tflearn
@@ -61,14 +63,13 @@ class Classifier:
         #    quit()
 
 class Analyzer:
-    def __init__(self, nn_folder,session=False, wav_folder="wav/", callable_objects=[]):
+    def __init__(self, nn_folder,session=False, callable_objects=[]):
         self.nn_folder = nn_folder
         self.count_run = -1
-        self.wav_folder = wav_folder
+        self.old_stream = ""
         self.callable_objects = callable_objects
         self.load()
 
-        print("WAV destination folder: " + wav_folder)
 
     # Load the network
     def load(self):
@@ -83,14 +84,36 @@ class Analyzer:
             quit()
 
     # Function called by the streamer to predic its current sample
-    def execute(self, Sxxs, fs, t, sound_obj, overlap=0.5):
+    def execute(self, Sxxs, fs, t, sound_obj, overlap=0.5, stream=None):
 
         self.count_run = self.count_run + 1
-        time = str(int(self.count_run * 0.5 * (1-overlap) / 3600)) + ":" + \
-                str( int((self.count_run * 0.5 * (1-overlap) % 3600)/60)) + ":" + \
-                str( int(self.count_run * 0.5 * (1-overlap) % 3600 % 60)) + ":" + \
-                str( int( ((self.count_run * 0.5 * (1-overlap) % 3600 % 60) * 1000) % 1000) ) + "ms"
-        print("----------------------------------- " + time)
+        if stream == "rt":
+            stream = time.strftime("generated/today-%Y-%m-%d-%H-%M-%S.ogg")
+            time_relative = "0:0:0:0ms"
+            if stream == self.old_stream:
+                time_relative = "0:0:0:500ms"
+            self.old_stream = stream
+
+        else:
+            time_relative = str(int(self.count_run * 0.5 * (1-overlap) / 3600)) + ":" + \
+                    str( int((self.count_run * 0.5 * (1-overlap) % 3600)/60)) + ":" + \
+                    str( int(self.count_run * 0.5 * (1-overlap) % 3600 % 60)) + ":" + \
+                    str( int( ((self.count_run * 0.5 * (1-overlap) % 3600 % 60) * 1000) % 1000) ) + "ms"
+
+        date = stream.split("/")
+        date = date[len(date)-1].split(".")[0].split("-")
+        date.pop(0)
+        date = ''.join(date)
+        date = datetime.strptime(date, "%Y%m%d%H%M%S")
+        sample_time = time_relative.replace("ms","").split(":")
+        sample_time = timedelta(
+                hours=int(sample_time[0]),
+                minutes=int(sample_time[1]),
+                seconds=int(sample_time[2]),
+                milliseconds=int(sample_time[3]))
+        sample_timestamp = (date + sample_time).isoformat()
+
+        print("----------------------------------- " + sample_timestamp)
 
         classes = []
         for nn in self.classifiers:
@@ -122,7 +145,7 @@ class Analyzer:
             #print(res)
 
         for obj in self.callable_objects:
-            obj.execute(res, classes, nn.label_dic, sound_obj, time)
+            obj.execute(res, classes, nn.label_dic, sound_obj, sample_timestamp)
 
 #            # Save the file on the disk
 
@@ -144,7 +167,7 @@ if __name__ == "__main__":
         help="Neural Network session to load.")
 
     parser.add_option("-o", "--out", action="store", type="string", dest="out",
-        default="/tmp/wav",
+        default=None,
         help="Output folder for audio sound extraction.")
 
     parser.add_option("--show", action="store_true", dest="show", default=False,
@@ -156,25 +179,27 @@ if __name__ == "__main__":
 
     if (opts.stream or opts.jack) and opts.nn:
         callable_objects = []
+        if opts.out is not None:
+            if opts.stream is not None:
+                # Build folder to store wav file
+                a = opts.stream.split('/')
+                a = a[len(a)-1].split('.')[0]
+                wav_folder = opts.out + '/' + a + '/'
+            else:
+                wav_folder = opts.out
 
-        if opts.stream is not None:
-            # Build folder to store wav file
-            a = opts.stream.split('/')
-            a = a[len(a)-1].split('.')[0]
-            wav_folder = opts.out + '/' + a + '/'
-        else:
-            wav_folder = opts.out
-
-
-        import connector_SampleExtractor as SampleExtractor
-        extractor = SampleExtractor.SampleExtractor(['birds'], wav_folder)
+            import connector_SampleExtractor as SampleExtractor
+            extractor = SampleExtractor.SampleExtractor(['birds', 'cricket', 'nothing', 'rain'], wav_folder)
+            callable_objects.append(extractor)
 
         import connector_socketio as socketio
         socket = socketio.create_socket("/")
+        callable_objects.append(socket)
 
-        analyzer = Analyzer(opts.nn, callable_objects=[socket, extractor], wav_folder=wav_folder)
+        analyzer = Analyzer(opts.nn, callable_objects=callable_objects)
+
+        callable_objects = []
         callable_objects.append(analyzer)
-
 
         if opts.show is True:
             import analyzer_vizualizer as tv
@@ -192,9 +217,5 @@ if __name__ == "__main__":
 
         connector.start()
         socket.start()
-        a = input()
-        connector.stop()
-        print('Program exited')
-        os._exit(0)
     else:
         print(parser.usage)

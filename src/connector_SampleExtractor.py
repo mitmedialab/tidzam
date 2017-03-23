@@ -1,6 +1,8 @@
 import soundfile as sf
 import os
 
+
+
 class SampleExtractor:
     def __init__(self, classes_to_extract, wav_folder='/tmp/tidzam/wav'):
         self.wav_folder = wav_folder
@@ -9,6 +11,7 @@ class SampleExtractor:
         if not os.path.exists(self.wav_folder):
             os.makedirs(self.wav_folder)
 
+        print("WAV destination folder: " + wav_folder)
 
     def execute(self, prob_classes, predictions, classes_dic, sound_obj=None, time=None):
         for channel in range(len(prob_classes)):

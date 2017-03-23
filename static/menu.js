@@ -25,8 +25,8 @@ function Menu (controller, parent) {
   <li>Interfaces\
   <ul> \
   <li OnClick="controller.openPlayer();">System Control </li>\
-  <li OnClick="controller.openSpeakerstats();">Stream Analysis</li>\
-  <li OnClick="controller.openNeuralOutputs();">Classifier Management</li>\
+  <li OnClick="controller.openDetectionMap();">Detection Map</li>\
+  <li OnClick="controller.openNeuralOutputs();">Classifier Outputs</li>\
   </ul>\
   </li> \
   </ul>\

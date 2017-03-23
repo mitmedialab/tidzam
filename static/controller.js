@@ -7,7 +7,7 @@ function Controller(parent){
 
   //var player = this.player = new Player(parent);
   var charts = this.charts = new ClassifierChart(parent);
-  //var speakerstats = this.speakerstats = new SpeakerStats(parent);
+  var map = this.map       = new DetectionMap(parent)
 
   // WINDOWS DECLARATION
   this.parent.innerHTML += '<div id="dialog-console" title="JSON WebSocket" ></div>'+
@@ -54,13 +54,14 @@ function Controller(parent){
 
   }
 
-  this.openSpeakerstats = function(){
-    this.speakerstats.show();
-  };
 
   this.openPlayer = function(){
     this.player.show();
   };
+
+  this.openDetectionMap = function (){
+    this.map.show();
+  }
 
   this.openNeuralOutputs = function(){
     this.charts.show();

@@ -96,4 +96,4 @@ class TidzamJack(Thread):
 
             if run is True:
                 for obj in self.callable_objects:
-                    obj.execute(Sxxs, fss, ts, [np.transpose(datas), self.samplerate], overlap=0)
+                    obj.execute(Sxxs, fss, ts, [np.transpose(datas), self.samplerate], overlap=0,stream="rt")
