@@ -86,7 +86,9 @@ class Analyzer:
     # Function called by the streamer to predic its current sample
     def execute(self, Sxxs, fs, t, sound_obj, overlap=0.5, stream=None):
 
+        # Compute GMT Timestamp for current sampe
         self.count_run = self.count_run + 1
+        # From Real-Time Stream
         if stream == "rt":
             stream = time.strftime("generated/today-%Y-%m-%d-%H-%M-%S.ogg")
             time_relative = "0:0:0:0ms"
@@ -94,12 +96,14 @@ class Analyzer:
                 time_relative = "0:0:0:500ms"
             self.old_stream = stream
 
+        # From audio file, compute relative time from beginning
         else:
             time_relative = str(int(self.count_run * 0.5 * (1-overlap) / 3600)) + ":" + \
                     str( int((self.count_run * 0.5 * (1-overlap) % 3600)/60)) + ":" + \
                     str( int(self.count_run * 0.5 * (1-overlap) % 3600 % 60)) + ":" + \
                     str( int( ((self.count_run * 0.5 * (1-overlap) % 3600 % 60) * 1000) % 1000) ) + "ms"
 
+        # Extract the datetime from the filename
         date = stream.split("/")
         date = date[len(date)-1].split(".")[0].split("-")
         date.pop(0)
@@ -130,26 +134,21 @@ class Analyzer:
                 break
 
         for channel in range(0, Sxxs.shape[0]):
-#            for nn in self.classifiers:
-#                pred = classes[channel].split('-')
-#                if nn.name == pred[0]:
-#                    res = nn.classifier.predict([Sxxs[channel,:]])
-#                    a = np.max(res)
-#                    if  np.abs(a) < 0.5:
-#                        classes[channel] = classes[channel] + '-' + str(nn.label_dic[ np.argmax(res) ]) #+ ' ('  + str(a) + ')'
-#                    else:
-#                        classes[channel] = classes[channel] + '-unknow ' #+ '(' + str(a) + ')'
-#                    break
-
+            for nn in self.classifiers:
+                pred = classes[channel].split('-')
+                if nn.name == pred[0]:
+                    res = nn.classifier.predict([Sxxs[channel,:]])
+                    a = np.max(res)
+                    if  np.abs(a) < 0.5:
+                        classes[channel] = classes[channel] + '-' + str(nn.label_dic[ np.argmax(res) ]) #+ ' ('  + str(a) + ')'
+                    else:
+                        classes[channel] = classes[channel] + '-unknow ' #+ '(' + str(a) + ')'
+                    break
             print( "channel " + str(channel) + ' | ' + classes[channel])
-            #print(res)
 
         for obj in self.callable_objects:
             obj.execute(res, classes, nn.label_dic, sound_obj, sample_timestamp)
 
-#            # Save the file on the disk
-
-#
 if __name__ == "__main__":
     usage = 'analyzer.py --nn=build/test --stream=stream.wav [--show, -h]'
     parser = optparse.OptionParser(usage=usage)

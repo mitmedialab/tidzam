@@ -2,8 +2,6 @@ function DetectionMap(parent){
   this.parent = parent
   parent.innerHTML += '<div id="detection_map" title="Detection Map" style="width:100%; text-align:center;"></div>'
 
-  parent.innerHTML += ' <audio controls><source src="http://deep-resenv.media.mit.edu:8081/stream.ogg" type="audio/ogg">Your browser does not support the audio element.</audio> '
-
     $( "#detection_map" ).dialog({
       autoOpen: false,
       width: 750,
@@ -11,7 +9,8 @@ function DetectionMap(parent){
       modal: false,
     });
     $( "#detection_map" ).html(
-      '<div id="detection_map_area" style="height:750px;"></div>'
+      '<span id="audio_text"></span><div id="detection_map_area" style="height:750px;"></div>'+
+      '<audio controls id="audio_player"><source src="/chan0" type="audio/wav"></audio>'
     );
     $( "#detection_map" ).attr('style','font-size:12px;');
 
@@ -36,6 +35,14 @@ function DetectionMap(parent){
       marker.name = this.streams[i].name
       marker.setMap(map);
       markers.push(marker);
+
+      google.maps.event.addListener(marker, 'click', function() {
+        stream = 'http://deep-resenv.media.mit.edu:8000/'+this.name+'.ogg'
+        $( '#audio_player'  ).attr('src', stream);
+        $( '#audio_player'  ).load();
+        $( '#audio_player' ).trigger('play');
+        $( '#audio_text' ).html("Listening: " + stream)
+        });
       }
   }
 

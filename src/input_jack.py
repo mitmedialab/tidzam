@@ -1,9 +1,9 @@
 import jack
-import sys
+import sys, os
 import numpy as np
 import threading
 from threading import Thread
-
+import subprocess
 import data as tiddata
 
 class TidzamJack(Thread):
@@ -40,6 +40,8 @@ class TidzamJack(Thread):
 
         for i in range(0, len(self.ports)): #p in ports:
             self.client.connect(self.ports[i], self.channels[i])
+
+        self.run_streaming()
 
     def stop(self):
         self.client.deactivate()
@@ -97,3 +99,24 @@ class TidzamJack(Thread):
             if run is True:
                 for obj in self.callable_objects:
                     obj.execute(Sxxs, fss, ts, [np.transpose(datas), self.samplerate], overlap=0,stream="rt")
+
+    def run_streaming(self):
+        print("====================================")
+        print("Start channel streamer for IceCast")
+        print("====================================\n")
+        self.streamer_process = []
+        FNULL = open(os.devnull, 'w')
+
+        with open("icecast/ices-templates.xml", "r") as file_template:
+            for i in range(0, len(self.ports)):
+                file_template.seek(0)
+                template = file_template.read()
+                template = template.replace("/chan.ogg", "/ch"+str(i).zfill(2) +".ogg")
+                with open("/tmp/ices-chan"+str(i)+".xml", "w") as file:
+                    file.write(template)
+
+                cmd = ["./icecast/icecast_stream.sh", str(i)]
+                self.streamer_process.append(subprocess.Popen(cmd))
+
+        print("====================================\n")
+        #
