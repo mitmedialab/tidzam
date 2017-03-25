@@ -24,7 +24,7 @@ function DetectionMap(parent){
   function initMap() {
     map = new google.maps.Map(document.getElementById('detection_map_area'), {
       center: location,
-      zoom: 18,
+      zoom: 17,
       mapTypeId: google.maps.MapTypeId.SATELLITE
     });
 
@@ -48,7 +48,7 @@ function DetectionMap(parent){
         $( '#audio_player'  ).load();
         $( '#audio_player' ).trigger('play');
         infowindow.open(map, this);
-        content = '<div id="graph" style="padding:5px"></div>'
+        content = '<div id="graph" style="padding:1px"></div>'
         content += "<center>GPS coord: (" + this.getPosition().lat() + ", " + this.getPosition().lng() + ')</center>';
         infowindow.setContent(content)
         });
@@ -65,8 +65,17 @@ function DetectionMap(parent){
       for (var i=0; i < msg.length; i ++){
         // Update all Marker icons
         for(var j=0; j < markers.length; j++)
-          if (markers[j].name == "ch"+("0" + msg[i].chan).slice(-2))
-            markers[j].setIcon("static/img/"+msg[i].analysis.result+".png");
+          if (markers[j].name == "ch"+("0" + msg[i].chan).slice(-2)){
+            markers[j].setIcon("static/img/"+msg[i].analysis.result[0]+".png");
+            /*markers[j].setLabel({
+                text: res[res.length-1],
+                color: 'white',
+                labelOrigin: new google.maps.Point(20, 20),
+              // The anchor for this image is the base of the flagpole at (0, 32).
+              labelAnchor: new google.maps.Point(20, 32)
+            });*/
+          }
+
         // Update graph of the selected one
         if (channel == "ch"+("0" + msg[i].chan).slice(-2)){
           if (graph.name != channel){

@@ -84,8 +84,8 @@ class Dataset:
             a = a[0].split(',')
             self.dataw = int(a[0])
             self.datah = int(a[1])
-        try:
-
+        #try:
+        if True:
             self.data = np.load(file+"_data.npy")
             self.labels = np.load(file+"_labels.npy")
             self.labels_dic = np.load(file+"_labels_dic.npy")
@@ -96,8 +96,8 @@ class Dataset:
             print(" " +str(self.data.shape[0]) + " samples ("+ \
                 str(self.n_input) +" features) of " + \
                 str(self.n_classes) + " classes")
-        except IOError:
-            print("File not found: " + file)
+        #except IOError:
+        #    print("File not found: " + file)
 
     def save(self,name):
         np.save(name + "_data", self.data)

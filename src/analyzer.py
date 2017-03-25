@@ -120,34 +120,47 @@ class Analyzer:
         print("----------------------------------- " + sample_timestamp)
 
         classes = []
+        label_dic = []
+        res = []
+        # GENERAL CLASSIFIER
         for nn in self.classifiers:
             if nn.name == 'selector':
-                res = nn.classifier.predict(Sxxs)
+                res       = nn.classifier.predict(Sxxs)
+                label_dic += list(nn.label_dic)
                 for channel in range(0, Sxxs.shape[0]):
                     out_classes = ""
-                    for idx, val in enumerate(res[channel]):
-                        if val > 0.5: # If the neural network is confiant more than 50%
-                            out_classes += str(nn.label_dic[idx])
-                    if out_classes == "":
+                    a = np.argmax(res[channel])
+                    if res[channel][a] > 0.5: # If the neural network is confiant more than 50%
+                        out_classes = str(nn.label_dic[a])
+                    else:
                         out_classes = 'unknow'
                     classes.append(out_classes)
                 break
 
+        # EXPERT CLASSIFIER
         for channel in range(0, Sxxs.shape[0]):
             for nn in self.classifiers:
+                # Complete the dictionnary with other classifier
+                if nn.name != 'selector' and channel == 0:
+                    label_dic += list(nn.label_dic)
+
+                # Request the expert classifier for the detected classe
                 pred = classes[channel].split('-')
                 if nn.name == pred[0]:
-                    res = nn.classifier.predict([Sxxs[channel,:]])
-                    a = np.max(res)
-                    if  np.abs(a) < 0.5:
-                        classes[channel] = classes[channel] + '-' + str(nn.label_dic[ np.argmax(res) ]) #+ ' ('  + str(a) + ')'
-                    else:
-                        classes[channel] = classes[channel] + '-unknow ' #+ '(' + str(a) + ')'
-                    break
+                    res_expert = nn.classifier.predict([Sxxs[channel,:]])[0]
+                    res[channel] += list(res_expert)
+                    a = np.argmax(res_expert)
+                    if  res_expert[a] > 0.5:
+                        classes[channel] = classes[channel] + '-' + str(nn.label_dic[ a ]) #+ ' ('  + str(a) + ')'
+
+                # Fill in with zeros for all other expert classifiers
+                else:
+                    res[channel] += list(np.zeros(len(nn.label_dic)) )
             print( "channel " + str(channel) + ' | ' + classes[channel])
 
+        # BUILD AND TRANSMIT RESULT
         for obj in self.callable_objects:
-            obj.execute(res, classes, nn.label_dic, sound_obj, sample_timestamp)
+            obj.execute(res, classes, label_dic, sound_obj, sample_timestamp)
 
 if __name__ == "__main__":
     usage = 'analyzer.py --nn=build/test --stream=stream.wav [--show, -h]'

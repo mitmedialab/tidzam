@@ -19,7 +19,7 @@ function Chart (parent, name, classifier_list) {
   chart.chan = this.name;
   this.options 	= {
     'height':200,
-    'width':450,
+    'width':500,
     chart: {
       title: 'Audio Channel ' + this.name,
       subtitle: 'General classifiers'

@@ -39,9 +39,7 @@ class TidzamSocketIO(socketio.AsyncNamespace):
         classes = []
         for cl in  self.classes_dic:
             classes.append('classifier-' +  cl + '.nn')
-
         obj =  {'sys':{'classifier':{'list':classes}}}
-        print(obj)
         return obj
 
     def execute(self, prob_classes, predictions, classes_dic, sound_obj=None, time=None):
