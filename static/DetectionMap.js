@@ -6,8 +6,8 @@ function DetectionMap(parent){
 
     $( "#detection_map" ).dialog({
       autoOpen: false,
-      width: 750,
-      height: 750,
+      width: 1024,
+      height: 850,
       modal: false,
     });
     $( "#detection_map" ).html(
@@ -18,13 +18,13 @@ function DetectionMap(parent){
     $( "#detection_map" ).attr('style','font-size:12px;');
 
 
-  var location = {lat: 41.8997582, lng: -70.571251};
+  var location = {lat: 41.8997582, lng: -70.571101};
   var map = null;
   var markers = Array()
   function initMap() {
     map = new google.maps.Map(document.getElementById('detection_map_area'), {
       center: location,
-      zoom: 17,
+      zoom: 18,
       mapTypeId: google.maps.MapTypeId.SATELLITE
     });
 
@@ -56,10 +56,11 @@ function DetectionMap(parent){
   }
 
   this.show = function(){
-    if (map == null)
-      initMap();
     $( "#detection_map" ).dialog("open");
   }
+
+  initMap();
+  this.show();
 
   socket.on('sys', function(msg){
       for (var i=0; i < msg.length; i ++){
@@ -67,13 +68,6 @@ function DetectionMap(parent){
         for(var j=0; j < markers.length; j++)
           if (markers[j].name == "ch"+("0" + msg[i].chan).slice(-2)){
             markers[j].setIcon("static/img/"+msg[i].analysis.result[0]+".png");
-            /*markers[j].setLabel({
-                text: res[res.length-1],
-                color: 'white',
-                labelOrigin: new google.maps.Point(20, 20),
-              // The anchor for this image is the base of the flagpole at (0, 32).
-              labelAnchor: new google.maps.Point(20, 32)
-            });*/
           }
 
         // Update graph of the selected one

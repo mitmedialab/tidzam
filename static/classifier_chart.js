@@ -27,6 +27,12 @@ function Chart (parent, name, classifier_list) {
     axes: 	{
       x: {0: {side: 'bottom'}}
     },
+    series: {
+            0: { color: 'red' },
+            1: { color: 'blue' },
+            2: { color: 'green' },
+            3: { color: 'yellow' }
+          },
     vAxis: {
       viewWindowMode:'explicit',
       format:"#%",
