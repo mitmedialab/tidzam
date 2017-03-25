@@ -116,7 +116,10 @@ class TidzamJack(Thread):
                     file.write(template)
 
                 cmd = ["./icecast/icecast_stream.sh", str(i)]
-                self.streamer_process.append(subprocess.Popen(cmd))
+                self.streamer_process.append(subprocess.Popen(cmd,
+                        shell=False,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE))
 
         print("====================================\n")
         #

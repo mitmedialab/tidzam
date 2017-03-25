@@ -49,8 +49,7 @@ class Classifier:
 
                 sess.run(tf.global_variables_initializer())
 
-        #try:
-        if True:
+        try:
             print('Loading : ' + self.nn_folder + "." + network.name)
             self.classifier.load(self.nn_folder + "/" + network.name, create_new_session=False)
 
@@ -58,9 +57,9 @@ class Classifier:
             self.classifier.net = tflearn.activations.softmax (self.classifier.net)
             self.classifier.predictor = tflearn.Evaluator([self.classifier.net],
                                    session=self.classifier.session,model=None)
-        #except:
-        #    print('Unable to load model: ' + self.nn_folder)
-        #    quit()
+        except:
+            print('Unable to load model: ' + self.nn_folder)
+            quit()
 
 class Analyzer:
     def __init__(self, nn_folder,session=False, callable_objects=[]):
