@@ -5,8 +5,6 @@ function Controller(parent){
   this.parent = parent;
   var conf = null;
 
-  //var player = this.player = new Player(parent);
-  var charts = this.charts = new ClassifierChart(parent);
   var map = this.map       = new DetectionMap(parent)
 
   // WINDOWS DECLARATION
@@ -45,27 +43,9 @@ function Controller(parent){
   $( "#dialog-console" ).attr('style','font-size:12px;');
 
 
-  // WINDOWS CALLER
-  this.raz = function(){
-    socket.emit('sys', JSON.stringify( {sys:{init:''}}));
-    setTimeout(function(){
-      socket.emit('sys', JSON.stringify({sys:{dataset:{list:''}} }));
-    }, 500);
-
-  }
-
-
-  this.openPlayer = function(){
-    this.player.show();
-  };
-
   this.openDetectionMap = function (){
     this.map.show();
   }
-
-  this.openNeuralOutputs = function(){
-    this.charts.show();
-  };
 
   this.openConsole = function(){
     $( "#dialog-console" ).dialog("open");
@@ -75,36 +55,12 @@ function Controller(parent){
     $( "#dialog-console-data" ).dialog("open");
   };
 
-
-  // Delay because of Google Chart Draw cannot be done at the same time
-  // And limit redraw request if previous as not be done, drop the sample....
-  done = []
-  function update_chart(json,i){
-    try{done[i]}
-    catch(er) {done.append(true)}
-    if(done[i] == false){
-      console.log('Skip drawing Chart ' + i + '(previous drawing is running)')
-      return
-    }
-    done[i] = false
-    setTimeout(function(){
-      charts.process(json);
-      done[i] = true
-    }, i*10);
-  }
-
   // SOCKET. IO CONNECTOR
   socket.on('sys', function(msg){
       $( "#dialog-output" ).html(JSON.stringify(msg));
-      json = msg;
-      if (Array.isArray(json))
-        for (var i = 0; i < json.length; i++)
-          update_chart(json[i],i)
-      else charts.process(json)
     });
 
   socket.on('data', function(msg){
     $( "#dialog-data-output" ).html(JSON.stringify(msg));
-
   });
 }
