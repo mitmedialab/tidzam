@@ -1,10 +1,10 @@
 import soundfile as sf
 import os
 
-
+# MUST BE THREADED
 
 class SampleExtractor:
-    def __init__(self, classes_to_extract, wav_folder='/tmp/tidzam/wav'):
+    def __init__(self, classes_to_extract, wav_folder='/tmp/tidzam/opus'):
         self.wav_folder = wav_folder
         self.classes_to_extract = classes_to_extract
 

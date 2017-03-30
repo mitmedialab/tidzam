@@ -62,7 +62,8 @@ class Classifier:
             quit()
 
 class Analyzer:
-    def __init__(self, nn_folder,session=False, callable_objects=[]):
+    def __init__(self, nn_folder,session=False, callable_objects=[], debug=0):
+        self.debug = debug
         self.nn_folder = nn_folder
         self.count_run = -1
         self.old_stream = ""
@@ -87,9 +88,11 @@ class Analyzer:
 
         # Compute GMT Timestamp for current sampe
         self.count_run = self.count_run + 1
-        # From Real-Time Stream
-        if stream == "rt":
-            stream = time.strftime("generated/today-%Y-%m-%d-%H-%M-%S.ogg")
+        # TODO : RESET WHEN CHANGE STREAM (FROM JACK)
+
+        # If Real-Time Stream stream, change date for current date
+        if "http" in stream:
+            stream = time.strftime("generated/today-%Y-%m-%d-%H-%M-%S.opus")
             time_relative = "0:0:0:0ms"
             if stream == self.old_stream:
                 time_relative = "0:0:0:500ms"
@@ -116,7 +119,8 @@ class Analyzer:
                 milliseconds=int(sample_time[3]))
         sample_timestamp = (date + sample_time).isoformat()
 
-        print("----------------------------------- " + sample_timestamp)
+        if self.debug > 1:
+            print("----------------------------------- " + sample_timestamp)
 
         classes = []
         label_dic = []
@@ -155,7 +159,8 @@ class Analyzer:
                 # Fill in with zeros for all other expert classifiers
                 else:
                     res[channel] += list(np.zeros(len(nn.label_dic)) )
-            print( "channel " + str(channel) + ' | ' + classes[channel])
+            if self.debug > 1:
+                print( "channel " + str(channel) + ' | ' + classes[channel])
 
         # BUILD AND TRANSMIT RESULT
         for obj in self.callable_objects:
@@ -227,6 +232,10 @@ if __name__ == "__main__":
             connector = cj.TidzamJack(opts.jack, callable_objects=callable_objects)
 
         connector.start()
+        #time.sleep(2)
+        #date_in_future = (datetime.today() + timedelta(1)).strftime("%Y-%m-%d-%H-%M-%S")
+        #socket.load_source(date_in_future)
         socket.start()
+
     else:
         print(parser.usage)

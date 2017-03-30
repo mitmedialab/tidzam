@@ -14,17 +14,11 @@
   </script>
 
   <script src="static/menu.js"></script>
-
-  <!--    <script src="static/recorder.js"></script>-->
-  <script src="static/dataset.js"></script>
-
   <script src="static/DetectionMap.js"></script>
   <script src="static/chainAPI.js"></script>
-
   <script src="static/controller.js"></script>
   <script src="static/classifiers.js"></script>
   <script src="static/classifier_chart.js"></script>
-  <!--  <link rel="stylesheet" href="/resources/demos/style.css">-->
 
   <script>
   google.load('visualization', '1.1', {'packages':['line','corechart']});
@@ -56,6 +50,22 @@
   .console{
     background-color:black;
     color:white;
+  }
+
+ /* Calendar date color*/
+  .event a {
+      background-color: #42B373 !important;
+      background-image :none !important;
+      color: #ffffff !important;
+  }
+
+  #timeselector.ui-widget-content .ui-state-default {
+    background: none;
+    border-top-color:black;
+    border-top-width:6px;
+    border-bottom-color:black;
+    border-bottom-width:6px;
+    height:46px;
   }
 
   #speaker_stats_piechart{

@@ -23,9 +23,9 @@
             <password>tidzam17</password>
             <mount>/chan.ogg</mount>
             <reconnectdelay>2</reconnectdelay>
-            <reconnectattempts>5</reconnectattempts> 
+            <reconnectattempts>5</reconnectattempts>
             <maxqueuelength>80</maxqueuelength>
-            <encode>  
+            <encode>
                 <nominal-bitrate>64000</nominal-bitrate>
                 <samplerate>44100</samplerate>
                 <channels>2</channels>
