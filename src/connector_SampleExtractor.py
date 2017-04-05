@@ -21,10 +21,15 @@ class SampleExtractor(threading.Thread):
         self.start()
 
     def run(self):
-        while not self.stopFlag.wait(1):
+        while not self.stopFlag.wait(0.1):
             for o in self.buffer:
                 sf.write (self.wav_folder + '/+' + o[1] + '(' + str(o[0]) + ')_' + o[2] +'.wav', o[3], o[4])
-                self.buffer.remove(o)
+                try:
+                    self.buffer.remove(o)
+                except:
+                    print("** Sample Extractor **: Unable to remove extracted sample from queue.")
+            if len(self.buffer) > 50:
+                print("** WARNING ** Sample extractor : buffer queue is " + str(len(self.buffer)))
 
     def execute(self, prob_classes, predictions, classes_dic, sound_obj=None, time=None):
         for channel in range(len(prob_classes)):

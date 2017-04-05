@@ -12,7 +12,7 @@ import input_jack as input_jack
 
 app = web.Application()
 mgr = socketio.AsyncRedisManager('redis://')
-sio = socketio.AsyncServer(client_manager=mgr)
+sio = socketio.AsyncServer(client_manager=mgr, ping_timeout=6000000)
 sio.attach(app)
 
 def create_socket(namespace):
@@ -67,6 +67,7 @@ class TidzamSocketIO(socketio.AsyncNamespace):
             asyncio.set_event_loop(self.loop)
             print('Create Redis client socket ')
             self.create_socketClient()
+            print("======= TidZam RUNNING =======")
 
         if self.classes_dic is None:
             self.classes_dic = classes_dic

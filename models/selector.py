@@ -26,11 +26,17 @@ class DNN:
         # Conv 1 - 2
         self.conv1 = tflearn.conv_2d(net, 32, 5, activation='relu', regularizer='L2', name="conv1")
         self.show_kernel_map.append(self.conv1)
-
-        # Pooling 1
         self.pool1 = tflearn.layers.conv.max_pool_2d (self.conv1, 2, strides=2, padding='same', name='pool1')
-        # Conv 3 - 4
+
+#        self.conv2 = tflearn.conv_2d(self.pool1, 64, 5, activation='relu', regularizer='L2', name="conv1")
+#        self.show_kernel_map.append(self.conv2)
+#        self.pool2 = tflearn.layers.conv.max_pool_2d (self.conv2, 2, strides=2, padding='same', name='pool1')
+
         # Fully Connected
-        self.fc1 = tflearn.fully_connected(self.pool1, 128, activation='relu', name="fc1")
-        self.drop1 = tflearn.layers.core.dropout (self.fc1, 0.5, name='Dropout1')
-        self.out = tflearn.fully_connected(self.drop1, n_classes, activation='linear', name="out")
+#        self.fc1 = tflearn.fully_connected(self.pool2, 512, activation='relu', name="fc1")
+#        self.drop1 = tflearn.layers.core.dropout (self.fc1, 0.5, name='Dropout1')
+
+        self.fc2 = tflearn.fully_connected(self.pool1, 256, activation='relu', name="fc1")
+        self.drop2 = tflearn.layers.core.dropout (self.fc2, 0.5, name='Dropout1')
+
+        self.out = tflearn.fully_connected(self.drop2, n_classes, activation='linear', name="out")

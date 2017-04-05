@@ -12,8 +12,6 @@ import importlib
 import vizualisation as vizu
 import data as tiddata
 
-print("TensorFlow "+ tf.__version__)
-
 config = tflearn.config.init_graph (
     num_cores=1,
     gpu_memory_fraction=0.75,
@@ -24,6 +22,7 @@ class Classifier:
         self.dataw = 150
         self.datah = 186
         self.nn_folder = folder
+
         self.label_dic = np.load(folder + "/labels.dic.npy").astype(str)
 
         # Get Neural Net name
@@ -68,8 +67,10 @@ class Analyzer:
         self.count_run = -1
         self.old_stream = ""
         self.callable_objects = callable_objects
-        self.load()
 
+        print("======== TENSOR FLOW ========")
+        print("TensorFlow "+ tf.__version__)
+        self.load()
 
     # Load the network
     def load(self):
@@ -84,7 +85,7 @@ class Analyzer:
             quit()
 
     # Function called by the streamer to predic its current sample
-    def execute(self, Sxxs, fs, t, sound_obj, overlap=0.5, stream=None):
+    def execute(self, Sxxs, fs, t, sound_obj, overlap=0, stream=None):
 
         # Compute GMT Timestamp for current sampe
         self.count_run = self.count_run + 1
@@ -127,7 +128,7 @@ class Analyzer:
         res = []
         # GENERAL CLASSIFIER
         for nn in self.classifiers:
-            if nn.name == 'selector':
+            if nn.name[:8] == 'selector':
                 res       = nn.classifier.predict(Sxxs)
                 label_dic += list(nn.label_dic)
                 for channel in range(0, Sxxs.shape[0]):
@@ -189,6 +190,12 @@ if __name__ == "__main__":
     parser.add_option("--show", action="store_true", dest="show", default=False,
         help="Play the audio samples and show their spectrogram.")
 
+    parser.add_option("--overlap", action="store", type="float", dest="overlap", default=0,
+        help="Overlap value (default:0).")
+
+    parser.add_option("--debug", action="store_true", dest="DEBUG", default=False,
+        help="Activate debug output.")
+
     (opts, args) = parser.parse_args()
 
 
@@ -205,14 +212,15 @@ if __name__ == "__main__":
                 wav_folder = opts.out
 
             import connector_SampleExtractor as SampleExtractor
-            extractor = SampleExtractor.SampleExtractor(['birds', 'cricket', 'nothing', 'rain'], wav_folder)
+            # , 'birds', 'cricket', 'nothing', 'rain','wind'
+            extractor = SampleExtractor.SampleExtractor(['birds', 'unknow','nothing'], wav_folder)
             callable_objects.append(extractor)
 
         import connector_socketio as socketio
         socket = socketio.create_socket("/")
         callable_objects.append(socket)
 
-        analyzer = Analyzer(opts.nn, callable_objects=callable_objects)
+        analyzer = Analyzer(opts.nn, callable_objects=callable_objects, debug=opts.DEBUG)
 
         callable_objects = []
         callable_objects.append(analyzer)
@@ -225,11 +233,11 @@ if __name__ == "__main__":
         if opts.stream is not None:
             import input_audiofile as ca
             connector = ca.TidzamAudiofile(opts.stream,
-                callable_objects = callable_objects,  overlap=0)
+                callable_objects = callable_objects,  overlap=opts.overlap)
 
         elif opts.jack is not None:
             import input_jack as cj
-            connector = cj.TidzamJack(opts.jack, callable_objects=callable_objects)
+            connector = cj.TidzamJack(opts.jack, callable_objects=callable_objects, debug=opts.DEBUG, overlap=opts.overlap)
 
         connector.start()
         #time.sleep(2)

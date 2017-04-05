@@ -1,3 +1,4 @@
+from __future__ import division
 import jack
 import sys, os, signal,time
 import numpy as np
@@ -9,7 +10,7 @@ import atexit
 
 
 class TidzamJack(Thread):
-    def __init__(self, port_name, callable_objects=[], debug=0):
+    def __init__(self, port_name, callable_objects=[], debug=0, overlap=0):
         Thread.__init__(self)
         global stream
         stream = "http"
@@ -21,6 +22,7 @@ class TidzamJack(Thread):
         self.samplerate = -1
         self.blocksize = -1
         self.buffer_size = 24000
+        self.overlap = overlap
         self.buffer_jack = self.buffer_size * 20
         self.streamer_process = []
         self.stopFlag = threading.Event()
@@ -51,7 +53,7 @@ class TidzamJack(Thread):
 
     def load_stream(self):
         if self.debug > 0:
-            print("JACK Connector: stream initialization.")
+            print("JACK Connector: stream initialization tentative.")
 
         try:
             self.client.deactivate()
@@ -124,7 +126,7 @@ class TidzamJack(Thread):
         while not self.stopFlag.wait(0.1):
             with self.lock:
                 if self.portsAllReady():
-                    try:
+                    if True:
                         for i in range(len(self.channels)):
 
                             data = self.ring_buffer[i].read(self.buffer_jack)
@@ -138,13 +140,13 @@ class TidzamJack(Thread):
                             if len(self.channels_data[i]) >= self.buffer_size:
                                 run = True
                                 data = self.channels_data[i][0:self.buffer_size]
-                                self.channels_data[i] = self.channels_data[i][self.buffer_size:len(self.channels_data[i])]
+                                self.channels_data[i] = self.channels_data[i][int(self.buffer_size*(1-self.overlap) ):len(self.channels_data[i])]
                                 fs, t, Sxx = tiddata.get_spectrogram(data, self.samplerate)
 
                                 if i == 0:
-                                    if int(len(self.channels_data[i])/self.buffer_size) > 0:
+                                    if int(len(self.channels_data[i])/self.buffer_size) > 10:
                                         print("-----------------------------------")
-                                        print("WARNING: buffer queue is " + str(int(len(self.channels_data[i])/self.buffer_size)) + " samples" )
+                                        print("** WARNING ** JACK Connector: buffer queue is " + str(int(len(self.channels_data[i])/self.buffer_size)) + " samples" )
                                     datas   = data
                                     Sxxs    = Sxx
                                     fss     = fs
@@ -156,22 +158,19 @@ class TidzamJack(Thread):
                                     datas   = np.vstack((datas, data))
                             else:
                                 run = False
-                    except:
-                        print("Sample error")
+                    #except:
+                    #    print("Sample error")
 
                     if run is True:
                         for obj in self.callable_objects:
-                            obj.execute(Sxxs, fss, ts, [np.transpose(datas), self.samplerate], overlap=0,stream=stream)
+                            obj.execute(Sxxs, fss, ts, [np.transpose(datas), self.samplerate],
+                                        overlap=self.overlap,
+                                        stream=stream)
 
                 # If there there is no port ready => nothing to wait
                 elif self.portStarting() is False:
-                    if self.debug > 0:
-                        print("JACK Connector: Waiting MPV inputs.")
-                    #try:
                     self.kill_process()
                     self.load_stream()
-                    #except:
-                    #    print("JACK Connector error: Initialization failed.")
                     time.sleep(1)
 
                 else:

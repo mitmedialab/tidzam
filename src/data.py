@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-import sys, optparse
+import sys, optparse, os
 import numpy as np
 from matplotlib import pyplot as plt
 import glob
@@ -31,7 +31,7 @@ def get_spectrogram(data, samplerate, channel=0,  show=False):
     Sxx = np.reshape(Sxx, [1, Sxx.shape[0]*Sxx.shape[1]] )
     return fs, t, Sxx
 
-def play_spectrogram_from_stream(file, show=False, callable_objects = [], overlap = 0.5):
+def play_spectrogram_from_stream(file, show=False, callable_objects = [], overlap = 0):
 
     with sf.SoundFile(file, 'r') as f:
         while f.tell() < len(f):
@@ -84,8 +84,7 @@ class Dataset:
             a = a[0].split(',')
             self.dataw = int(a[0])
             self.datah = int(a[1])
-        #try:
-        if True:
+        try:
             self.data = np.load(file+"_data.npy")
             self.labels = np.load(file+"_labels.npy")
             self.labels_dic = np.load(file+"_labels_dic.npy")
@@ -96,8 +95,8 @@ class Dataset:
             print(" " +str(self.data.shape[0]) + " samples ("+ \
                 str(self.n_input) +" features) of " + \
                 str(self.n_classes) + " classes")
-        #except IOError:
-        #    print("File not found: " + file)
+        except IOError:
+            print("File not found: " + file)
 
     def save(self,name):
         np.save(name + "_data", self.data)
@@ -114,7 +113,12 @@ class Dataset:
             raw  = np.reshape(raw, [1, raw.shape[0]*raw.shape[1]])
             classe = f.split('+')[1]
             classe = classe.split('(')[0]
-            print(classe)
+
+            if np.isnan(raw).any():
+                print("Bad sample containing NaN value: " + f)
+                #os.remove(f)
+                continue
+
 
             # Add the raw to dataset
             try:
@@ -136,7 +140,7 @@ class Dataset:
                 b[:,:-n_classes] = self.labels
                 self.labels = b
                 b = np.zeros((1, n_classes +1))
-                b[n_classes] = 1
+                b[0][n_classes] = 1
 
             try:
                 labels = np.concatenate((labels, b), axis=0)
@@ -295,7 +299,7 @@ class Editor:
             self.dataset = Dataset()
             self.init = False
 
-    def run(self, show=True):
+    def run(self, show=False):
 
         with sf.SoundFile(self.stream, 'r') as f:
             while f.tell() < len(f):
@@ -311,6 +315,8 @@ class Editor:
                     plt.ion()
                     if f.channels > 1:
                         data_chan = data[:,i]
+                    else:
+                        data_chan = data
 
                     while True:
                         fs, t, Sxx = get_spectrogram(data_chan, f.samplerate, i,  show=show)
