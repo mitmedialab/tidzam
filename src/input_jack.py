@@ -127,6 +127,7 @@ class TidzamJack(Thread):
             with self.lock:
                 if self.portsAllReady():
                     if True:
+                        ready_to_process = False
                         for i in range(len(self.channels)):
 
                             data = self.ring_buffer[i].read(self.buffer_jack)
@@ -138,7 +139,12 @@ class TidzamJack(Thread):
 
                             # If the buffer contains the required data, we truncate it and send result
                             if len(self.channels_data[i]) >= self.buffer_size:
-                                run = True
+                                if i == 0:
+                                    run = True
+                            else:
+                                run = False
+
+                            if run is True:
                                 data = self.channels_data[i][0:self.buffer_size]
                                 self.channels_data[i] = self.channels_data[i][int(self.buffer_size*(1-self.overlap) ):len(self.channels_data[i])]
                                 fs, t, Sxx = tiddata.get_spectrogram(data, self.samplerate)
@@ -156,8 +162,6 @@ class TidzamJack(Thread):
                                     fss     = np.vstack((fss, fs))
                                     ts      = np.vstack((ts, t))
                                     datas   = np.vstack((datas, data))
-                            else:
-                                run = False
                     #except:
                     #    print("Sample error")
 
