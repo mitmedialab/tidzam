@@ -88,7 +88,7 @@ class Analyzer:
     def execute(self, Sxxs, fs, t, sound_obj, overlap=0, stream=None):
 
         # Compute GMT Timestamp for current sampe
-        self.count_run = self.count_run + 1
+
         # TODO : RESET WHEN CHANGE STREAM (FROM JACK)
 
         # If Real-Time Stream stream, change date for current date
@@ -101,6 +101,7 @@ class Analyzer:
 
         # From audio file, compute relative time from beginning
         else:
+            self.count_run = self.count_run + 1
             time_relative = str(int(self.count_run * 0.5 * (1-overlap) / 3600)) + ":" + \
                     str( int((self.count_run * 0.5 * (1-overlap) % 3600)/60)) + ":" + \
                     str( int(self.count_run * 0.5 * (1-overlap) % 3600 % 60)) + ":" + \
@@ -193,8 +194,11 @@ if __name__ == "__main__":
     parser.add_option("--overlap", action="store", type="float", dest="overlap", default=0,
         help="Overlap value (default:0).")
 
-    parser.add_option("--debug", action="store_true", dest="DEBUG", default=False,
-        help="Activate debug output.")
+    parser.add_option("--chainAPI", action="store", type="string", dest="chainAPI", default=None,
+        help="Provide URL for chainAPI username:password@url (default: None).")
+
+    parser.add_option("--debug", action="store", type="int", dest="DEBUG", default=0,
+        help="Set debug level (Default: 0).")
 
     (opts, args) = parser.parse_args()
 
@@ -202,6 +206,8 @@ if __name__ == "__main__":
 
     if (opts.stream or opts.jack) and opts.nn:
         callable_objects = []
+
+        ### Sample Extractor Output Connector
         if opts.out is not None:
             if opts.stream is not None:
                 # Build folder to store wav file
@@ -216,20 +222,42 @@ if __name__ == "__main__":
             extractor = SampleExtractor.SampleExtractor(['birds', 'unknow','nothing'], wav_folder)
             callable_objects.append(extractor)
 
+        ### Socket.IO Output Connector
         import connector_socketio as socketio
         socket = socketio.create_socket("/")
         callable_objects.append(socket)
 
+        ### Chain API Output Connector
+        if opts.chainAPI is not None:
+            import connector_ChainAPI as ChainAPI
+            from requests.auth import HTTPBasicAuth
+            ch = ChainAPI.ChainAPI(opts.DEBUG)
+            try:
+                tmp = opts.chainAPI.split(":")
+                user = tmp[0]
+                tmp = tmp[1].split("@")
+                pwd = tmp[0]
+                url = "http://"+tmp[1]
+                print(user + pwd)
+                ch.connect(url, auth=HTTPBasicAuth(user,pwd))
+                callable_objects.append(ch)
+            except:
+                print("Error in parsing chainAPI URL: " + opts.chainAPI)
+                quit()
+
+        ### Load ANALYZER
         analyzer = Analyzer(opts.nn, callable_objects=callable_objects, debug=opts.DEBUG)
 
         callable_objects = []
         callable_objects.append(analyzer)
 
+        ### Load Spectrum Visualizer
         if opts.show is True:
             import analyzer_vizualizer as tv
             vizu     = tv.TidzamVizualizer()
             callable_objects.append(vizu)
 
+        ### Load Stream Player
         if opts.stream is not None:
             import input_audiofile as ca
             connector = ca.TidzamAudiofile(opts.stream,
