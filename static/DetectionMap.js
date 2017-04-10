@@ -223,6 +223,7 @@ function DetectionMap(parent){
   })
 
 this.data_view = {}
+colors = ["blue", "red", "orange", "green", "purple", "yellow", "brown", "black", "gray"]
 function show_statistics(target, callback){
   var ready = false;
   var database = {}
@@ -231,7 +232,8 @@ function show_statistics(target, callback){
     height: 190,
     legend: { position: 'top', maxLines: 3 },
     bar: { groupWidth: '75%' },
-    isStacked: false
+    isStacked: false,
+    colors:colors
   };
   try{
     // Build a dictionnary
@@ -264,7 +266,7 @@ function show_statistics(target, callback){
     $("#stats_loading_text").text("");
   }
   catch(err){
-    console.log("Data loading..." +err)
+    console.log("Data loading...")
   }
   // Conert to database format
   var monthNames = ["January", "February", "March", "April", "May", "June",
@@ -311,7 +313,7 @@ callback("done");
 }
 
 circles = []
-function map_draw_statistics(sensor_to_show){
+function map_draw_statistics(sensor_to_show, color){
   // Compute max value for normalization
   max_count = 0;
   for (var dev=0; dev < chain.list_devices.length; dev++)
@@ -338,19 +340,21 @@ function map_draw_statistics(sensor_to_show){
           break;
         }
       if (!found){
-        var circle = new google.maps.Circle({
-          strokeColor: '#FF0000',
-          strokeOpacity: chain.list_devices[dev].list_sensors[sensor].count/max_count,
-          strokeWeight: 2,
-          fillColor: '#FF0000',
-          fillOpacity: chain.list_devices[dev].list_sensors[sensor].count/max_count,
-          center: markers[m].position,
-          radius: 30
-        });
+        var circle = new google.maps.Circle();
         circle.dev = dev;
         circle.sensor = sensor;
         circles.push(circle);
       }
+
+      circle.setOptions({
+        strokeColor: color,
+        strokeOpacity: chain.list_devices[dev].list_sensors[sensor].count/max_count,
+        strokeWeight: 2,
+        fillColor: color,
+        fillOpacity: chain.list_devices[dev].list_sensors[sensor].count/max_count,
+        center: markers[m].position,
+        radius: 30
+      });
       // If this circle is of our sensor, show it else hide it
       if (sensor_title == sensor_to_show){
         console.log(dev_title + " " + sensor_title + " " + markers[m].position)
@@ -373,7 +377,11 @@ function load_statistics(conf){
   setTimeout(function(){
     show_statistics(conf, function(msg){
       $("#stats_loading_div").hide();
-      map_draw_statistics("birds");
+      for(var i=0; i < this.data_view.getNumberOfColumns(); i++)
+        if (this.data_view.getColumnLabel(i) == "birds")
+          break;
+        //if()
+      map_draw_statistics("birds", colors[i-1]);
     });
   },1000);
 }
@@ -386,10 +394,10 @@ google.visualization.events.addListener(chart, 'select', function () {
   var sel = chart.getSelection();
   if (sel.length > 0) {
     // if row is undefined, we clicked on the legend
-    if (sel[0].row === null) {
+
       var col_name = this.data_view.getColumnLabel(sel[0].column);
-      map_draw_statistics(col_name);
-    }
+      map_draw_statistics(col_name, colors[sel[0].column-1]);
+
   }
 });
 
