@@ -5,9 +5,17 @@ import glob, os
 from datetime import *
 import time
 
+import threading
 import tensorflow as tf
 import tflearn
 import importlib
+import socketio
+
+import redis
+import time
+import pickle
+import json
+
 
 import vizualisation as vizu
 import data as tiddata
@@ -60,17 +68,25 @@ class Classifier:
             print('Unable to load model: ' + self.nn_folder)
             quit()
 
-class Analyzer:
+class Analyzer(threading.Thread):
     def __init__(self, nn_folder,session=False, callable_objects=[], debug=0):
+        threading.Thread.__init__(self)
+
         self.debug = debug
         self.nn_folder = nn_folder
         self.count_run = -1
         self.old_stream = ""
         self.callable_objects = callable_objects
 
+        # Configuration for socket.io from Redis PubSub
+        self.stopFlag = threading.Event()
+        self.sio_redis = redis.StrictRedis().pubsub()
+        self.sio_redis.subscribe("socketio")
+
         print("======== TENSOR FLOW ========")
         print("TensorFlow "+ tf.__version__)
         self.load()
+        self.start()
 
     # Load the network
     def load(self):
@@ -84,12 +100,23 @@ class Analyzer:
             print("No classifier found in: " + self.nn_folder)
             quit()
 
+    # Loop to receive socket io msg from redis pubsub
+    def run(self):
+        while not self.stopFlag.wait(0.1):
+            msg = self.sio_redis.get_message()
+            if msg:
+                if msg['type']=="message":
+                    data = str(pickle.loads(msg["data"])["data"]).replace("'",'"')
+                    obj = json.loads(data)
+                    if type(obj) is not list:
+                        if obj.get('sys'):
+                            # If the source is change, we reset the counter
+                            if obj["sys"].get("source"):
+                                self.count_run = 0
+
     # Function called by the streamer to predic its current sample
     def execute(self, Sxxs, fs, t, sound_obj, overlap=0, stream=None):
-
         # Compute GMT Timestamp for current sampe
-
-        # TODO : RESET WHEN CHANGE STREAM (FROM JACK)
 
         # If Real-Time Stream stream, change date for current date
         if "http" in stream:
@@ -223,8 +250,8 @@ if __name__ == "__main__":
             callable_objects.append(extractor)
 
         ### Socket.IO Output Connector
-        import connector_socketio as socketio
-        socket = socketio.create_socket("/")
+        import connector_socketio as connector_socketio
+        socket = connector_socketio.create_socket("/")
         callable_objects.append(socket)
 
         ### Chain API Output Connector

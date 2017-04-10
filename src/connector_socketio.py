@@ -133,13 +133,17 @@ class TidzamSocketIO(socketio.AsyncNamespace):
             subprocess.Popen.kill(self.mpv)
             sleep(1)
 
-        input_jack.stream = desired_date
+
         logfile = open(os.devnull, 'w')
         self.mpv = subprocess.Popen(cmd,
                 shell=False,
                 stdout=logfile,
                 stderr=logfile,
                 preexec_fn=os.setsid)
+
+        input_jack.stream = desired_date
+        if self.external_sio:
+            self.loop.run_until_complete(self.external_sio.emit('sys', {'sys':{'source':desired_date}} ) )
 
     async def on_sys(self, sid, data):
         #print("sys event : " + data)
