@@ -19,11 +19,10 @@ function DetectionMap(parent){
   });
   $( "#detection_map" ).html(
     '<div id="stats_loading_div" style="width:100%;height:230px;" class="loading_div"><span id="stats_loading_text">Loading</span></div>' +
-    '<div id="stats_control">'+
-    '<input type="button" id="stats_prev" value="<<"><input type="button" id="stats_next" value=">>">'+
-    '<input type="button" id="stats_day" value="Day">'+
+    '<div id="stats_control"><style id="hide"></style>'+
+    '<center><input type="button" id="stats_day" value="Day">'+
     '<input type="button" id="stats_month" value="Month">'+
-    '<input type="button" id="stats_year" value="Year">'+
+    '<input type="button" id="stats_year" value="Year"></center>'+
     '</div>'+
     '<div id="stats_area" style="height:190px;width:100%;margin-top:10px;"></div>'+
     '<audio controls id="audio_player" style="width:100%">'+
@@ -31,7 +30,7 @@ function DetectionMap(parent){
     '<div id="detection_map_area" style="height:600px;"></div>'+
     '<table style="width:100%;font-size:28px;margin-top:5px;margin-bottom:5px;"><tr>'+
     '<td width="40"><input type="image" src="static/img/time.png" id="source_btn"></td>'+
-    '<td width="65"><input type="text" id="dateselector" style="width:150px;"></td>'+
+    '<td width="65"><input type="button" id="dateselector" style="width:160px;"></td>'+
     '<td><div id="timeselector" style="height:40px;text-align:center;">'+
     '<span id="time_label" style="width:60px;"></span></div></td>'+
     '</tr></table>'
@@ -190,7 +189,11 @@ function DetectionMap(parent){
   /*      STATISTIC VISUALIZATION      */
   /*************************************/
   $( "#stats_day" ).datepicker({
-    dateFormat: 'yy-mm-dd'
+    dateFormat: 'yy-mm-dd',
+    onClose: function(){
+      $("#stats_month").val("Month");
+      $("#stats_year").val("Year");
+    }
   });
   $( "#stats_day" ).change(function(val){
     val = $( "#stats_day" ).val().split("-")
@@ -201,26 +204,35 @@ function DetectionMap(parent){
     changeYear: true,
     showButtonPanel: true,
     dateFormat: 'yy-mm',
+    beforeShow: function() { $('#hide').html('.ui-datepicker-calendar{display:none;}'); },
     onClose: function(dateText, inst) {
       $(this).datepicker('setDate', new Date(inst.selectedYear, inst.selectedMonth, 1));
+      setTimeout(function(){$('#hide').html('');},300);
+      $("#stats_day").val("Day");
+      $("#stats_year").val("Year");
+      val = $( "#stats_month" ).val().split("-");
+      load_statistics({"year":val[0],"month":val[1]});
     }
   });
-  $( "#stats_month" ).change(function(val){
-    val = $( "#stats_month" ).val().split("-");
-    load_statistics({"year":val[0],"month":val[1]});
-  })
+
   $('#stats_year').datepicker( {
     changeYear: true,
     showButtonPanel: true,
     dateFormat: 'yy',
+    beforeShow: function() {
+      $('#hide').html('.ui-datepicker-calendar{display:none;}');
+    },
     onClose: function(dateText, inst) {
       $(this).datepicker('setDate', new Date(inst.selectedYear, 1, 1));
+      setTimeout(function(){ $('#hide').html(''); },300);
+      $("#stats_day").val("Day");
+      $("#stats_month").val("Month");
+
+      val = $( "#stats_year" ).val().split("-");
+      load_statistics({"year":val[0]});
     }
   });
-  $( "#stats_year" ).change(function(val){
-    val = $( "#stats_year" ).val().split("-");
-    load_statistics({"year":val[0]});
-  })
+
 
 this.data_view = {}
 colors = ["blue", "red", "orange", "green", "purple", "yellow", "brown", "black", "gray"]
@@ -228,6 +240,7 @@ function show_statistics(target, callback){
   var ready = false;
   var database = {}
   var options = {
+    title:'Sensors detections distribution',
     width: "100%",
     height: 190,
     legend: { position: 'top', maxLines: 3 },
@@ -289,9 +302,18 @@ header = ["Month"]
 header = header.concat(dict)
 i = 0;
 for (var column in database){
-  // Push the the period label in first position
-  if(!target.month) data_formatted.push([monthNames[column]])
-  else              data_formatted.push([column])
+  // Column label
+  if("undefined" != typeof target.day) {
+    if (column == 0)       data_formatted.push(["12 am"])
+    else if (column < 11)  data_formatted.push([column+" am"])
+    else if (column == 12) data_formatted.push(["12 pm"])
+    else                   data_formatted.push([column%12+" pm"])
+  }
+  else if("undefined" != typeof target.month)    data_formatted.push([monthNames[parseInt(target.month)-1]+" "+column])
+  else if("undefined" != typeof target.year)     data_formatted.push([monthNames[column]])
+  else                                           data_formatted.push([column])
+
+
   for (var d in dict){
     if ( database[column][dict[d]] )
     data_formatted[i].push(database[column][dict[d]])
@@ -316,10 +338,13 @@ circles = []
 function map_draw_statistics(sensor_to_show, color){
   // Compute max value for normalization
   max_count = 0;
+  max_count_sensor = 0;
   for (var dev=0; dev < chain.list_devices.length; dev++)
-    for (var sensor=0; sensor < chain.list_devices[dev].list_sensors.length; sensor++)
-      if (sensor_title = chain.list_devices[dev].list_sensors[sensor].title == sensor_to_show)
+    for (var sensor=0; sensor < chain.list_devices[dev].list_sensors.length; sensor++){
       max_count = Math.max(max_count, chain.list_devices[dev].list_sensors[sensor].count)
+      if (sensor_title = chain.list_devices[dev].list_sensors[sensor].title == sensor_to_show)
+      max_count_sensor = Math.max(max_count_sensor, chain.list_devices[dev].list_sensors[sensor].count)
+    }
 
   for (var dev=0; dev < chain.list_devices.length; dev++){
     dev_title = chain.list_devices[dev].title;
@@ -348,20 +373,16 @@ function map_draw_statistics(sensor_to_show, color){
 
       circle.setOptions({
         strokeColor: color,
-        strokeOpacity: chain.list_devices[dev].list_sensors[sensor].count/max_count,
+        strokeOpacity: Math.max(chain.list_devices[dev].list_sensors[sensor].count/max_count,0.2),
         strokeWeight: 2,
         fillColor: color,
-        fillOpacity: chain.list_devices[dev].list_sensors[sensor].count/max_count,
+        fillOpacity: Math.max(chain.list_devices[dev].list_sensors[sensor].count/max_count,0.2),
         center: markers[m].position,
-        radius: 30
+        radius: (chain.list_devices[dev].list_sensors[sensor].count/max_count_sensor)*30
       });
       // If this circle is of our sensor, show it else hide it
-      if (sensor_title == sensor_to_show){
-        console.log(dev_title + " " + sensor_title + " " + markers[m].position)
-        circle.setMap(map);
-      }
-
-      else circle.setMap(null);
+      if (sensor_title == sensor_to_show)   circle.setMap(map);
+      else                                  circle.setMap(null);
 
     }
   }
@@ -369,18 +390,16 @@ function map_draw_statistics(sensor_to_show, color){
 
 
 function load_statistics(conf){
+  $("#stats_loading_div").show();
   chain.getData(conf,function(msg){
     $("#stats_loading_text").text(msg);
   });
-
-  $("#stats_loading_div").show();
   setTimeout(function(){
     show_statistics(conf, function(msg){
       $("#stats_loading_div").hide();
       for(var i=0; i < this.data_view.getNumberOfColumns(); i++)
         if (this.data_view.getColumnLabel(i) == "birds")
           break;
-        //if()
       map_draw_statistics("birds", colors[i-1]);
     });
   },1000);
@@ -393,11 +412,8 @@ var chart = new google.visualization.ColumnChart(document.getElementById("stats_
 google.visualization.events.addListener(chart, 'select', function () {
   var sel = chart.getSelection();
   if (sel.length > 0) {
-    // if row is undefined, we clicked on the legend
-
       var col_name = this.data_view.getColumnLabel(sel[0].column);
       map_draw_statistics(col_name, colors[sel[0].column-1]);
-
   }
 });
 

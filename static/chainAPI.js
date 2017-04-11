@@ -61,10 +61,9 @@ function ChainAPI(){
                   target.month_end   = 12
                 }
                 else target.month_start = target.month_end = target.month
-
                 if (!target.day){
                   target.day_start = 1
-                  target.day_end   = 31
+                  target.day_end   = (target.month_start<8&&target.month_start%2)||(target.month_start>7&&target.month_start%2==0)?31:30;
                 }
                 else target.day_start = target.day_end = target.day
                 timestamp_gte = new Date(target.year+"-"+target.month_start+"-"+target.day_start+" 0:0:0").getTime()/1000;
