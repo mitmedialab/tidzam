@@ -19,8 +19,12 @@ if __name__ == "__main__":
         help="Neural Network session to load.")
 
     parser.add_option("-o", "--out", action="store", type="string", dest="out",
-        default=None,
+        default="/tmp/tidzam/extraction/",
         help="Output folder for audio sound extraction.")
+
+    parser.add_option("--extract", action="store", type="string", dest="extract",
+        default=None,
+        help="List of classes to extract (--extract=unknown,birds).")
 
     parser.add_option("--show", action="store_true", dest="show", default=False,
         help="Play the audio samples and show their spectrogram.")
@@ -42,7 +46,7 @@ if __name__ == "__main__":
         callable_objects = []
 
         ### Sample Extractor Output Connector
-        if opts.out is not None:
+        if opts.out is not None and opts.extract is not None:
             if opts.stream is not None:
                 # Build folder to store wav file
                 a = opts.stream.split('/')
@@ -53,7 +57,8 @@ if __name__ == "__main__":
 
             import connector_SampleExtractor as SampleExtractor
             # , 'birds', 'cricket', 'nothing', 'rain','wind'
-            extractor = SampleExtractor.SampleExtractor(['birds'], wav_folder)
+            list_to_extract = opts.extract.split(",")
+            extractor = SampleExtractor.SampleExtractor(list_to_extract, wav_folder)
             callable_objects.append(extractor)
 
         ### Socket.IO Output Connector

@@ -14,7 +14,8 @@ class SampleExtractor(threading.Thread):
 
         if not os.path.exists(self.wav_folder):
             os.makedirs(self.wav_folder)
-
+        print("===== SAMPLE EXTRACTOR =====")
+        print("Classes: ", self.classes_to_extract)
         print("WAV destination folder: " + wav_folder)
 
         self.start()
