@@ -1,6 +1,6 @@
 import numpy as np
 import math
-import sys, optparse
+import sys
 import glob, os
 from datetime import *
 import time
@@ -78,6 +78,8 @@ class Analyzer(threading.Thread):
         self.old_stream = ""
         self.callable_objects = callable_objects
 
+        self.res_pred = None
+
         # Configuration for socket.io from Redis PubSub
         self.stopFlag = threading.Event()
         self.sio_redis = redis.StrictRedis().pubsub()
@@ -105,14 +107,17 @@ class Analyzer(threading.Thread):
         while not self.stopFlag.wait(0.1):
             msg = self.sio_redis.get_message()
             if msg:
-                if msg['type']=="message":
-                    data = str(pickle.loads(msg["data"])["data"]).replace("'",'"')
-                    obj = json.loads(data)
-                    if type(obj) is not list:
-                        if obj.get('sys'):
-                            # If the source is change, we reset the counter
-                            if obj["sys"].get("source"):
-                                self.count_run = 0
+                try:
+                    if msg['type']=="message":
+                        data = str(pickle.loads(msg["data"])["data"]).replace("'",'"')
+                        obj = json.loads(data)
+                        if type(obj) is not list:
+                            if obj.get('sys'):
+                                # If the source is change, we reset the counter
+                                if obj["sys"].get("source"):
+                                    self.count_run = 0
+                except:
+                    print("** Analyzer ** Error on redis message" + data)
 
     # Function called by the streamer to predic its current sample
     def execute(self, Sxxs, fs, t, sound_obj, overlap=0, stream=None):
@@ -157,17 +162,29 @@ class Analyzer(threading.Thread):
         # GENERAL CLASSIFIER
         for nn in self.classifiers:
             if nn.name[:8] == 'selector':
-                res       = nn.classifier.predict(Sxxs)
+                res_general       = nn.classifier.predict(Sxxs)
+
+                if self.res_pred is None:
+                    self.res_pred = res_general
+
                 label_dic += list(nn.label_dic)
                 for channel in range(0, Sxxs.shape[0]):
+                    res.append(res_general[channel])
+                    # Qverage current classifier output with previous (to reduce fault positive)
+                    if overlap > 0:
+                        res[channel] = list(np.mean([res_general[channel], self.res_pred[channel] ], axis=0))
+
                     out_classes = ""
                     a = np.argmax(res[channel])
-                    if res[channel][a] > 0.5: # If the neural network is confiant more than 50%
-                        out_classes = str(nn.label_dic[a])
+                    a = np.argsort(res[channel])
+                    # If the trusting interval between two first options is bigger that 20%
+                    if res[channel][a[len(a)-1]] - res[channel][a[len(a)-2]] > 0.2:
+                        out_classes = str(nn.label_dic[a[len(a)-1]])
                     else:
                         out_classes = 'unknow'
                     classes.append(out_classes)
                 break
+        self.res_pred = res_general
 
         # EXPERT CLASSIFIER
         for channel in range(0, Sxxs.shape[0]):
@@ -186,119 +203,12 @@ class Analyzer(threading.Thread):
                         classes[channel] = classes[channel] + '-' + str(nn.label_dic[ a ]) #+ ' ('  + str(a) + ')'
 
                 # Fill in with zeros for all other expert classifiers
-                else:
+                elif nn.name != 'selector':
                     res[channel] += list(np.zeros(len(nn.label_dic)) )
+
             if self.debug > 1:
                 print( "channel " + str(channel) + ' | ' + classes[channel])
 
         # BUILD AND TRANSMIT RESULT
         for obj in self.callable_objects:
             obj.execute(res, classes, label_dic, sound_obj, sample_timestamp)
-
-if __name__ == "__main__":
-    usage = 'analyzer.py --nn=build/test --stream=stream.wav [--show, -h]'
-    parser = optparse.OptionParser(usage=usage)
-    parser.set_defaults(stream=False,dic=False,nn="build/default")
-
-    parser.add_option("-s", "--stream", action="store", type="string", dest="stream",
-        default=None,
-        help="Input audio stream to analyze.")
-
-    parser.add_option("-j", "--jack", action="store", type="string", dest="jack",
-        default=None,
-        help="Input audio stream from Jack audio mixer to analyze.")
-
-    parser.add_option("-n", "--nn", action="store", type="string", dest="nn",
-        help="Neural Network session to load.")
-
-    parser.add_option("-o", "--out", action="store", type="string", dest="out",
-        default=None,
-        help="Output folder for audio sound extraction.")
-
-    parser.add_option("--show", action="store_true", dest="show", default=False,
-        help="Play the audio samples and show their spectrogram.")
-
-    parser.add_option("--overlap", action="store", type="float", dest="overlap", default=0,
-        help="Overlap value (default:0).")
-
-    parser.add_option("--chainAPI", action="store", type="string", dest="chainAPI", default=None,
-        help="Provide URL for chainAPI username:password@url (default: None).")
-
-    parser.add_option("--debug", action="store", type="int", dest="DEBUG", default=0,
-        help="Set debug level (Default: 0).")
-
-    (opts, args) = parser.parse_args()
-
-
-
-    if (opts.stream or opts.jack) and opts.nn:
-        callable_objects = []
-
-        ### Sample Extractor Output Connector
-        if opts.out is not None:
-            if opts.stream is not None:
-                # Build folder to store wav file
-                a = opts.stream.split('/')
-                a = a[len(a)-1].split('.')[0]
-                wav_folder = opts.out + '/' + a + '/'
-            else:
-                wav_folder = opts.out
-
-            import connector_SampleExtractor as SampleExtractor
-            # , 'birds', 'cricket', 'nothing', 'rain','wind'
-            extractor = SampleExtractor.SampleExtractor(['birds', 'unknow','nothing'], wav_folder)
-            callable_objects.append(extractor)
-
-        ### Socket.IO Output Connector
-        import connector_socketio as connector_socketio
-        socket = connector_socketio.create_socket("/")
-        callable_objects.append(socket)
-
-        ### Chain API Output Connector
-        if opts.chainAPI is not None:
-            import connector_ChainAPI as ChainAPI
-            from requests.auth import HTTPBasicAuth
-            ch = ChainAPI.ChainAPI(opts.DEBUG)
-            try:
-                tmp = opts.chainAPI.split(":")
-                user = tmp[0]
-                tmp = tmp[1].split("@")
-                pwd = tmp[0]
-                url = "http://"+tmp[1]
-                print(user + pwd)
-                ch.connect(url, auth=HTTPBasicAuth(user,pwd))
-                callable_objects.append(ch)
-            except:
-                print("Error in parsing chainAPI URL: " + opts.chainAPI)
-                quit()
-
-        ### Load ANALYZER
-        analyzer = Analyzer(opts.nn, callable_objects=callable_objects, debug=opts.DEBUG)
-
-        callable_objects = []
-        callable_objects.append(analyzer)
-
-        ### Load Spectrum Visualizer
-        if opts.show is True:
-            import analyzer_vizualizer as tv
-            vizu     = tv.TidzamVizualizer()
-            callable_objects.append(vizu)
-
-        ### Load Stream Player
-        if opts.stream is not None:
-            import input_audiofile as ca
-            connector = ca.TidzamAudiofile(opts.stream,
-                callable_objects = callable_objects,  overlap=opts.overlap)
-
-        elif opts.jack is not None:
-            import input_jack as cj
-            connector = cj.TidzamJack(opts.jack, callable_objects=callable_objects, debug=opts.DEBUG, overlap=opts.overlap)
-
-        connector.start()
-        #time.sleep(2)
-        #date_in_future = (datetime.today() + timedelta(1)).strftime("%Y-%m-%d-%H-%M-%S")
-        #socket.load_source(date_in_future)
-        socket.start()
-
-    else:
-        print(parser.usage)
