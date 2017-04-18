@@ -116,7 +116,7 @@ class Dataset:
 
             if np.isnan(raw).any():
                 print("Bad sample containing NaN value: " + f)
-                #os.remove(f)
+                os.remove(f)
                 continue
 
 
@@ -185,13 +185,12 @@ class Dataset:
         self.labels = self.labels[idx,:]
 
     def merge(self,dataset, asOneClasse=False):
-
         if asOneClasse is not False:
             nb_max = np.max(self.get_sample_count_by_classe())
             if nb_max > 0:
-                nb_max = int(np.min([nb_max, dataset.data.shape[0]], axis=0))
+                 nb_max = int(np.min([nb_max, dataset.data.shape[0]], axis=0))
             else:
-                nb_max = dataset.data.shape[0]
+                 nb_max = dataset.data.shape[0]
             print(nb_max)
             dataset.randomize()
             dataset.data = dataset.data[1:nb_max,:]
@@ -332,7 +331,7 @@ class Editor:
                             print(str(i) + " : " + str(self.dataset.labels_dic[i]) )
                         print("Actions:\n---------------")
                         print("* (enter): next sample\n* (g): go to\n* (n): create a new classe\n* (m) merge with another dataset")
-                        print("* (s): save the dataset \n* (i): dataset info\n* (p) print the labels\n"+ \
+                        print("* (b): balance classes (s): save the dataset \n* (i): dataset info\n* (p) print the labels\n"+ \
                             "* (r) randomize the dataset\n* (q): quit\n")
                         a = input()
 
@@ -377,6 +376,23 @@ class Editor:
                                 self.dataset.merge(dataset, asOneClasse=classe)
                             else:
                                 self.dataset.merge(dataset)
+
+                        elif a == 'b':
+                            nb = np.max(self.dataset.get_sample_count_by_classe())
+                            print("NB samples : ", nb)
+
+                        #    for cl self.labels.shape[1]:
+                        #        id_cl = np.zeros((1, self.labels[1]))
+                        #        id_cl[cl] = 1
+                        #        idx = []
+                        #        for i, s in enumerate(self.labels)
+                        #            if np.array_equiv(id_cl,s) is True:
+
+                            #idx = np.arange(self.data.shape[0])
+
+                            #np.random.shuffle(idx)
+                            #self.data = self.data[idx,:]
+                            #self.labels = self.labels[idx,:]
 
                         elif a == 'p':
                             print("Print labels:")
