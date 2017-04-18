@@ -29,13 +29,7 @@
 
   window.onload =   function() {
     socket = socket = io();
-
-    var main          = document.getElementById("main");
-    controller        = new Controller(main);
-//    dataset_train     = new Dataset(main);
-//    recorder          = new Recorder(main);
-//    classifiers       = new Classifier(main);
-    menu              = new Menu(controller, main);
+    var map = this.map       = new DetectionMap(parent)
   };
   </script>
   <style>
@@ -68,9 +62,10 @@
     height:46px;
   }
 
-  #speaker_stats_piechart{
-
-  }
+  #dateselector{
+      font-size:24px;
+      height:40px;
+    }
 
   #results{
     margin: 10px;
@@ -106,10 +101,38 @@
 
   body{
     font-size:12px;
+    text-align:center;
   }
+
   </style>
 </head>
 <body>
-  <div id="main"></diV>
-  </body>
-  </html>
+    <div id="stats_loading_div" style="width:100%;height:230px;" class="loading_div">
+        <span id="stats_loading_text">Loading</span>
+    </div>
+    <div id="stats_control">
+      <style id="hide"></style>
+      <center>
+        <input type="button" id="stats_day" value="Day">
+        <input type="button" id="stats_month" value="Month">
+        <input type="button" id="stats_year" value="Year">
+      </center>
+    </div>
+    <div id="stats_area" style="height:190px;width:100%;margin-top:10px;"></div>
+    <audio controls id="audio_player" style="width:100%">
+      <source src="/chan0" type="audio/wav">
+    </audio>
+    <div id="detection_map_area" style="height:600px;"></div>
+    <table style="width:100%;font-size:28px;margin-top:5px;margin-bottom:5px;">
+      <tr>
+        <td width="40"><input type="image" src="static/img/time.png" id="source_btn"></td>
+        <td width="65"><input type="button" id="dateselector" style="width:160px;"></td>
+        <td>
+          <div id="timeselector" style="height:40px;text-align:center;">
+            <span id="time_label" style="width:60px;"></span>
+          </div>
+        </td>
+    </tr>
+  </table>
+</body>
+</html>

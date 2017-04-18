@@ -1,41 +1,9 @@
-function DetectionMap(parent){
-  this.parent = parent
+function DetectionMap(){
   this.channel = channel = null
   this.graph   = graph   = {name:null}
   this.current_time = current_time = ""
   chain = new ChainAPI()
 
-  parent.innerHTML += '<div id="detection_map" title="Detection Map" width=100% text-align:center;"></div>'
-
-  this.show = function(){
-    $( "#detection_map" ).dialog("open");
-  }
-
-  $( "#detection_map" ).dialog({
-    autoOpen: false,
-    width: 1024,
-    height: 1024,
-    modal: false,
-  });
-  $( "#detection_map" ).html(
-    '<div id="stats_loading_div" style="width:100%;height:230px;" class="loading_div"><span id="stats_loading_text">Loading</span></div>' +
-    '<div id="stats_control"><style id="hide"></style>'+
-    '<center><input type="button" id="stats_day" value="Day">'+
-    '<input type="button" id="stats_month" value="Month">'+
-    '<input type="button" id="stats_year" value="Year"></center>'+
-    '</div>'+
-    '<div id="stats_area" style="height:190px;width:100%;margin-top:10px;"></div>'+
-    '<audio controls id="audio_player" style="width:100%">'+
-    '<source src="/chan0" type="audio/wav"></audio>'+
-    '<div id="detection_map_area" style="height:600px;"></div>'+
-    '<table style="width:100%;font-size:28px;margin-top:5px;margin-bottom:5px;"><tr>'+
-    '<td width="40"><input type="image" src="static/img/time.png" id="source_btn"></td>'+
-    '<td width="65"><input type="button" id="dateselector" style="width:160px;"></td>'+
-    '<td><div id="timeselector" style="height:40px;text-align:center;">'+
-    '<span id="time_label" style="width:60px;"></span></div></td>'+
-    '</tr></table>'
-  );
-  $( "#detection_map" ).attr('style','font-size:12px;');
 
   /*************************************/
   /*            MAP CREATION           */
@@ -150,7 +118,6 @@ function DetectionMap(parent){
     }
   });
 
-  $( "#dateselector" ).datepicker();
 
   $( "#source_btn" ).on("click", function(){
     var date = $( "#dateselector" ).val().split('/');
@@ -419,6 +386,4 @@ google.visualization.events.addListener(chart, 'select', function () {
 
 today = new Date();
 load_statistics({"year":today.getFullYear(),"month":today.getMonth()+1,"day":today.getDate()});
-
-  this.show();
 }

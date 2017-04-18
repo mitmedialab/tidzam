@@ -18,7 +18,7 @@ function Chart (parent, name, classifier_list) {
   var chart = this.chart = new google.charts.Line(document.getElementById('plot-'+this.name));
   chart.chan = this.name;
   this.options 	= {
-    'height':220,
+    'height':250,
     'width':500,
     chart: {
       title: 'Audio Channel ' + this.name,
@@ -28,10 +28,12 @@ function Chart (parent, name, classifier_list) {
       x: {0: {side: 'bottom'}}
     },
     series: {
-            0: { color: 'red' },
-            1: { color: 'blue' },
-            2: { color: 'green' },
-            3: { color: 'yellow' }
+            0: { color: 'green' },
+            1: { color: 'yellow' },
+            2: { color: 'orange' },
+            3: { color: 'blue' },
+            4: { color: 'purple' },
+            5: { color: 'red' },
           },
     vAxis: {
       viewWindowMode:'explicit',
