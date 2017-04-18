@@ -210,7 +210,7 @@ function show_statistics(target, callback){
     title:'Sensors detections distribution',
     width: "100%",
     height: 190,
-    legend: { position: 'top', maxLines: 3 },
+    legend: { position: 'bottom', maxLines: 3 },
     bar: { groupWidth: '75%' },
     isStacked: false,
     colors:colors
