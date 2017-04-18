@@ -2,7 +2,6 @@ import threading
 import soundfile as sf
 import os
 import copy
-# MUST BE THREADED
 
 class SampleExtractor(threading.Thread):
     def __init__(self, classes_to_extract, wav_folder='/tmp/tidzam/opus'):
@@ -34,5 +33,5 @@ class SampleExtractor(threading.Thread):
     def execute(self, prob_classes, predictions, classes_dic, sound_obj=None, time=None):
         for channel in range(len(prob_classes)):
             for cl in self.classes_to_extract:
-                if predictions[channel] == cl:
+                if cl in predictions[channel]:
                     self.buffer.append([channel, predictions[channel], time, sound_obj[0][:,channel], sound_obj[1] ])
