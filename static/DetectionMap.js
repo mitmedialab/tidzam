@@ -209,8 +209,8 @@ function show_statistics(target, callback){
   var options = {
     title:'Sensors detections distribution',
     width: "100%",
-    height: 190,
-    legend: { position: 'bottom', maxLines: 3 },
+    height: 210,
+    legend: { position: 'top', maxLines: 3 },
     bar: { groupWidth: '75%' },
     isStacked: false,
     colors:colors
@@ -272,7 +272,7 @@ for (var column in database){
   // Column label
   if("undefined" != typeof target.day) {
     if (column == 0)       data_formatted.push(["12 am"])
-    else if (column < 11)  data_formatted.push([column+" am"])
+    else if (column <= 11)  data_formatted.push([column+" am"])
     else if (column == 12) data_formatted.push(["12 pm"])
     else                   data_formatted.push([column%12+" pm"])
   }
