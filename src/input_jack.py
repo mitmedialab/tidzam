@@ -153,6 +153,12 @@ class TidzamJack(Thread):
                                     if int(len(self.channels_data[i])/self.buffer_size) > 10:
                                         print("-----------------------------------")
                                         print("** WARNING ** JACK Connector: buffer queue is " + str(int(len(self.channels_data[i])/self.buffer_size)) + " samples" )
+                                    if int(len(self.channels_data[i])/self.buffer_size) > 50:
+                                        print("-----------------------------------")
+                                        print("** ERROR ** JACK Connector: buffer overflow, delay > 50 samples, clean it" )
+                                        self.channels_data = []
+                                        break
+
                                     datas   = data
                                     Sxxs    = Sxx
                                     fss     = fs
