@@ -64,8 +64,7 @@ class ChainAPI(threading.Thread):
                     print("** TidZam ChainAPI ** Error "+ str(e))
 
                 except:
-                    if self.debug > 0:
-                        print("** TidZam ChainAPI ** Error pushing on "+str(o[0])+" "+str(o[1]))
+                    print("** TidZam ChainAPI ** Error pushing on "+str(o[0])+" "+str(o[1]))
 
 
     def execute(self, prob_classes, predictions, classes_dic, sound_obj=None, time=None):
