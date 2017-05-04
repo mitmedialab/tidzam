@@ -178,6 +178,17 @@ class Dataset:
                 else:
                     plt.pause(0.5)
 
+    def get_classe(self, classe):
+        res = []
+        id = np.zeros((1, self.n_classes))
+        if classe is not False:
+            id[0][int(classe)] = 1
+
+        for i in range(0, self.labels.shape[0]):
+            if np.array_equiv(id,self.labels[i,:]) is True or classe is False:
+                res.append(self.data[i,:])
+        return np.array(res)
+
     def randomize(self):
         idx = np.arange(self.data.shape[0])
         np.random.shuffle(idx)
@@ -331,7 +342,7 @@ class Editor:
                             print(str(i) + " : " + str(self.dataset.labels_dic[i]) )
                         print("Actions:\n---------------")
                         print("* (enter): next sample\n* (g): go to\n* (n): create a new classe\n* (m) merge with another dataset")
-                        print("* (b): balance classes (s): save the dataset \n* (i): dataset info\n* (p) print the labels\n"+ \
+                        print("* (b): balance classes\n* (s): save the dataset \n* (i): dataset info\n* (p) print the labels\n"+ \
                             "* (r) randomize the dataset\n* (q): quit\n")
                         a = input()
 
@@ -378,21 +389,24 @@ class Editor:
                                 self.dataset.merge(dataset)
 
                         elif a == 'b':
+
                             nb = np.max(self.dataset.get_sample_count_by_classe())
                             print("NB samples : ", nb)
 
-                        #    for cl self.labels.shape[1]:
-                        #        id_cl = np.zeros((1, self.labels[1]))
-                        #        id_cl[cl] = 1
-                        #        idx = []
-                        #        for i, s in enumerate(self.labels)
-                        #            if np.array_equiv(id_cl,s) is True:
+                            for cl in range(self.dataset.labels.shape[1]):
+                                print(self.dataset.labels_dic[cl])
+                                samples = self.dataset.get_classe(cl)
+                                nb_cl = self.dataset.get_classe(cl).shape[0]
+                                while nb_cl < nb:
+                                    idx = np.arange(len(samples))
+                                    np.random.shuffle(idx)
+                                    idx = idx[:int(nb-nb_cl)]
+                                    self.dataset.data = np.concatenate((self.dataset.data, samples[idx]),axis=0)
 
-                            #idx = np.arange(self.data.shape[0])
-
-                            #np.random.shuffle(idx)
-                            #self.data = self.data[idx,:]
-                            #self.labels = self.labels[idx,:]
+                                    id_cl = np.zeros( (len(idx), self.dataset.labels.shape[1]))
+                                    id_cl[:,cl] = 1
+                                    self.dataset.labels = np.concatenate((self.dataset.labels,id_cl),axis=0)
+                                    nb_cl = self.dataset.get_classe(cl).shape[0]
 
                         elif a == 'p':
                             print("Print labels:")
