@@ -19,7 +19,7 @@ class Embedding:
         self.embedding.metadata_path = self.checkpoint_dir+'/metadata-'+embedding_var.name.replace('/','-')+'.tsv'
 
     def evaluate(self, dataset_t,  nb_embeddings, sess,dic=None):
-        dataset_t.split_dataset(p=0)
+        #dataset_t.split_dataset(p=0)
         bx, by = dataset_t.next_batch_test(batch_size=nb_embeddings)
         sess.run([self.embedding_var.assign(self.Pout)],feed_dict={self.Pin: bx})
         self.build_metadatafile(by, dic=dic, out_file=self.checkpoint_dir+'/metadata-'+self.embedding_var.name.replace('/','-')+'.tsv')
@@ -29,7 +29,7 @@ class Embedding:
         with open(out_file, "w"):
             pass
         names = [a for a in range(0,Y.shape[1])]
-        metadata_file = open(out_file, 'a')
+        metadata_file = open(out_file, 'w')
         for i in range(Y.shape[0]):
             l = np.argmax(Y[i])
             if dic is None:
