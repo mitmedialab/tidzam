@@ -65,14 +65,14 @@ parser.add_option("--embeddings-step",
 ###################################
 config = tflearn.config.init_graph (
     num_cores=3,
-    gpu_memory_fraction=0.75,
-    soft_placement=False)
+    #gpu_memory_fraction=1,
+    #log_device=True,
+    soft_placement=True)
 
 ###################################
 # Load the data
 ###################################
 dataset     = tiddata.Dataset(opts.dataset, p=0.8)
-dataset_t   = tiddata.Dataset(opts.dataset)
 
 from tflearn.data_utils import pad_sequences
 #dataset.data_train = pad_sequences(dataset.data_train, maxlen=dataset.dataw*dataset.datah, value=0.)
@@ -184,11 +184,13 @@ with tf.Session(config=config) as sess:
             y_pred = trainer.predict(batch_test_x)
             y_pred = np.argmax(y_pred,1)
             y_true = np.argmax(batch_test_y,1)
+            confusion = metrics.confusion_matrix(y_true, y_pred)
+
             sess.run( [
                 precision.assign(metrics.precision_score(y_true, y_pred, average='micro')),
                 recall.assign(metrics.recall_score(y_true, y_pred, average='micro')),
                 f1.assign(metrics.f1_score(y_true, y_pred, average='micro')),
-                matrix_conf.assign(np.reshape(metrics.confusion_matrix(y_true, y_pred), [1, dataset.n_classes, dataset.n_classes , 1]))
+                matrix_conf.assign(np.reshape(confusion, [1, confusion.shape[0] ,confusion.shape[1] , 1]))
                 ])
 
             print("* Kernel feature map rendering")
@@ -196,8 +198,8 @@ with tf.Session(config=config) as sess:
             trainer.trainer.summ_writer.add_summary(merged_res[0], trainer.trainer.global_step.eval())
 
             print("* Generation of #" +str(opts.nb_embeddings)+ " embeddings for " + embedding_var.name)
-            embed.evaluate(dataset_t, opts.nb_embeddings, sess,
-                        dic=dataset_t.labels_dic)
+            embed.evaluate(dataset, opts.nb_embeddings, sess,
+                        dic=dataset.labels_dic)
 
             trainer.trainer.summ_writer.close()
 
