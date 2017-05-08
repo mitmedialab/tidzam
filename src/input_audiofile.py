@@ -18,15 +18,17 @@ class TidzamAudiofile(Thread):
 
     def run(self):
         with sf.SoundFile(self.audiofilename, 'r') as f:
+            sample_size = 24000 # 500ms
+
             if self.channel is None:
                 channels = range(0,f.channels)
             else:
                 channels = range(self.channel,self.channel+1)
 
             while f.tell() < len(f):
-                data = f.read(24000)
+                data = f.read(sample_size)
 
-                if (len(data) < 24000):
+                if (len(data) < sample_size):
                     print("End of stream ...")
                     os._exit(0)
 
@@ -48,4 +50,4 @@ class TidzamAudiofile(Thread):
                 for obj in self.callable_objects:
                     obj.execute(Sxxs, fss, ts, [data, f.samplerate], overlap=self.overlap,stream=self.audiofilename)
 
-                f.seek(int(-24000*self.overlap), whence=sf.SEEK_CUR)
+                f.seek(int(-sample_size*self.overlap), whence=sf.SEEK_CUR)

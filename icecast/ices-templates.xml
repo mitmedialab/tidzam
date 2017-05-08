@@ -13,7 +13,7 @@
         </metadata>
   		<input>
 			<module>stdinpcm</module>
-			<param name="rate">44100</param>
+			<param name="rate">48000</param>
 			<param name="channels">2</param>
 			<param name="metadata">1</param>
 		</input>
@@ -27,7 +27,7 @@
             <maxqueuelength>80</maxqueuelength>
             <encode>
                 <nominal-bitrate>64000</nominal-bitrate>
-                <samplerate>44100</samplerate>
+                <samplerate>48000</samplerate>
                 <channels>2</channels>
             </encode>
         </instance>
