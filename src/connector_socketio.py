@@ -81,7 +81,7 @@ class TidzamSocketIO(socketio.AsyncNamespace):
             for cl in range(0, len(classes_dic)):
                 pred[classes_dic[cl]] = prob_classes[channel][cl]
             obj = {
-                    "chan":channel,
+                    "chan":channel+1,
                     "analysis":{
                         "time":time,
                         "result":[predictions[channel]],

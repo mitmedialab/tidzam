@@ -35,4 +35,4 @@ class SampleExtractor(threading.Thread):
         for channel in range(len(prob_classes)):
             for cl in self.classes_to_extract:
                 if cl in predictions[channel]:
-                    self.buffer.append([channel, predictions[channel], time, sound_obj[0][:,channel], sound_obj[1] ])
+                    self.buffer.append([channel+1, predictions[channel], time, sound_obj[0][:,channel], sound_obj[1] ])

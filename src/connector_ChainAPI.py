@@ -70,7 +70,7 @@ class ChainAPI(threading.Thread):
     def execute(self, prob_classes, predictions, classes_dic, sound_obj=None, time=None):
         for channel in range(len(prob_classes)):
             if predictions[channel] is not 'unknow':
-                self.buffer.append([channel, predictions[channel], time])
+                self.buffer.append([channel+1, predictions[channel], time])
 
 #ch = ChainAPI()
 #ch.connect('http://chain-api.media.mit.edu/sites/16', auth=HTTPBasicAuth('slash','toto'))
