@@ -76,7 +76,7 @@ class TidzamJack(Thread):
                 for i in range(0, len(self.ports)):
                     file_template.seek(0)
                     template = file_template.read()
-                    template = template.replace("/chan.ogg", "/ch"+str(i).zfill(2) +".ogg")
+                    template = template.replace("/chan.ogg", "/ch"+str(i+1).zfill(2) +".ogg")
                     with open("/tmp/ices-chan"+str(i)+".xml", "w") as file:
                         file.write(template)
 
