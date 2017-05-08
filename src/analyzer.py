@@ -30,6 +30,7 @@ class Classifier:
         self.dataw = 150
         self.datah = 186
         self.nn_folder = folder
+        self.history   = None
 
         self.label_dic = np.load(folder + "/labels.dic.npy").astype(str)
 
@@ -78,7 +79,7 @@ class Analyzer(threading.Thread):
         self.old_stream = ""
         self.callable_objects = callable_objects
 
-        self.res_pred = None
+        self.history = None
 
         # Configuration for socket.io from Redis PubSub
         self.stopFlag = threading.Event()
@@ -153,8 +154,6 @@ class Analyzer(threading.Thread):
                 milliseconds=int(sample_time[3]))
         sample_timestamp = (date + sample_time).isoformat()
 
-        if self.debug > 1:
-            print("----------------------------------- " + sample_timestamp)
 
         classes = []
         label_dic = []
@@ -164,15 +163,15 @@ class Analyzer(threading.Thread):
             if nn.name[:8] == 'selector':
                 res_general       = nn.classifier.predict(Sxxs)
 
-                if self.res_pred is None:
-                    self.res_pred = res_general
+                if nn.history is None:
+                    nn.history = res_general
 
                 label_dic += list(nn.label_dic)
                 for channel in range(0, Sxxs.shape[0]):
                     res.append(res_general[channel])
                     # Qverage current classifier output with previous (to reduce fault positive)
                     if overlap > 0:
-                        res[channel] = list(np.mean([res_general[channel], self.res_pred[channel] ], axis=0))
+                        res[channel] = list(np.mean([res_general[channel], nn.history[channel] ], axis=0))
 
                     out_classes = ""
                     a = np.argmax(res[channel])
@@ -184,7 +183,7 @@ class Analyzer(threading.Thread):
                         out_classes = 'unknow'
                     classes.append(out_classes)
                 break
-        self.res_pred = res_general
+        nn.history = res_general
 
         # EXPERT CLASSIFIER
         for channel in range(0, Sxxs.shape[0]):
@@ -193,21 +192,33 @@ class Analyzer(threading.Thread):
                 if nn.name != 'selector' and channel == 0:
                     label_dic += list(nn.label_dic)
 
+
                 # Request the expert classifier for the detected classe
                 pred = classes[channel].split('-')
                 if nn.name == pred[0]:
                     res_expert = nn.classifier.predict([Sxxs[channel,:]])[0]
-                    res[channel] += list(res_expert)
-                    a = np.argmax(res_expert)
-                    if  res_expert[a] > 0.5:
-                        classes[channel] = classes[channel] + '-' + str(nn.label_dic[ a ]) #+ ' ('  + str(a) + ')'
+
+                    if nn.history is None:
+                        nn.history = res_expert
+
+                    res_average = list(np.mean([res_expert, nn.history ], axis=0))
+                    a = np.argmax(res_average)
+                    a = np.argsort(res_average)
+
+                    if res_average[a[len(a)-1]] - res_average[a[len(a)-2]] > 0.2:
+                        classes[channel] = classes[channel] + '-' + str(nn.label_dic[ a[len(a)-1] ]) #+ ' ('  + str(a) + ')'
+
+                    if overlap > 0:
+                        res[channel] += res_expert
+
+                    nn.history = res_expert
 
                 # Fill in with zeros for all other expert classifiers
                 elif nn.name != 'selector':
                     res[channel] += list(np.zeros(len(nn.label_dic)) )
 
             if self.debug > 1:
-                print( "channel " + str(channel) + ' | ' + classes[channel])
+                print(sample_timestamp + "\tchannel" + str(channel+1) + '\t' + classes[channel])
 
         # BUILD AND TRANSMIT RESULT
         for obj in self.callable_objects:
