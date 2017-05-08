@@ -11,6 +11,10 @@ if __name__ == "__main__":
         default=None,
         help="Input audio stream to analyze.")
 
+    parser.add_option("-c", "--channel", action="store", type="int", dest="channel",
+        default=None,
+        help="Select a particular channel (only with stream option).")
+
     parser.add_option("-j", "--jack", action="store", type="string", dest="jack",
         default=None,
         help="Input audio stream from Jack audio mixer to analyze.")
@@ -102,7 +106,7 @@ if __name__ == "__main__":
         if opts.stream is not None:
             import input_audiofile as ca
             connector = ca.TidzamAudiofile(opts.stream,
-                callable_objects = callable_objects,  overlap=opts.overlap)
+                callable_objects = callable_objects,  overlap=opts.overlap, channel=opts.channel)
 
         elif opts.jack is not None:
             import input_jack as cj

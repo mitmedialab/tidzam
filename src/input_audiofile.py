@@ -6,17 +6,23 @@ import os
 import data as tiddata
 
 class TidzamAudiofile(Thread):
-    def __init__(self, audiofilename, callable_objects=[], overlap=0):
+    def __init__(self, audiofilename, callable_objects=[], overlap=0, channel=None):
         Thread.__init__(self)
         self.audiofilename      = audiofilename
         self.callable_objects   = callable_objects
         self.overlap            = overlap
+        self.channel            = channel
 
     def stop(self):
         return
 
     def run(self):
         with sf.SoundFile(self.audiofilename, 'r') as f:
+            if self.channel is None:
+                channels = range(0,f.channels)
+            else:
+                channels = range(self.channel,self.channel+1)
+
             while f.tell() < len(f):
                 data = f.read(24000)
 
@@ -24,7 +30,7 @@ class TidzamAudiofile(Thread):
                     print("End of stream ...")
                     os._exit(0)
 
-                for i in range(0,f.channels):
+                for i in channels:
                     if f.channels > 1:
                         fs, t, Sxx = tiddata.get_spectrogram(data[:,i], f.samplerate, i)
                     else:
