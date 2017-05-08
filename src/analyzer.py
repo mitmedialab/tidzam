@@ -140,18 +140,22 @@ class Analyzer(threading.Thread):
                     str( int(self.count_run * 0.5 * (1-overlap) % 3600 % 60)) + ":" + \
                     str( int( ((self.count_run * 0.5 * (1-overlap) % 3600 % 60) * 1000) % 1000) ) + "ms"
 
-        # Extract the datetime from the filename
-        date = stream.split("/")
-        date = date[len(date)-1].split(".")[0].split("-")
-        date.pop(0)
-        date = ''.join(date)
-        date = datetime.strptime(date, "%Y%m%d%H%M%S")
         sample_time = time_relative.replace("ms","").split(":")
         sample_time = timedelta(
-                hours=int(sample_time[0]),
-                minutes=int(sample_time[1]),
-                seconds=int(sample_time[2]),
-                milliseconds=int(sample_time[3]))
+            hours=int(sample_time[0]),
+            minutes=int(sample_time[1]),
+            seconds=int(sample_time[2]),
+            milliseconds=int(sample_time[3]))
+
+        # Extract the datetime from the filename
+        try:
+            date = stream.split("/")
+            date = date[len(date)-1].split(".")[0].split("-")
+            date.pop(0)
+            date = ''.join(date)
+            date = datetime.strptime(date, "%Y%m%d%H%M%S")
+        except:
+            date = datetime(1970, 1, 1, 0, 0, 0, 0)
         sample_timestamp = (date + sample_time).isoformat()
 
 
@@ -209,7 +213,7 @@ class Analyzer(threading.Thread):
                         classes[channel] = classes[channel] + '-' + str(nn.label_dic[ a[len(a)-1] ]) #+ ' ('  + str(a) + ')'
 
                     if overlap > 0:
-                        res[channel] += res_expert
+                        res[channel] += res_average
 
                     nn.history = res_expert
 
