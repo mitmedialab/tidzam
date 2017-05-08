@@ -205,16 +205,20 @@ class Analyzer(threading.Thread):
                     if nn.history is None:
                         nn.history = res_expert
 
-                    res_average = list(np.mean([res_expert, nn.history ], axis=0))
+                    # Average with previous samples
+                    if overlap > 0:
+                        res_average = list(np.mean([res_expert, nn.history ], axis=0))
+                    else:
+                        res_average = res_expert
+
+                    # Decision functions
                     a = np.argmax(res_average)
                     a = np.argsort(res_average)
-
                     if res_average[a[len(a)-1]] - res_average[a[len(a)-2]] > 0.2:
                         classes[channel] = classes[channel] + '-' + str(nn.label_dic[ a[len(a)-1] ]) #+ ' ('  + str(a) + ')'
 
-                    if overlap > 0:
-                        res[channel] += res_average
-
+                    # Store result and history
+                    res[channel] += res_average
                     nn.history = res_expert
 
                 # Fill in with zeros for all other expert classifiers
