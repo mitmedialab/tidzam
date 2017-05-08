@@ -28,7 +28,10 @@ function DetectionMap(){
     for (var i=0; i<this.streams.length; i++){
       marker = new google.maps.Marker({
         position: {lat: this.streams[i].latitude, lng: this.streams[i].longitude},
-        icon:"static/img/unknow.png"
+        icon:{
+          url: "static/img/unknow.png",
+          scaledSize: new google.maps.Size(50, 50)
+        }
       })
       marker.name = this.streams[i].name
       //marker.position = [this.streams[i].latitude, this.streams[i].longitude]
@@ -54,7 +57,10 @@ function DetectionMap(){
       // Update all Marker icons
       for(var j=0; j < markers.length; j++)
       if (markers[j].name == "ch"+("0" + msg[i].chan).slice(-2)){
-        markers[j].setIcon("static/img/"+msg[i].analysis.result[0]+".png");
+        markers[j].setIcon({
+          url: "static/img/"+msg[i].analysis.result[0]+".png",
+          scaledSize: new google.maps.Size(50, 50)
+        });
       }
 
       // Update graph of the selected one
