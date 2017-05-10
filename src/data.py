@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-import sys, optparse, os
+import sys, os
 import numpy as np
 from matplotlib import pyplot as plt
 import glob
@@ -11,6 +11,7 @@ import soundfile as sf
 import sounddevice as sd
 
 def get_spectrogram(data, samplerate, channel=0,  show=False):
+    plt.ion()
     fs, t, Sxx = signal.spectrogram(data, samplerate, nfft=1024, noverlap=128)
     # editor between 1-8 Khz
     Sxx = Sxx[[x for x in range(20,170)], :]*1000
@@ -103,22 +104,26 @@ class Dataset:
         np.save(name + "_labels", self.labels)
         np.save(name + "_labels_dic", self.labels_dic)
 
-    def load_from_wav_folder(self, folder):
+    def load_from_wav_folder(self, folder, asOneclasse=None):
         print("Folder " + folder)
-        labels_dic = []
-        labels = []
-        data = []
+        labels_dic = self.labels_dic
+        labels = self.labels
+        data = self.data
         for f in glob.glob(folder+"/*.wav"):
+            print(f)
             raw, time, freq = play_spectrogram_from_stream(f)
             raw  = np.reshape(raw, [1, raw.shape[0]*raw.shape[1]])
-            classe = f.split('+')[1]
-            classe = classe.split('(')[0]
+
+            if asOneclasse is None:
+                classe = f.split('+')[1]
+                classe = classe.split('(')[0]
+            else:
+                classe = asOneclasse
 
             if np.isnan(raw).any():
                 print("Bad sample containing NaN value: " + f)
                 os.remove(f)
                 continue
-
 
             # Add the raw to dataset
             try:
@@ -131,20 +136,19 @@ class Dataset:
             try:
                 pos = labels_dic.index(classe)
                 b = np.zeros((1, n_classes))
-                b[pos] = 1
+                b[0][pos] = 1
             except ValueError:
                 labels_dic.append(classe)
-
                 # Shift classe positions for alignment and merge labels
-                b = np.zeros((data.shape[0], n_classes + 1))
-                b[:,:-n_classes] = self.labels
-                self.labels = b
+                b = np.zeros((data.shape[0]-1, n_classes + 1))
+                b[:,:-1] = labels
+                labels = b
                 b = np.zeros((1, n_classes +1))
                 b[0][n_classes] = 1
 
             try:
                 labels = np.concatenate((labels, b), axis=0)
-            except ValueError:
+            except:
                 labels = b
 
         self.data = data
@@ -294,206 +298,3 @@ class Dataset:
         return int(self.data_test.shape[0]/batch_size)
 
 ########################################
-
-class Editor:
-    def __init__(self,load_dataset=None, stream=None):
-        print(load_dataset)
-        self.count_run = -1
-        self.sample_size = 24000
-        self.stream = stream
-
-        if load_dataset is not None:
-            self.dataset = Dataset(load_dataset)
-            self.init = True
-        else:
-            self.dataset = Dataset()
-            self.init = False
-
-    def run(self, show=False):
-
-        with sf.SoundFile(self.stream, 'r') as f:
-            while f.tell() < len(f):
-                data = f.read(self.sample_size)
-                self.count_run = self.count_run + 1
-
-                time = str(int(self.count_run * 0.5) / 3600) + ":" + \
-                    str( int(self.count_run * 0.5 % 3600)/60) + ":" + \
-                    str( int(self.count_run * 0.5 % 3600 % 60)) + ":" + \
-                    str( int( ((self.count_run * 0.5 % 3600 % 60) * 1000) % 1000) ) + "ms"
-
-                for i in range(0,f.channels):
-                    plt.ion()
-                    if f.channels > 1:
-                        data_chan = data[:,i]
-                    else:
-                        data_chan = data
-
-                    while True:
-                        fs, t, Sxx = get_spectrogram(data_chan, f.samplerate, i,  show=show)
-
-                        if show is True:
-                            sd.play(data_chan, 48000)
-
-                        print("\n===============")
-                        print("Channel: " + str(i) + "\n---------------")
-                        print("Timestamp: " + time + "\n---------------")
-                        print("Classe available\n---------------")
-                        for i in range(0, len(self.dataset.labels_dic)):
-                            print(str(i) + " : " + str(self.dataset.labels_dic[i]) )
-                        print("Actions:\n---------------")
-                        print("* (enter): next sample\n* (g): go to\n* (n): create a new classe\n* (m) merge with another dataset")
-                        print("* (b): balance classes\n* (s): save the dataset \n* (i): dataset info\n* (p) print the labels\n"+ \
-                            "* (r) randomize the dataset\n* (q): quit\n")
-                        a = input()
-
-                        if a == 'g':
-                            print('Timestamp destination: (hh:mm:s:ms)')
-                            d = input()
-                            d = d.split(':')
-                            self.count_run = (int(d[0])*3600 + int(d[1])*60 + int(d[2]) + (int(d[3])*2))*2
-                            f.seek(self.count_run * self.sample_size)
-                            self.count_run = self.count_run - 1
-                            i = f.channels + 1
-                            break
-
-
-                        elif a == 's':
-                            if options.out  is not None:
-                                out = options.out
-                            else:
-                                print("Dataset name: ")
-                                out = input()
-                            self.dataset.save(out)
-                            print('Save')
-
-                        elif a == 'n':
-                            print('New classe name: ')
-                            name = input()
-                            try:
-                                print(self.dataset.labels_dic)
-                                self.dataset.labels_dic = np.append(self.dataset.labels_dic, name)
-                            except NameError:
-                                self.dataset.labels_dic = name
-
-                        elif a == 'm':
-                            print("Merge with dataset:")
-                            name = input()
-                            dataset = Dataset(name)
-                            print("As a single classe ? (y/N)")
-                            a = input()
-                            if a == 'y':
-                                print("Mother classe name to create:")
-                                classe = input()
-                                self.dataset.merge(dataset, asOneClasse=classe)
-                            else:
-                                self.dataset.merge(dataset)
-
-                        elif a == 'b':
-
-                            nb = np.max(self.dataset.get_sample_count_by_classe())
-                            print("NB samples : ", nb)
-
-                            for cl in range(self.dataset.labels.shape[1]):
-                                print(self.dataset.labels_dic[cl])
-                                samples = self.dataset.get_classe(cl)
-                                nb_cl = self.dataset.get_classe(cl).shape[0]
-                                while nb_cl < nb:
-                                    idx = np.arange(len(samples))
-                                    np.random.shuffle(idx)
-                                    idx = idx[:int(nb-nb_cl)]
-                                    self.dataset.data = np.concatenate((self.dataset.data, samples[idx]),axis=0)
-
-                                    id_cl = np.zeros( (len(idx), self.dataset.labels.shape[1]))
-                                    id_cl[:,cl] = 1
-                                    self.dataset.labels = np.concatenate((self.dataset.labels,id_cl),axis=0)
-                                    nb_cl = self.dataset.get_classe(cl).shape[0]
-
-                        elif a == 'p':
-                            print("Print labels:")
-                            print(self.dataset.labels)
-
-                        elif a == 'r':
-                            print("Randomization")
-                            self.dataset.randomize()
-
-                        elif a == 'i':
-                            print('Informations:\n--------------')
-                            try:
-                                print(str(self.dataset.data.shape[0]) +" samples of " + str(self.dataset.data.shape[1]) + " features in " +
-                                str(self.dataset.labels.shape[1]) + " classes.")
-                                print(self.dataset.labels_dic)
-                                print("Samples distribution:")
-                                print(self.dataset.get_sample_count_by_classe())
-                            except:
-                                print('No data.')
-
-                        elif a == 'q':
-                            quit()
-
-                        elif a == '':
-                            break;
-
-                        elif Sxx is not None:
-                            try:
-                                if int(a) < len(self.dataset.labels_dic):
-                                    if self.init is False:
-                                        self.dataset.data =  np.reshape(Sxx,[1,Sxx.shape[0]*Sxx.shape[1]])
-                                        c = np.zeros((1, len(self.dataset.labels_dic)))
-                                        c[0][int(a)] = 1
-                                        self.dataset.labels = c
-                                        self.init = True
-                                    else:
-                                        self.dataset.data = np.append(self.dataset.data,
-                                            np.reshape(Sxx,[1,Sxx.shape[0]*Sxx.shape[1]]), axis=0)
-
-                                        # New classe => add a new column to label
-                                        if (int(a) >= self.dataset.labels.shape[1]):
-                                            b = np.zeros((self.dataset.labels.shape[0],self.dataset.labels.shape[1] + 1))
-                                            b[:,:-1] = self.dataset.labels
-                                            self.dataset.labels = b
-
-                                        # Create the classe vector and add it
-                                        c = np.zeros((1, len(self.dataset.labels_dic)))
-                                        c[0][int(a)] = 1
-                                        self.dataset.labels = np.append(self.dataset.labels, c, axis=0)
-                                    print(str(self.dataset.labels.shape[0]) + " samples of " + str(self.dataset.labels.shape[1]) + " classes")
-                                    break
-                            except:
-                                pass
-
-
-if __name__ == "__main__":
-    parser = optparse.OptionParser(usage="python src/data.py --stream=stream.wav")
-    parser.add_option("-w", "--wav", action="store", type="string", dest="wav")
-    parser.add_option("-d", "--dataset", action="store", type="string", dest="open",
-        default=None, help="Open an exisiting dataset")
-
-    parser.add_option("-o", "--out", action="store", type="string", dest="out",
-                help="Provide output dataset name for wav processing.")
-
-    parser.add_option("-s", "--show", action="store", type="string", dest="classe_id",
-        default=False, help="Show spectrograms for a specific class_id")
-
-    parser.add_option("--stream", action="store", type="string", dest="stream",
-        default=None, help="Sample extraction from an audio stream [WAV/OGG/MP3].")
-    parser.add_option("--editor", action="store_true", help="Interractive mode.")
-    (options, args) = parser.parse_args()
-
-    # Build a dataset from a folder containing wav files
-    if options.wav:
-        if options.out is False:
-            print('Destination dataset must be specified --out=filename')
-            quit()
-        data = Dataset()
-        data.load_from_wav_folder(options.wav)
-        data.save(options.out)
-
-
-    if options.editor:
-        obj_editor = Editor(options.open, options.stream)
-        obj_editor.run()
-
-    # Open a dataset and plot all example of a classe
-    elif options.open:
-        data = Dataset(options.open,data_size=(150,186))
-        data.print_sample(np.abs(data.data), data.labels, options.classe_id, print_all=True)
