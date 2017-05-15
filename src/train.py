@@ -186,12 +186,13 @@ with tf.Session(config=config) as sess:
             y_true = np.argmax(batch_test_y,1)
             confusion = metrics.confusion_matrix(y_true, y_pred)
 
-            sess.run( [
-                precision.assign(metrics.precision_score(y_true, y_pred, average='micro')),
-                recall.assign(metrics.recall_score(y_true, y_pred, average='micro')),
-                f1.assign(metrics.f1_score(y_true, y_pred, average='micro')),
-                matrix_conf.assign(np.reshape(confusion, [1, confusion.shape[0] ,confusion.shape[1] , 1]))
-                ])
+            if confusion.shape[0] == dataset.n_classes:
+                sess.run( [
+                    precision.assign(metrics.precision_score(y_true, y_pred, average='micro')),
+                    recall.assign(metrics.recall_score(y_true, y_pred, average='micro')),
+                    f1.assign(metrics.f1_score(y_true, y_pred, average='micro')),
+                    matrix_conf.assign(np.reshape(confusion, [1, dataset.n_classes, dataset.n_classes, 1]))
+                    ])
 
             print("* Kernel feature map rendering")
             merged_res  = sess.run([merged], feed_dict={ net.input: batch_x} )
