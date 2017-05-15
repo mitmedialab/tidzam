@@ -30,6 +30,9 @@ if __name__ == "__main__":
         default=None,
         help="List of classes to extract (--extract=unknown,birds).")
 
+    parser.add_option("--extract-dd", action="store_true", dest="dd",
+        help="Activate the extraction according to a Dynamic Distribution of extracted sample (Default: False).")
+
     parser.add_option("--show", action="store_true", dest="show", default=False,
         help="Play the audio samples and show their spectrogram.")
 
@@ -62,7 +65,7 @@ if __name__ == "__main__":
             import connector_SampleExtractor as SampleExtractor
             # , 'birds', 'cricket', 'nothing', 'rain','wind'
             list_to_extract = opts.extract.split(",")
-            extractor = SampleExtractor.SampleExtractor(list_to_extract, wav_folder)
+            extractor = SampleExtractor.SampleExtractor(list_to_extract, wav_folder, dd=opts.dd, debug=opts.DEBUG)
             callable_objects.append(extractor)
 
         ### Socket.IO Output Connector
