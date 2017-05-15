@@ -201,43 +201,31 @@ class Dataset:
 
     def merge(self,dataset, asOneClasse=False):
         if asOneClasse is not False:
-            nb_max = np.max(self.get_sample_count_by_classe())
-            if nb_max > 0:
-                 nb_max = int(np.min([nb_max, dataset.data.shape[0]], axis=0))
-            else:
-                 nb_max = dataset.data.shape[0]
-            print(nb_max)
-            dataset.randomize()
-            dataset.data = dataset.data[1:nb_max,:]
             dataset.labels = np.ones((dataset.data.shape[0], 1))
             dataset.labels_dic = []
             dataset.labels_dic.append(asOneClasse)
 
         try:
-            self.data = np.append(self.data, dataset.data, axis=0)
-            # Shift classe positions for alignment and merge labels
-            n_classes = self.labels.shape[1] + dataset.labels.shape[1]
-            b = np.zeros((self.labels.shape[0], n_classes))
-            b[:,:-dataset.labels.shape[1]] = self.labels
-            self.labels = b
+            for id_classe, label_name in enumerate(dataset.labels_dic):
+                found = False
+                data = dataset.get_classe(id_classe)
+                for id_classe2, label2_name in enumerate(self.labels_dic):
+                    if label_name == label2_name:
+                        print("Found :" + label_name)
+                        found = True
+                        label = np.zeros( (data.shape[0],self.labels.shape[1]) )
+                        label[:,id_classe2] = 1
+                if found is False:
+                    label = np.zeros( (data.shape[0],self.labels.shape[1] + 1) )
+                    label[:, self.labels.shape[1]] = 1
+                    self.labels_dic.append(label_name)
+                self.labels = np.append(self.labels, label, axis=0)
+                self.data  = np.append(self.data, data, axis=0)
 
-            b = np.zeros((dataset.labels.shape[0], n_classes))
-            b[:, [x for x in range(n_classes - dataset.labels.shape[1], n_classes)]] = dataset.labels
-            dataset.labels = b
-
-            ### Merge labels and dictionary
-            self.labels = np.append(self.labels, dataset.labels, axis=0)
-            self.labels_dic = np.append(self.labels_dic, dataset.labels_dic)
-
-        # There is no data, first add
         except:
-            self.data = dataset.data
-            self.labels = dataset.labels
-            self.labels_dic = dataset.labels_dic
-
-        print("Randomization")
-        for i in range(0,10):
-            self.randomize()
+             self.data = dataset.data
+             self.labels = dataset.labels
+             self.labels_dic = dataset.labels_dic
 
     def get_sample_count_by_classe(self):
         return np.sum(self.labels, axis=0)
