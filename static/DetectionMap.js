@@ -1,4 +1,5 @@
 function DetectionMap(){
+  me = this
   this.channel = channel = null
   this.graph   = graph   = {name:null}
   this.current_time = current_time = ""
@@ -30,11 +31,10 @@ function DetectionMap(){
         position: {lat: this.streams[i].latitude, lng: this.streams[i].longitude},
         icon:{
           url: "static/img/unknow.png",
-          scaledSize: new google.maps.Size(50, 50)
+          scaledSize: new google.maps.Size(10)
         }
       })
       marker.name = this.streams[i].name
-      //marker.position = [this.streams[i].latitude, this.streams[i].longitude]
       marker.setMap(map);
       markers.push(marker);
 
@@ -170,7 +170,7 @@ function DetectionMap(){
   });
   $( "#stats_day" ).change(function(val){
     val = $( "#stats_day" ).val().split("-")
-    load_statistics({"year":val[0],"month":val[1],"day":val[2]});
+    load_statistics({"year":val[0],"month":val[1],"day":val[2]},"");
   })
   $('#stats_month').datepicker( {
     changeMonth: true,
@@ -184,7 +184,7 @@ function DetectionMap(){
       $("#stats_day").val("Day");
       $("#stats_year").val("Year");
       val = $( "#stats_month" ).val().split("-");
-      load_statistics({"year":val[0],"month":val[1]});
+      load_statistics({"year":val[0],"month":val[1]},"");
     }
   });
 
@@ -202,14 +202,14 @@ function DetectionMap(){
       $("#stats_month").val("Month");
 
       val = $( "#stats_year" ).val().split("-");
-      load_statistics({"year":val[0]});
+      load_statistics({"year":val[0]},"");
     }
   });
 
-
 this.data_view = {}
 colors = ["blue", "red", "orange", "green", "purple", "yellow", "brown", "black", "gray"]
-function show_statistics(target, callback){
+function show_statistics(target, subclasse, callback){
+  console.log("ici ("+subclasse+")")
   var ready = false;
   var database = {}
   var options = {
@@ -225,7 +225,19 @@ function show_statistics(target, callback){
     // Build a dictionnary
     for (var dev=0; dev < chain.list_devices.length; dev++){
       for (var sensor=0; sensor < chain.list_devices[dev].list_sensors.length; sensor++){
-        sens = chain.list_devices[dev].list_sensors[sensor].title;
+
+        if (subclasse == ""){
+          // If it is a primary classe
+          if (chain.list_devices[dev].list_sensors[sensor].title.indexOf("-") == -1)
+            sens = chain.list_devices[dev].list_sensors[sensor].title;
+          // Get primary classe name
+          else sens = chain.list_devices[dev].list_sensors[sensor].title.split("-")[0]
+        }
+        // If this sensor is not a subclasse, go to the next
+        else if (chain.list_devices[dev].list_sensors[sensor].title.indexOf(subclasse) == -1)
+          continue
+        else sens = chain.list_devices[dev].list_sensors[sensor].title;
+
         chain.list_devices[dev].list_sensors[sensor].count = 0;
         for (var d=0; d < chain.list_devices[dev].list_sensors[sensor].data.length; d++){
           chain.list_devices[dev].list_sensors[sensor].count ++;
@@ -239,17 +251,15 @@ function show_statistics(target, callback){
           else
           column = (new Date(chain.list_devices[dev].list_sensors[sensor].data[d].timestamp)).getHours();
 
-          sens = chain.list_devices[dev].list_sensors[sensor].title;
-          if ("undefined" === typeof database[column])
-          database[column] = {}
-          if ("undefined" === typeof database[column][sens])
-          database[column][sens] = 0
+          if ("undefined" === typeof database[column])          database[column] = {}
+          if ("undefined" === typeof database[column][sens])    database[column][sens] = 0
           else database[column][sens]++;
         }
       }
     }
     ready = true;
     $("#stats_loading_text").text("");
+    $("#classe_picture").attr("src","static/img/" + (subclasse != "" ? subclasse : "tidzam") + ".png");
   }
   catch(err){
     console.log("Data loading...")
@@ -301,14 +311,15 @@ chart.draw(this.data_view, options);
 
 if (!ready)
 setTimeout(function(){
-  show_statistics(target, callback);
+  console.log("plop ("+subclasse+")")
+  show_statistics(target, subclasse, callback);
 },2000);
 else if(callback)
 callback("done");
 }
 
 circles = []
-function map_draw_statistics(sensor_to_show, color){
+function map_draw(sensor_to_show, color){
   // Compute max value for normalization
   max_count = 0;
   max_count_sensor = 0;
@@ -361,19 +372,19 @@ function map_draw_statistics(sensor_to_show, color){
   }
 }
 
-
-function load_statistics(conf){
+function load_statistics(conf, subclasse){
+  me.statistic_conf = conf;
   $("#stats_loading_div").show();
   chain.getData(conf,function(msg){
     $("#stats_loading_text").text(msg);
   });
   setTimeout(function(){
-    show_statistics(conf, function(msg){
+    show_statistics(conf, subclasse, function(msg){
       $("#stats_loading_div").hide();
       for(var i=0; i < this.data_view.getNumberOfColumns(); i++)
         if (this.data_view.getColumnLabel(i) == "birds")
           break;
-      map_draw_statistics("birds", colors[i-1]);
+      map_draw("birds", colors[i-1]);
     });
   },1000);
 }
@@ -381,15 +392,38 @@ function load_statistics(conf){
 // Load the data
 var chart = new google.visualization.ColumnChart(document.getElementById("stats_area"));
 
+  this.statistic_previous = function(){
+    var text  =   $("#statistic_selector").text()
+    text      = text.split(" > ")
+    text.shift()
+    if (text.length > 0)   text.pop()
+    $("#statistic_selector").text("tidzam > " + text.join(" > "))
+
+    text = text.join("-")
+    show_statistics(me.statistic_conf, text, function(msg){
+      $("#stats_loading_div").hide();
+      map_draw("", colors[i-1]);
+    });
+  };
+
 // Listener to draw on the map detection density
 google.visualization.events.addListener(chart, 'select', function () {
   var sel = chart.getSelection();
   if (sel.length > 0) {
       var col_name = this.data_view.getColumnLabel(sel[0].column);
-      map_draw_statistics(col_name, colors[sel[0].column-1]);
+      $("#statistic_selector").text("tidzam > " + col_name.replace("-", " > "))
+
+      for(var i=0; i < this.data_view.getNumberOfColumns(); i++)
+        if (this.data_view.getColumnLabel(i) == col_name)
+          break;
+
+      show_statistics(me.statistic_conf, col_name, function(msg){
+        $("#stats_loading_div").hide();
+        map_draw(col_name, colors[i-1]);
+      });
   }
 });
 
 today = new Date();
-load_statistics({"year":today.getFullYear(),"month":today.getMonth()+1,"day":today.getDate()});
+load_statistics({"year":today.getFullYear(),"month":today.getMonth()+1,"day":today.getDate()}, "");
 }

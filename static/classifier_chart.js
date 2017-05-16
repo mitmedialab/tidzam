@@ -19,7 +19,7 @@ function Chart (parent, name, classifier_list) {
   chart.chan = this.name;
   this.options 	= {
     'height':250,
-    'width':500,
+    'width':550,
     chart: {
       title: 'Audio Channel ' + this.name,
       subtitle: 'General classifiers'
@@ -44,7 +44,7 @@ function Chart (parent, name, classifier_list) {
       }
     },
     displayAnnotations: true,
-    legend:{textStyle:{fontSize:12, fontName:'TimesNewRoman'}}
+    legend:"top"
   };
 
   google.visualization.events.addListener(chart, 'select', function () {

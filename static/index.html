@@ -80,7 +80,7 @@
     text-align:center;
     vertical-align: middle;
     width:100%;
-    height:230px;
+    height:280px;
   }
   #stats_loading_text{
     position:relative;
@@ -93,7 +93,6 @@
   #stats_area{
     height:200px;
     width:100%;
-    margin-top:10px;
   }
 
   #stats_control input{
@@ -101,7 +100,16 @@
     height:30px;
     font-weight:bold;
     border: 1px outset;
+  }
 
+  #statistic_selector{
+    font-size:20px;
+    color:black;
+    text-decoration:none;
+    float:left;
+  }
+  #statistic_selector:hover{
+    text-decoration:underline;
   }
 
   body{
@@ -115,15 +123,26 @@
     <div id="stats_loading_div" class="loading_div">
         <span id="stats_loading_text">Loading</span>
     </div>
-    <div id="stats_control">
-      <style id="hide"></style>
-      <center>
-        <input type="button" id="stats_day"   value="Day">
-        <input type="button" id="stats_month" value="Month">
-        <input type="button" id="stats_year"  value="Year">
-      </center>
-    </div>
-    <div id="stats_area"></div>
+    <table width="100%" style="vertical-align: middle;text-align:center;">
+    <tr>
+      <td style="width:200px;" rowspan="2">
+        <img src="static/img/tidzam.png" style="height:230px;" id="classe_picture">
+      </td>
+      <td>
+      <div id="stats_control">
+        <style id="hide"></style>
+          <span><a href="#" id="statistic_selector" onclick="map.statistic_previous();">tidzam > </a></span>
+        <center>
+          <input type="button" id="stats_day"   value="Day">
+          <input type="button" id="stats_month" value="Month">
+          <input type="button" id="stats_year"  value="Year">
+        </center>
+      </div>
+  </td></tr>
+    <tr style="height:230px;">
+    <td><div id="stats_area"></div></td/>
+    </tr></table>
+
     <audio controls id="audio_player" style="width:100%">
       <source src="http://deep-resenv.media.mit.edu:8000/ch00.ogg" type="audio/wav">
     </audio>

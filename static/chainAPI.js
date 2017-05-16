@@ -31,7 +31,7 @@ function ChainAPI(){
   this.list_devices = {}
   this.getData = function(target, callback_update){
     chain = this;
-    site_id = 18
+    site_id = 18;
   try {
         list_devices = $.ajax({
             type: "GET",
@@ -49,12 +49,13 @@ function ChainAPI(){
           }).done(function(list_sensors){
           chain.list_devices[this.deviceID].list_sensors = list_sensors["_links"].items;
           for (var j=0; j< chain.list_devices[this.deviceID].list_sensors.length; j++){
-            if (chain.list_devices[this.deviceID].list_sensors[j].title.indexOf("-") != -1){
+            /*if (chain.list_devices[this.deviceID].list_sensors[j].title.indexOf("-") != -1){
               chain.list_devices[this.deviceID].list_sensors.splice(j,1);
               j--;
               }
 
-            else {
+
+            else {*/
               if (target.year){
                 if (!target.month){
                   target.month_start = 1
@@ -90,7 +91,7 @@ function ChainAPI(){
 
                   chain.list_devices[this.deviceID].list_sensors[this.sensorID].data = data?data.data:[];
               });
-            }
+        //    }
           }
 
 
