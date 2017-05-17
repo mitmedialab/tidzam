@@ -42,6 +42,9 @@ if __name__ == "__main__":
     parser.add_option("--chainAPI", action="store", type="string", dest="chainAPI", default=None,
         help="Provide URL for chainAPI username:password@url (default: None).")
 
+    parser.add_option("--port", action="store", type="int", dest="port", default=8080,
+        help="Socket.IO Web port (default: 8080).")
+
     parser.add_option("--debug", action="store", type="int", dest="DEBUG", default=0,
         help="Set debug level (Default: 0).")
 
@@ -119,7 +122,7 @@ if __name__ == "__main__":
         #time.sleep(2)
         #date_in_future = (datetime.today() + timedelta(1)).strftime("%Y-%m-%d-%H-%M-%S")
         #socket.load_source(date_in_future)
-        socket.start()
+        socket.start(opts.port)
 
     else:
         print(parser.usage)

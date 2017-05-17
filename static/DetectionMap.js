@@ -40,7 +40,7 @@ function DetectionMap(){
 
       google.maps.event.addListener(marker, 'click', function() {
         channel = this.name
-        stream = 'http://deep-resenv.media.mit.edu:8000/'+this.name+'.ogg'
+        stream = 'http://tidzam.media.mit.edu:8000/'+this.name+'.ogg'
         $( '#audio_player'  ).attr('src', stream);
         $( '#audio_player'  ).load();
         $( '#audio_player' ).trigger('play');
@@ -209,7 +209,6 @@ function DetectionMap(){
 this.data_view = {}
 colors = ["blue", "red", "orange", "green", "purple", "yellow", "brown", "black", "gray"]
 function show_statistics(target, subclasse, callback){
-  console.log("ici ("+subclasse+")")
   var ready = false;
   var database = {}
   var options = {
@@ -311,7 +310,6 @@ chart.draw(this.data_view, options);
 
 if (!ready)
 setTimeout(function(){
-  console.log("plop ("+subclasse+")")
   show_statistics(target, subclasse, callback);
 },2000);
 else if(callback)

@@ -126,10 +126,8 @@ class TidzamJack(Thread):
         while not self.stopFlag.wait(0.1):
             with self.lock:
                 if self.portsAllReady():
-                    if True:
-                        ready_to_process = False
+                    try:
                         for i in range(len(self.channels)):
-
                             data = self.ring_buffer[i].read(self.buffer_jack)
                             data = np.frombuffer(data, dtype='float32')
                             try:
@@ -168,14 +166,14 @@ class TidzamJack(Thread):
                                     fss     = np.vstack((fss, fs))
                                     ts      = np.vstack((ts, t))
                                     datas   = np.vstack((datas, data))
-                    #except:
-                    #    print("Sample error")
 
-                    if run is True:
-                        for obj in self.callable_objects:
-                            obj.execute(Sxxs, fss, ts, [np.transpose(datas), self.samplerate],
-                                        overlap=self.overlap,
-                                        stream=stream)
+                        if run is True:
+                            for obj in self.callable_objects:
+                                obj.execute(Sxxs, fss, ts, [np.transpose(datas), self.samplerate],
+                                            overlap=self.overlap,
+                                            stream=stream)
+                    except:
+                        print("Sample error")
 
                 # If there there is no port ready => nothing to wait
                 elif self.portStarting() is False:

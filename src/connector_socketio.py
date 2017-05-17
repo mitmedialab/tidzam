@@ -10,14 +10,15 @@ import datetime
 import atexit
 import input_jack as input_jack
 
-app = web.Application()
 mgr = socketio.AsyncRedisManager('redis://')
 sio = socketio.AsyncServer(client_manager=mgr, ping_timeout=6000000)
+app = web.Application()
 sio.attach(app)
 
 def create_socket(namespace):
     socket = TidzamSocketIO(namespace)
     sio.register_namespace(socket)
+
     return socket
 
 
@@ -37,8 +38,8 @@ class TidzamSocketIO(socketio.AsyncNamespace):
     def kill_process(self):
         subprocess.Popen.kill(self.mpv)
 
-    def start(self):
-        web.run_app(app)
+    def start(self, port=80):
+        web.run_app(app, port=port)
 
     def on_connect(self, sid, environ):
         print("connect ", sid)

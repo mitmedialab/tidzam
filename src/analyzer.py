@@ -214,7 +214,7 @@ class Analyzer(threading.Thread):
                     # Decision functions
                     a = np.argmax(res_average)
                     a = np.argsort(res_average)
-                    if res_average[a[len(a)-1]] - res_average[a[len(a)-2]] > 0.2:
+                    if res_average[a[len(a)-1]] - res_average[a[len(a)-2]] > 0.3:
                         classes[channel] = classes[channel] + '-' + str(nn.label_dic[ a[len(a)-1] ]) #+ ' ('  + str(a) + ')'
 
                     # Store result and history
