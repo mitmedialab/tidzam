@@ -1,6 +1,6 @@
 import threading
 
-import chainclient.chainclient as chainclient
+import chainclient as chainclient
 
 class ChainAPI(threading.Thread):
     def __init__(self,debug=0):
