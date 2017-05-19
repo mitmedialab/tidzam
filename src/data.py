@@ -113,7 +113,7 @@ class Dataset:
     def load_from_wav_folder(self, folder, asOneclasse=None):
         print("Folder " + folder)
         labels_dic = self.labels_dic
-        labels = self.labels
+        labels = np.asarray(self.labels)
         data = []
         for f in glob.glob(folder+"/*.wav"):
             print(f)
@@ -156,10 +156,13 @@ class Dataset:
                 labels = np.concatenate((labels, b), axis=0)
             except:
                 labels = b
-
         try:
-            self.data = np.concatenate((self.data, data), axis=0)
-            self.labels = labels
+            try:
+                self.data = np.concatenate((self.data, data), axis=0)
+            except:
+                self.data = data
+
+            self.labels = np.asarray(labels)
             self.labels_dic = labels_dic
 
             self.n_input = self.data.shape[1]
