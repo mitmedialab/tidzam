@@ -74,9 +74,12 @@ class Dataset:
         self.labels_dic = []
 
         if file is not False:
-            self.name = file
-            self.load(file)
-            self.split_dataset(p=p)
+            try:
+                self.name = file
+                self.load(file)
+                self.split_dataset(p=p)
+            except:
+                print("Unable to load the dataset: "+ file)
 
     def load(self, file):
         a = file.split('(')
@@ -87,8 +90,8 @@ class Dataset:
             self.datah = int(a[1])
         try:
             self.data = np.load(file+"_data.npy")
-            self.labels = np.load(file+"_labels.npy")
-            self.labels_dic = np.load(file+"_labels_dic.npy")
+            self.labels = np.asarray(np.load(file+"_labels.npy"))
+            self.labels_dic = list(np.load(file+"_labels_dic.npy"))
 
             self.n_input = self.data.shape[1]
             self.n_classes = self.labels.shape[1]
@@ -100,15 +103,18 @@ class Dataset:
             print("File not found: " + file)
 
     def save(self,name):
-        np.save(name + "_data", self.data)
-        np.save(name + "_labels", self.labels)
-        np.save(name + "_labels_dic", self.labels_dic)
+        try:
+            np.save(name + "_data", self.data)
+            np.save(name + "_labels", self.labels)
+            np.save(name + "_labels_dic", self.labels_dic)
+        except:
+            print("Unable to save the dataset (write permission ?)")
 
     def load_from_wav_folder(self, folder, asOneclasse=None):
         print("Folder " + folder)
         labels_dic = self.labels_dic
         labels = self.labels
-        data = self.data
+        data = []
         for f in glob.glob(folder+"/*.wav"):
             print(f)
             raw, time, freq = play_spectrogram_from_stream(f)
@@ -140,7 +146,7 @@ class Dataset:
             except ValueError:
                 labels_dic.append(classe)
                 # Shift classe positions for alignment and merge labels
-                b = np.zeros((data.shape[0]-1, n_classes + 1))
+                b = np.zeros((labels.shape[0], n_classes + 1))
                 b[:,:-1] = labels
                 labels = b
                 b = np.zeros((1, n_classes +1))
@@ -151,17 +157,15 @@ class Dataset:
             except:
                 labels = b
 
-        self.data = data
-        self.labels = labels
-        self.labels_dic = labels_dic
-        # Label reconstruction as vector
+        try:
+            self.data = np.concatenate((self.data, data), axis=0)
+            self.labels = labels
+            self.labels_dic = labels_dic
 
-        print("Randomization")
-        self.randomize()
-        self.labels_dic = labels_dic
-
-        self.n_input = self.data.shape[1]
-        self.n_classes = self.labels.shape[1]
+            self.n_input = self.data.shape[1]
+            self.n_classes = self.labels.shape[1]
+        except:
+            print("Unable to load the wav folder.")
 
         return self.data, self.labels, self.labels_dic
 
@@ -200,32 +204,42 @@ class Dataset:
         self.labels = self.labels[idx,:]
 
     def merge(self,dataset, asOneClasse=False):
-        if asOneClasse is not False:
-            dataset.labels = np.ones((dataset.data.shape[0], 1))
-            dataset.labels_dic = []
-            dataset.labels_dic.append(asOneClasse)
-
         try:
+            if asOneClasse is not False:
+                dataset.labels = np.ones((dataset.data.shape[0], 1))
+                dataset.labels_dic = []
+                dataset.labels_dic.append(asOneClasse)
+
             for id_classe, label_name in enumerate(dataset.labels_dic):
                 found = False
-                data = dataset.get_classe(id_classe)
+                if asOneClasse is not False:
+                    data = dataset.data
+                else:
+                    data = dataset.get_classe(id_classe)
+
                 for id_classe2, label2_name in enumerate(self.labels_dic):
                     if label_name == label2_name:
-                        print("Found :" + label_name)
                         found = True
                         label = np.zeros( (data.shape[0],self.labels.shape[1]) )
                         label[:,id_classe2] = 1
+
                 if found is False:
-                    label = np.zeros( (data.shape[0],self.labels.shape[1] + 1) )
+                    label = np.zeros( (data.shape[0], self.labels.shape[1] + 1) )
                     label[:, self.labels.shape[1]] = 1
+                    # Change shape of labels to new one
+                    b = np.zeros((self.labels.shape[0], label.shape[1]))
+                    b[:,:-1] = self.labels
+                    self.labels = b
                     self.labels_dic.append(label_name)
+
                 self.labels = np.append(self.labels, label, axis=0)
                 self.data  = np.append(self.data, data, axis=0)
 
         except:
-             self.data = dataset.data
-             self.labels = dataset.labels
-             self.labels_dic = dataset.labels_dic
+            print("Unable to merge")
+        #     self.data = dataset.data
+        #     self.labels = dataset.labels
+        #     self.labels_dic = dataset.labels_dic
 
     def get_sample_count_by_classe(self):
         return np.sum(self.labels, axis=0)

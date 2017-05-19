@@ -54,10 +54,10 @@ class Editor:
                 single = input()
             else:
                 single = None
-            try:
-                self.dataset.load_from_wav_folder(folder,asOneclasse=single)
-            except:
-                print("Impossible to load " + folder +"\n")
+            #try:
+            self.dataset.load_from_wav_folder(folder,asOneclasse=single)
+            #except:
+            #    print("Impossible to load " + folder +"\n")
 
         elif a == 's':
             print("Dataset name: ")
