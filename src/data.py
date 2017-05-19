@@ -98,7 +98,7 @@ class Dataset:
 
             print(" " +str(self.data.shape[0]) + " samples ("+ \
                 str(self.n_input) +" features) of " + \
-                str(self.n_classes) + " classes")
+                str(self.labels.shape[1]) + " classes")
         except IOError:
             print("File not found: " + file)
 
@@ -173,7 +173,7 @@ class Dataset:
         return self.data, self.labels, self.labels_dic
 
     def print_sample(self,dataX, dataY, classe, print_all=False):
-        id = np.zeros((1, self.n_classes))
+        id = np.zeros((1, dataY.shape[1]))
         if classe is not False:
             id[0][int(classe)] = 1
 
@@ -189,14 +189,34 @@ class Dataset:
                 else:
                     plt.pause(0.5)
 
-    def get_classe(self, classe):
+    def balance_classe(self):
+        nb = np.max(self.get_sample_count_by_classe())
+        print("NB samples : ", nb)
+
+        for cl in range(self.labels.shape[1]):
+            print("Balance: " + self.labels_dic[cl])
+            samples = self.get_classe(cl)
+            nb_cl = samples.shape[0]
+            while nb_cl < nb:
+                idx = np.arange(len(samples))
+                np.random.shuffle(idx)
+                idx = idx[:int(nb-nb_cl)]
+                self.data = np.concatenate((self.data, samples[idx]),axis=0)
+
+                id_cl = np.zeros( (len(idx), self.labels.shape[1]))
+                id_cl[:,cl] = 1
+                self.labels = np.concatenate((self.labels,id_cl),axis=0)
+                nb_cl = self.get_classe(cl).shape[0]
+
+    def get_classe(self, classe=False):
         res = []
-        id = np.zeros((1, self.n_classes))
+        id = np.zeros((1, self.labels.shape[1]))
         if classe is not False:
             id[0][int(classe)] = 1
 
+        first=True
         for i in range(0, self.labels.shape[0]):
-            if np.array_equiv(id,self.labels[i,:]) is True or classe is False:
+            if np.array_equiv(id, self.labels[i,:] ) is True or classe is False:
                 res.append(self.data[i,:])
         return np.array(res)
 
@@ -222,6 +242,7 @@ class Dataset:
 
                 for id_classe2, label2_name in enumerate(self.labels_dic):
                     if label_name == label2_name:
+                        print("Found: " + label_name)
                         found = True
                         label = np.zeros( (data.shape[0],self.labels.shape[1]) )
                         label[:,id_classe2] = 1
@@ -235,8 +256,9 @@ class Dataset:
                     self.labels = b
                     self.labels_dic.append(label_name)
 
-                self.labels = np.append(self.labels, label, axis=0)
-                self.data  = np.append(self.data, data, axis=0)
+                self.labels     = np.append(self.labels, label, axis=0)
+                self.data       = np.append(self.data, data, axis=0)
+                self.n_classes  = self.labels.shape[1]
 
         except:
             print("Unable to merge")

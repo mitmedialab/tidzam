@@ -88,23 +88,7 @@ class Editor:
                 self.dataset.merge(dataset)
 
         elif a == 'b':
-            nb = np.max(self.dataset.get_sample_count_by_classe())
-            print("NB samples : ", nb)
-
-            for cl in range(self.dataset.labels.shape[1]):
-                print(self.dataset.labels_dic[cl])
-                samples = self.dataset.get_classe(cl)
-                nb_cl = self.dataset.get_classe(cl).shape[0]
-                while nb_cl < nb:
-                    idx = np.arange(len(samples))
-                    np.random.shuffle(idx)
-                    idx = idx[:int(nb-nb_cl)]
-                    self.dataset.data = np.concatenate((self.dataset.data, samples[idx]),axis=0)
-
-                    id_cl = np.zeros( (len(idx), self.dataset.labels.shape[1]))
-                    id_cl[:,cl] = 1
-                    self.dataset.labels = np.concatenate((self.dataset.labels,id_cl),axis=0)
-                    nb_cl = self.dataset.get_classe(cl).shape[0]
+            self.dataset.balance_classe()
 
         elif a == 'p':
             pass
