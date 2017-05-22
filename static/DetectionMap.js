@@ -61,7 +61,7 @@ function DetectionMap(){
       if (markers[j].name == "ch"+("0" + msg[i].chan).slice(-2)){
         markers[j].setIcon({
           url: "static/img/"+msg[i].analysis.result[0]+".png" ,
-          scaledSize: new google.maps.Size(50, 50)
+          scaledSize: new google.maps.Size(50, 31)
         });
       }
 
