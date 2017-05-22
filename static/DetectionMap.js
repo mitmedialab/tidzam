@@ -17,7 +17,7 @@ function DetectionMap(){
 
     map = new google.maps.Map(document.getElementById('detection_map_area'), {
       center: location,
-      zoom: 18,
+      zoom: 17,
       mapTypeId: google.maps.MapTypeId.SATELLITE
     });
 
