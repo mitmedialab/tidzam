@@ -18,7 +18,7 @@ function Chart (parent, name, classifier_list) {
   var chart = this.chart = new google.charts.Line(document.getElementById('plot-'+this.name));
   chart.chan = this.name;
   this.options 	= {
-    'height':250,
+    'height':220,
     'width':550,
     chart: {
       title: 'Audio Channel ' + this.name,
