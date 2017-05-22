@@ -5,6 +5,8 @@ function DetectionMap(){
   this.current_time = current_time = ""
   chain = new ChainAPI()
 
+  me.statistic_conf = {}
+  me.col_name = "";
 
   /*************************************/
   /*            MAP CREATION           */
@@ -213,8 +215,8 @@ function show_statistics(target, subclasse, callback){
   var database = {}
   var options = {
     title:'Sensors detections distribution',
-    width: "100%",
-    height: 210,
+    width: $(window).width()*0.8,
+    height: $(window).height()*0.2,
     legend: { position: 'top', maxLines: 3 },
     bar: { groupWidth: '75%' },
     isStacked: false,
@@ -409,6 +411,7 @@ google.visualization.events.addListener(chart, 'select', function () {
   var sel = chart.getSelection();
   if (sel.length > 0) {
       var col_name = this.data_view.getColumnLabel(sel[0].column);
+      me.col_name = col_name
       $("#statistic_selector").text("tidzam > " + col_name.replace("-", " > "))
 
       for(var i=0; i < this.data_view.getNumberOfColumns(); i++)
@@ -420,6 +423,11 @@ google.visualization.events.addListener(chart, 'select', function () {
         map_draw(col_name, colors[i-1]);
       });
   }
+});
+
+$(window).resize(function(){
+  show_statistics(me.statistic_conf, me.col_name,function(msg){
+  });
 });
 
 today = new Date();

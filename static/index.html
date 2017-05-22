@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8">
   <title>Tid'Zam</title>
+  <link rel="icon" href="static/img/tidzam.png">
+
   <link rel="stylesheet" href="//code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
   <script src="//code.jquery.com/jquery-1.10.2.js"></script>
   <script src="//code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
@@ -86,7 +88,7 @@
     text-align:center;
     vertical-align: middle;
     width:100%;
-    height:280px;
+    height:calc(20% + 90px);
   }
   #stats_loading_text{
     position:relative;
@@ -97,10 +99,9 @@
   }
 
   #stats_area{
-    height:200px;
+    height:20%;
     width:100%;
   }
-
 
   #stats_control input{
     width:100px;
@@ -121,7 +122,7 @@
 
   #detection_map_area{
     width:100%;
-    height: calc(100% - 370px);
+    height: calc(80% - 170px);
   }
 
   body{
@@ -137,8 +138,8 @@
     </div>
     <table width="100%" style="vertical-align: middle;text-align:center;">
     <tr>
-      <td style="width:200px;" rowspan="2">
-        <img src="static/img/tidzam.png" style="height:230px;" id="classe_picture">
+      <td style="height:20%" rowspan="2">
+        <img src="static/img/tidzam.png" style="width:100%;" id="classe_picture">
       </td>
       <td>
       <div id="stats_control">
@@ -151,8 +152,8 @@
         </center>
       </div>
   </td></tr>
-    <tr style="height:230px;">
-    <td><div id="stats_area"></div></td/>
+    <tr>
+    <td style="width:80%"><div id="stats_area"></div></td/>
     </tr></table>
 
     <audio controls id="audio_player" style="width:100%">
