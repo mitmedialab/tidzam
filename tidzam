@@ -1,0 +1,35 @@
+#!/bin/bash
+
+export CUDA_VISIBLE_DEVICES=1
+
+#nohup /usr/bin/jackd -dalsa -dhw:0 -r44100 -p1024 -n2 > /var/log/tidzam/tidzam-jackd.log 2>&1 &
+#sleep 1
+PID_FILE=/tmp/tidzam-pid
+ACTION=$1
+
+if [ "$ACTION" == "start" ]; then
+  if [ -f $PID_FILE ]; then
+    echo "TidZam is already running"
+  else
+    nohup python3 -u -W ignore src/tidzam.py \
+          --nn=builds/prod/  \
+          --overlap=0.25 \
+          --debug=1 \
+          --jack=mpv \
+          --chainAPI=slash:toto@chain-api.media.mit.edu/sites/18 \
+          --out=/opt/tidzam/out-tidzam/ \
+          --extract=birds- \
+          --extract-dd \
+          --port=8001 \
+          2>&1 > tidzam.log &
+    echo $! > $PID_FILE
+  fi
+elif [ "$ACTION" == "stop" ]; then
+  kill -9 `cat $PID_FILE`
+  pkill mpv
+  pkill ecasound
+  rm $PID_FILE
+
+else
+  echo "tidzam (start | stop)"
+fi
