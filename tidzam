@@ -1,9 +1,6 @@
 #!/bin/bash
 
 export CUDA_VISIBLE_DEVICES=1
-
-#nohup /usr/bin/jackd -dalsa -dhw:0 -r44100 -p1024 -n2 > /var/log/tidzam/tidzam-jackd.log 2>&1 &
-#sleep 1
 PID_FILE=/tmp/tidzam-pid
 ACTION=$1
 
