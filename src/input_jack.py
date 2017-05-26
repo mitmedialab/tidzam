@@ -47,16 +47,18 @@ class TidzamJack(Thread):
         with self.lock:
             if self.debug > 0:
                 print("JACK Connector: process in zombi mode... Restart !")
-            self.kill_process()
-            time.sleep(1)
-            self.init_client()
+            self.channels_state = {}
 
     def load_stream(self):
         if self.debug > 0:
             print("JACK Connector: stream initialization tentative.")
 
         try:
+            self.kill_process()
             self.client.deactivate()
+            self.client.close()
+            time.sleep(1)
+            self.init_client()
             # Clean all connections and buffers
             self.channels = []
             self.ring_buffer = []
@@ -119,6 +121,7 @@ class TidzamJack(Thread):
     def kill_process(self):
         for pro in self.streamer_process:
             os.killpg(os.getpgid(pro.pid), signal.SIGKILL)
+        self.streamer_process = []
 
     def run(self):
         global stream
@@ -177,7 +180,6 @@ class TidzamJack(Thread):
 
                 # If there there is no port ready => nothing to wait
                 elif self.portStarting() is False:
-                    self.kill_process()
                     self.load_stream()
                     time.sleep(1)
 

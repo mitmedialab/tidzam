@@ -60,11 +60,14 @@ class ChainAPI(threading.Thread):
             for o in self.buffer:
                 try:
                     self.push(o[0], o[1], o[2])
+                    self.buffer.remove(o)
                 except chainclient.ChainException as e:
                     print("** TidZam ChainAPI ** Error "+ str(e))
 
                 except:
                     print("** TidZam ChainAPI ** Error pushing on "+str(o[0])+" "+str(o[1]))
+            if len(self.buffer) > 10:
+                print("** TidZam ChainAPI ** Queue size "+str(len(self.buffer)))
 
 
     def execute(self, prob_classes, predictions, classes_dic, sound_obj=None, time=None):
