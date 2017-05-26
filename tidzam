@@ -4,7 +4,7 @@
 PID_FILE=/tmp/tidzam-pid
 ACTION=$1
 
-MPV_CMD="mpv -ao jack:no-connect --audio-channels=30 --start=0 2>&1 > /dev/null"
+MPV_CMD="mpv -ao jack:no-connect --audio-channels=30 --start=0"
 STREAM="http://doppler.media.mit.edu:8000/impoundment.opus"
 
 export CUDA_VISIBLE_DEVICES=1
@@ -18,7 +18,7 @@ if [ "$ACTION" == "start" ]; then
     while true; do
       if [[ `ps -A -ostat,pid,cmd | grep "mpv -ao " | grep -v grep` = "" ]]; then
         echo "Starting MPV on $STREAM"
-        eval "$MPV_CMD $STREAM"
+        eval "$MPV_CMD $STREAM 1>&2 2>/dev/null"
       fi
       sleep 5
     done  &
