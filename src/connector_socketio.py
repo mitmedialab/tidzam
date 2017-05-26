@@ -133,6 +133,7 @@ class TidzamSocketIO(socketio.AsyncNamespace):
         if self.mpv is not None:
             subprocess.Popen.kill(self.mpv)
             sleep(1)
+        subprocess.call(["pkill", "mpv"]) # Kill other mpv process, just in case)
 
 
         logfile = open(os.devnull, 'w')
