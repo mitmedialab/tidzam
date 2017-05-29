@@ -220,8 +220,13 @@ function show_statistics(target, subclasse, callback){
     legend: { position: 'top', maxLines: 3 },
     bar: { groupWidth: '75%' },
     isStacked: false,
-    colors:colors
+    colors:colors,
+    vAxis: {}
   };
+
+ if (subclasse == "birds")
+	options.vAxis.scaleType = 'log';
+
   try{
     // Build a dictionnary
     for (var dev=0; dev < chain.list_devices.length; dev++){
