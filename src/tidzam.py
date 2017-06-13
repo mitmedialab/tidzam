@@ -1,4 +1,5 @@
 import optparse
+import datetime
 
 import analyzer as Analyzer
 
@@ -50,7 +51,8 @@ if __name__ == "__main__":
 
     (opts, args) = parser.parse_args()
 
-
+    print("===========================")
+    print(str(datetime.datetime.now()) )
 
     if (opts.stream or opts.jack) and opts.nn:
         callable_objects = []
