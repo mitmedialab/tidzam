@@ -28,10 +28,12 @@ class SampleExtractor(threading.Thread):
 
         self.dd = dd
         self.dynamic_distribution = []
+        self.dynamic_distribution_prev = []
         self.dynamic_distribution_inc = 0
 
         # Preload the list of classe already extracted in extraction_dest folder
         self.dynamic_distribution_classes = []
+
         for f in glob.glob(self.extraction_dest + "/*/"):
             f = f.split("/")
             f = f[len(f)-2]
@@ -53,7 +55,8 @@ class SampleExtractor(threading.Thread):
                     count[i] = count[i] + 1
         self.dynamic_distribution = count/np.max(count)
 
-        if self.debug > 0:
+        if self.debug > 0 and np.array_equiv(self.dynamic_distribution_prev,self.dynamic_distribution) is False:
+            self.dynamic_distribution_prev = self.dynamic_distribution
             print("\n** Sample Extractor **: Extraction Dynamic Distribution Update")
             for i, cl in enumerate(self.dynamic_distribution_classes):
                 print(cl + ": " + str(self.dynamic_distribution[i]) )
