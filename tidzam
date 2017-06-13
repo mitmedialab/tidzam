@@ -1,13 +1,27 @@
 #!/bin/bash
 
+export LD_LIBRARY_PATH=/opt/cuda/lib64/
 
 PID_FILE=/tmp/tidzam-pid
+RAM_LIMIT=7
+PID=`cat $PID_FILE`
+
 ACTION=$1
 
 MPV_CMD="mpv -ao jack:no-connect --audio-channels=30 --start=0"
 STREAM="http://doppler.media.mit.edu:8000/impoundment.opus"
-
 export CUDA_VISIBLE_DEVICES=1
+
+test_memory (){
+PID=$1
+MEM=`ps -emo %mem,pid | grep $PID`
+MEM=`echo $MEM | cut -d' ' -f1`
+
+if [[ `echo $MEM'>'$RAM_LIMIT | bc -l` == 1 ]]; then
+  return 1
+fi
+return 0
+}
 
 if [ "$ACTION" == "start" ]; then
   if [ -f $PID_FILE ]; then
@@ -35,7 +49,7 @@ if [ "$ACTION" == "start" ]; then
           --extract=birds- \
           --extract-dd \
           --port=8001 \
-          2>&1 > tidzam.log &
+          2>&1 > tidzam.log.txt &
     echo $! > $PID_FILE
     echo "[   DONE   ]"
   fi
@@ -55,6 +69,13 @@ elif [ "$ACTION" == "restart" ]; then
   sleep 3
   $0 start
 
+# Check RAM usage, if exceed the limit than restart (in case of memory leak)
+elif [ "$ACTION" == "check" ]; then
+  test_memory $PID
+  if [[ $? == 1 ]]; then
+    $0 restart
+  fi
+
 else
-  echo "tidzam (start | stop | restart)"
+  echo "tidzam (start | stop | check | restart)"
 fi
