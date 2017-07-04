@@ -28,7 +28,7 @@ class Editor:
         print("* (o): Open a dataset.")
         print("* (l): Load a folder of WAV files.")
         print("* (m): Merge with an other dataset.")
-        print("* (s): Save the dataset.")
+        print("* (s): Split into two dataset.")
         print("-------------------")
         print("* (n): Create a new classe")
         print("* (i): Information on dataset")
@@ -44,6 +44,12 @@ class Editor:
             dataset_path = input()
             self.load_dataset(dataset_path)
 
+        elif a == 's':
+            print("Proportion:")
+            p = float(input())
+
+            self.dataset.split_dataset(p=p)
+
         elif a == 'l':
             print("Folder:")
             folder = input()
@@ -54,38 +60,28 @@ class Editor:
                 single = input()
             else:
                 single = None
-            #try:
-            self.dataset.load_from_wav_folder(folder,asOneclasse=single)
+            if True:
+                self.dataset.load_from_wav_folder(folder,asOneclasse=single)
             #except:
             #    print("Impossible to load " + folder +"\n")
-
-        elif a == 's':
-            print("Dataset name: ")
-            out = input()
-            self.dataset.save(out)
-            print('Save')
 
         elif a == 'n':
             print('New classe name: ')
             name = input()
-            try:
-                print(self.dataset.labels_dic)
-                self.dataset.labels_dic = np.append(self.dataset.labels_dic, name)
-            except NameError:
-                self.dataset.labels_dic = name
+            self.dataset.create_classe(name)
 
         elif a == 'm':
             print("Merge with dataset:")
             name = input()
-            dataset = tiddata.Dataset(name)
+            #dataset = tiddata.Dataset(name)
             print("As a single classe ? (y/N)")
             a = input()
             if a == 'y':
-                print("Mother classe name to create:")
+                print("Mother classe name:")
                 classe = input()
-                self.dataset.merge(dataset, asOneClasse=classe)
+                self.dataset.merge(name, asOneClasse=classe)
             else:
-                self.dataset.merge(dataset)
+                self.dataset.merge(name)
 
         elif a == 'b':
             self.dataset.balance_classe()
@@ -95,20 +91,20 @@ class Editor:
 
         elif a == 'r':
             print("Randomization")
-            try:
+            #try:
+            if True:
                 self.dataset.randomize()
-            except:
-                print("No data.")
+            #except:
+            #    print("No data.")
         elif a == 'i':
             print('Informations:\n--------------')
             try:
-                print(str(self.dataset.data.shape[0]) +" samples of " + str(self.dataset.data.shape[1]) + " features in " +
-                    str(self.dataset.labels.shape[1]) + " classes.")
-                print(self.dataset.labels_dic)
+                print(str(self.dataset.count_samples()) +" samples of " +
+                    str(self.dataset.get_nb_features() ) + " features in " +
+                    str(len(self.dataset.get_classes()) ) + " classes.")
+                print(self.dataset.get_classes())
                 print("Samples distribution:")
                 print(self.dataset.get_sample_count_by_classe())
-                print("Print labels:")
-                print(self.dataset.labels)
             except:
                 print('No data.')
 

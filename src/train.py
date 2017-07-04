@@ -72,11 +72,10 @@ config = tflearn.config.init_graph (
 ###################################
 # Load the data
 ###################################
-dataset     = tiddata.Dataset(opts.dataset, p=0.8)
+dataset      = tiddata.Dataset(opts.dataset)
+dataset_test = tiddata.Dataset(opts.dataset+"_test")
 
 from tflearn.data_utils import pad_sequences
-#dataset.data_train = pad_sequences(dataset.data_train, maxlen=dataset.dataw*dataset.datah, value=0.)
-#dataset.data_test = pad_sequences(dataset.data_test, maxlen=dataset.dataw*dataset.datah, value=0.)
 
 print("Sample size: " + str(dataset.dataw) + 'x' + str(dataset.datah))
 
@@ -87,13 +86,13 @@ opts.nb_embeddings = min(opts.nb_embeddings, dataset.data.shape[0])
 # Build graphs and session
 ###################################
 with tf.variable_scope("embeddings"):
-    embedding_var = tf.get_variable("pred", [ opts.nb_embeddings, dataset.n_classes], trainable=False)
+    embedding_var = tf.get_variable("pred", [ opts.nb_embeddings, dataset.get_nb_classes()], trainable=False)
 
 with tf.name_scope('Accurancy-Score'):
     precision   = tf.Variable(0.0, trainable=False)
     recall      = tf.Variable(0.0, trainable=False)
     f1          = tf.Variable(0.0, trainable=False)
-    matrix_conf = tf.get_variable("matric_conf", [1, dataset.n_classes, dataset.n_classes,1], trainable=False)
+    matrix_conf = tf.get_variable("matric_conf", [1, dataset.get_nb_classes(), dataset.get_nb_classes(),1], trainable=False)
 
 with tf.Session(config=config) as sess:
     ### Load the network model
@@ -101,7 +100,7 @@ with tf.Session(config=config) as sess:
     sys.path.append('./')
 
     exec("import "+os.path.dirname(opts.dnn)+"."+os.path.basename(opts.dnn).replace(".py","")+" as model")
-    net = eval("model.DNN([dataset.dataw, dataset.datah], dataset.n_classes)")
+    net = eval("model.DNN([dataset.dataw, dataset.datah], dataset.get_nb_classes())")
 
     ## Build summaries
     embed = vizu.Embedding(net.input, net.out, embedding_var, opts.out)
@@ -166,8 +165,8 @@ with tf.Session(config=config) as sess:
     step = 1
     while step < opts.training_iters:
         print("Load batchs")
-        batch_x, batch_y            = dataset.next_batch_train(batch_size=opts.batch_size)
-        batch_test_x, batch_test_y  = dataset.next_batch_test(batch_size=opts.batch_size)
+        batch_x, batch_y            = dataset.next_batch(batch_size=opts.batch_size)
+        batch_test_x, batch_test_y  = dataset_test.next_batch(batch_size=opts.batch_size)
 
         tflearn.is_training(True, session=sess)
         trainer.fit(batch_x, batch_y,
@@ -186,12 +185,12 @@ with tf.Session(config=config) as sess:
             y_true = np.argmax(batch_test_y,1)
             confusion = metrics.confusion_matrix(y_true, y_pred)
 
-            if confusion.shape[0] == dataset.n_classes:
+            if confusion.shape[0] == dataset.get_nb_classes():
                 sess.run( [
                     precision.assign(metrics.precision_score(y_true, y_pred, average='micro')),
                     recall.assign(metrics.recall_score(y_true, y_pred, average='micro')),
                     f1.assign(metrics.f1_score(y_true, y_pred, average='micro')),
-                    matrix_conf.assign(np.reshape(confusion, [1, dataset.n_classes, dataset.n_classes, 1]))
+                    matrix_conf.assign(np.reshape(confusion, [1, dataset.get_nb_classes(), dataset.get_nb_classes(), 1]))
                     ])
 
             print("* Kernel feature map rendering")
@@ -199,8 +198,8 @@ with tf.Session(config=config) as sess:
             trainer.trainer.summ_writer.add_summary(merged_res[0], trainer.trainer.global_step.eval())
 
             print("* Generation of #" +str(opts.nb_embeddings)+ " embeddings for " + embedding_var.name)
-            embed.evaluate(dataset, opts.nb_embeddings, sess,
-                        dic=dataset.labels_dic)
+            embed.evaluate(dataset_test, opts.nb_embeddings, sess,
+                        dic=dataset_test.labels_dic)
 
             trainer.trainer.summ_writer.close()
 

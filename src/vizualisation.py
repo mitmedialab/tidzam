@@ -20,7 +20,7 @@ class Embedding:
 
     def evaluate(self, dataset_t,  nb_embeddings, sess,dic=None):
         #dataset_t.split_dataset(p=0)
-        bx, by = dataset_t.next_batch_test(batch_size=nb_embeddings)
+        bx, by = dataset_t.next_batch(batch_size=nb_embeddings)
         sess.run([self.embedding_var.assign(self.Pout)],feed_dict={self.Pin: bx})
         self.build_metadatafile(by, dic=dic, out_file=self.checkpoint_dir+'/metadata-'+self.embedding_var.name.replace('/','-')+'.tsv')
 
