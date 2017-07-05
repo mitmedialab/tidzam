@@ -3,6 +3,7 @@ from __future__ import division
 
 import sys, os
 import numpy as np
+import optparse
 import random
 import copy
 from matplotlib import pyplot as plt
@@ -73,11 +74,11 @@ class Dataset:
     def __init__(self, name="/tmp/dataset",p=0.9, data_size=(150,186), max_file_size=1000):
         self.cur_batch = 0
 
-        self.dataw = data_size[0]#92
-        self.datah =  data_size[1]#300
-
+        self.dataw = data_size[0] #92
+        self.datah =  data_size[1] #300
         self.max_file_size  = max_file_size
         self.name           = name
+
         self.fileID         = 0
         self.batchIDfile = 0
         self.batchfile   = []
@@ -108,6 +109,9 @@ class Dataset:
             self.data   = f["data"]
             self.labels = f["labels"]
             self.labels_dic = list(np.load(self.name+"_labels_dic.npy"))
+            self.dataw = f["dataFormat"][0]
+            self.datah = f["dataFormat"][1]
+            self.max_file_size = f["maxfilesize"]
 
             print(str(self.count_samples()) +" samples of " +
                     str(self.get_nb_features() ) + " features in " +
@@ -126,8 +130,20 @@ class Dataset:
     def save(self,name=None):
         if name is None:
             name = self.name
+
+        # Extract dataset name in filename
+        tmp_name = name.split("/")
+        tmp_name = tmp_name[len(tmp_name)-1]
+        tmp_name = tmp_name.split("-")[0]
         try:
-            np.savez(name + "-" + str(self.fileID) + ".npz", data=self.data, labels=self.labels)
+            np.savez(name + "-" + str(self.fileID) + ".npz",
+                data=self.data,
+                labels=self.labels,
+                labels_dic=self.labels_dic,
+                dataFormat=[self.dataw, self.datah],
+                maxfilesize=self.max_file_size,
+                name=tmp_name
+                )
             np.save(name + "_labels_dic", self.labels_dic)
         except:
             print("Unable to save the dataset (write permission ?)")
@@ -371,9 +387,9 @@ class Dataset:
                 np.savez(file2,data=data2, labels=labels2)
 
 
-    def merge(self,dataset_name, asOneClasse=False):
+    def merge(self,dataset_name, asOneClasse=None):
         id = 0
-        if asOneClasse is not False:
+        if asOneClasse is not None:
             try:
                 pos = self.labels_dic.index(asOneClasse)
             except:
@@ -391,27 +407,28 @@ class Dataset:
 
         for id, file in enumerate(sorted_nicely(glob.glob(dataset_name+"-*.npz"))):
             file = np.load(file)
-            data = file["data"]
-            labels = file["labels"]
+            data    = file["data"]
+            labels  = file["labels"]
 
             try:
                 self.data = np.concatenate((self.data, data),axis=0)
             except:
                 self.data = data
 
-            if asOneClasse is not False:
+            if asOneClasse is not None:
                 # IS A NEW CLASSE
+                if pos == self.labels.shape[1]:
+                    # Add and save the new classe label
+                    self.create_classe(asOneClasse)
+                    # Add the one column to current data file for the merge
+                    l = np.zeros( (data.shape[0], self.labels.shape[1]) )
+                    l[:,pos] = 1
+                # IS AN EXISTING CLASSE
+                else:
+                    l = np.zeros( (data.shape[0], self.labels.shape[1]) )
+                    l[:,pos] = 1
+
                 try:
-                    if pos == self.labels.shape[1]:
-                        # Add and save the new classe label
-                        self.create_classe(asOneClasse)
-                        # Add the one column to current data file for the merge
-                        l = np.zeros( (data.shape[0], self.labels.shape[1]) )
-                        l[:,pos] = 1
-                    # IS AN EXISTING CLASSE
-                    else:
-                        l = np.zeros( (data.shape[0], self.labels.shape[1]) )
-                        l[:,pos] = 1
                     self.labels = np.concatenate((self.labels, l),axis=0)
                 # If the current dataset is empty
                 except:
@@ -497,7 +514,7 @@ class Dataset:
 
         if count != countl:
             print("ERROR Database inconsistent (" + str(count) + " != " + str(countl) +")")
-            sys.exit(-1)
+            #sys.exit(-1)
         return int(count)
 
     def get_nb_features(self):
@@ -577,3 +594,66 @@ class Dataset:
 
     def batch_count(self,batch_size=128):
          return int( (((self.nb_files()-1) * self.max_file_size) + self.data.shape[0]) / batch_size)
+
+
+if __name__ == "__main__":
+    parser = optparse.OptionParser(usage="python src/data.py")
+    parser.add_option("--dataset", action="store", type="string", dest="dataset",
+        default=None, help="Open an exisiting dataset.")
+
+    parser.add_option("--classe", action="store", type="string", dest="classe",
+        default=None, help="Create an empty classe.")
+
+    parser.add_option("--audio-folder", action="store", type="string", dest="audio_folder",
+        default=None, help="Load the audio file folder in the dataset (as a single classe if --classe is specified).")
+
+    parser.add_option("--merge", action="store", type="string", dest="merge",
+        default=None, help="Merge the dataset with another one (as a single classe if --classe is specified).")
+
+    parser.add_option("--split", action="store", type="float", dest="split",
+        default=None, help="Extraction proportion of a sub dataset for testing --split in [0...1]")
+
+    parser.add_option("--balance", action="store", type="string", dest="balance",
+        default=None, help="Automatic balance the classe in the dataset (by duplicating samples in small classes).")
+
+    parser.add_option("--randomize", action="store", type="string", dest="randomize",
+        default=None, help="Randomize the dataset.")
+
+    parser.add_option("--file-count", action="store_true", dest="nb_files",
+        default=False, help="Return the number of files which compose the dataset.")
+
+    parser.add_option("--info", action="store_true", dest="info",
+        default=False, help="Return some dataset information.")
+
+
+    (options, args) = parser.parse_args()
+
+    if options.dataset:
+        dataset = Dataset(options.dataset)
+    else:
+        dataset = Dataset()
+
+    if options.audio_folder:
+        dataset.load_from_wav_folder(options.audio_folder, options.classe)
+
+    elif options.merge:
+        dataset.merge(options.merge, options.classe)
+
+    elif options.classe:
+        dataset.create_classe(options.classe)
+
+    if options.split:
+        dataset.split_dataset(p=options.split)
+
+    if options.balance:
+        dataset.balance_classe()
+
+    if options.randomize:
+        dataset.randomize()
+
+    if options.nb_files:
+        print("Number of files: ")
+        print(dataset.nb_files())
+
+    if options.info:
+        print("Data format: (" + str(dataset.dataw)+","+str(dataset.datah)+")")
