@@ -104,14 +104,13 @@ class Dataset:
             self.datah = int(a[1])
         try:
             self.fileID = self.nb_files()
-
             f = np.load(self.name+"-"+str(self.fileID)+".npz")
             self.data   = f["data"]
             self.labels = f["labels"]
             self.labels_dic = list(np.load(self.name+"_labels_dic.npy"))
-            self.dataw = f["dataFormat"][0]
-            self.datah = f["dataFormat"][1]
-            self.max_file_size = f["maxfilesize"]
+            #self.dataw = f["dataFormat"][0]
+            #self.datah = f["dataFormat"][1]
+            #self.max_file_size = f["maxfilesize"]
 
             print(str(self.count_samples()) +" samples of " +
                     str(self.get_nb_features() ) + " features in " +
@@ -119,11 +118,12 @@ class Dataset:
             print(self.get_classes())
             print("Samples distribution:")
             print(self.get_sample_count_by_classe())
-        except:
+        except Exception as ex:
+            print("File not found: " + file)
+            print(ex)
             self.data = []
             self.labels_dic = []
             self.labels = []
-            print("File not found: " + file)
 
         self.nb_samples = self.count_samples()
 
@@ -172,6 +172,10 @@ class Dataset:
         except:
             self.labels_dic.append(name)
             np.save(self.name + "_labels_dic", self.labels_dic)
+
+            tmp_name = self.name.split("/")
+            tmp_name = tmp_name[len(tmp_name)-1]
+            tmp_name = tmp_name.split("-")[0]
             # Add zero column label to all dataset files
             for file in glob.glob(self.name+"-*.npz"):
                 f = np.load(file)
@@ -179,7 +183,13 @@ class Dataset:
                 b = np.zeros((label_tmp.shape[0], self.labels.shape[1] + 1))
                 b[:,:-1] = label_tmp
                 label_tmp = b
-                np.savez(file,data=f["data"], labels=label_tmp)
+                np.savez(file,
+                    data=f["data"],
+                    labels=label_tmp,
+                    labels_dic=self.labels_dic,
+                    dataFormat=[self.dataw, self.datah],
+                    maxfilesize=self.max_file_size,
+                    name=tmp_name)
             # Add zero column label to current dataset
             try:
                 b = np.zeros((self.labels.shape[0], self.labels.shape[1] + 1))
@@ -329,10 +339,15 @@ class Dataset:
         return np.array(res)
 
     def randomize(self):
+        tmp_name = self.name.split("/")
+        tmp_name = tmp_name[len(tmp_name)-1]
+        tmp_name = tmp_name.split("-")[0]
+
         # Mix the samples between the different files
         a = sorted_nicely(glob.glob(self.name+"-*.npz"))
         b = glob.glob(self.name+"-*.npz")
         random.shuffle(b)
+
         print("Mixing the files")
         for file1 in a:
             print(file1)
@@ -383,8 +398,20 @@ class Dataset:
                 labels2    = labels2[idx,:]
 
                  # Save the files
-                np.savez(file1,data=data1, labels=labels1)
-                np.savez(file2,data=data2, labels=labels2)
+                np.savez(file1,
+                        data=data1,
+                        labels=labels1,
+                        labels_dic=self.labels_dic,
+                        dataFormat=[self.dataw, self.datah],
+                        maxfilesize=self.max_file_size,
+                        name=tmp_name)
+                np.savez(file2,
+                        data=data2,
+                        labels=labels2,
+                        labels_dic=self.labels_dic,
+                        dataFormat=[self.dataw, self.datah],
+                        maxfilesize=self.max_file_size,
+                        name=tmp_name)
 
 
     def merge(self,dataset_name, asOneClasse=None):
@@ -416,19 +443,19 @@ class Dataset:
                 self.data = data
 
             if asOneClasse is not None:
-                # IS A NEW CLASSE
-                if pos == self.labels.shape[1]:
-                    # Add and save the new classe label
-                    self.create_classe(asOneClasse)
-                    # Add the one column to current data file for the merge
-                    l = np.zeros( (data.shape[0], self.labels.shape[1]) )
-                    l[:,pos] = 1
-                # IS AN EXISTING CLASSE
-                else:
-                    l = np.zeros( (data.shape[0], self.labels.shape[1]) )
-                    l[:,pos] = 1
-
                 try:
+                    # IS A NEW CLASSE
+                    if pos == self.labels.shape[1]:
+                        # Add and save the new classe label
+                        self.create_classe(asOneClasse)
+                        # Add the one column to current data file for the merge
+                        l = np.zeros( (data.shape[0], self.labels.shape[1]) )
+                        l[:,pos] = 1
+                    # IS AN EXISTING CLASSE
+                    else:
+                        l = np.zeros( (data.shape[0], self.labels.shape[1]) )
+                        l[:,pos] = 1
+
                     self.labels = np.concatenate((self.labels, l),axis=0)
                 # If the current dataset is empty
                 except:
@@ -461,6 +488,10 @@ class Dataset:
         dic = np.load(self.name + "_labels_dic.npy")
         np.save(name + "_labels_dic.npy", dic)
 
+        tmp_name = name.split("/")
+        tmp_name = tmp_name[len(tmp_name)-1]
+        tmp_name = tmp_name.split("-")[0]
+
         # Split each file into two files
         print("Dataset splitting.")
         for i in range(0, self.fileID + 1):
@@ -476,8 +507,20 @@ class Dataset:
             l2 = labels[idx[int(len(idx) * p):] ,:]
             d2 = data[idx[int(len(idx) * p):] ,:]
 
-            np.savez(self.name + "-" + str(i) + ".npz", data=d1, labels=l1)
-            np.savez(name + "-" + str(i) + ".npz", data=d2, labels=l2)
+            np.savez(self.name + "-" + str(i) + ".npz",
+                data=d1,
+                labels=l1,
+                labels_dic=self.labels_dic,
+                dataFormat=[self.dataw, self.datah],
+                maxfilesize=self.max_file_size,
+                name=tmp_name)
+            np.savez(name + "-" + str(i) + ".npz",
+                data=d2,
+                labels=l2,
+                labels_dic=self.labels_dic,
+                dataFormat=[self.dataw, self.datah],
+                maxfilesize=self.max_file_size,
+                name=name)
 
         # Homogeneous the file according to max_file_size
         for i in range(0,2):
@@ -514,7 +557,7 @@ class Dataset:
 
         if count != countl:
             print("ERROR Database inconsistent (" + str(count) + " != " + str(countl) +")")
-            #sys.exit(-1)
+            sys.exit(-1)
         return int(count)
 
     def get_nb_features(self):
@@ -613,18 +656,17 @@ if __name__ == "__main__":
     parser.add_option("--split", action="store", type="float", dest="split",
         default=None, help="Extraction proportion of a sub dataset for testing --split in [0...1]")
 
-    parser.add_option("--balance", action="store", type="string", dest="balance",
-        default=None, help="Automatic balance the classe in the dataset (by duplicating samples in small classes).")
+    parser.add_option("--balance", action="store_true", dest="balance",
+        default=False, help="Automatic balance the classe in the dataset (by duplicating samples in small classes).")
 
-    parser.add_option("--randomize", action="store", type="string", dest="randomize",
-        default=None, help="Randomize the dataset.")
+    parser.add_option("--randomize", action="store_true", dest="randomize",
+        default=False, help="Randomize the dataset.")
 
     parser.add_option("--file-count", action="store_true", dest="nb_files",
         default=False, help="Return the number of files which compose the dataset.")
 
     parser.add_option("--info", action="store_true", dest="info",
         default=False, help="Return some dataset information.")
-
 
     (options, args) = parser.parse_args()
 

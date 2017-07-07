@@ -207,7 +207,7 @@ if __name__ == "__main__":
         default=False, help="Play the dataset content of a particular classe.")
 
     parser.add_option("-s", "--show", action="store_true", dest="show",
-        default=False, help="Select a specific classe ID fpr --play option.")
+        default=False, help="Select a specific classe ID for --play option.")
 
 
     (options, args) = parser.parse_args()
