@@ -80,7 +80,7 @@ class TidzamSocketIO(socketio.AsyncNamespace):
         for channel in range(len(prob_classes)):
             pred = {}
             for cl in range(0, len(classes_dic)):
-                pred[classes_dic[cl]] = prob_classes[channel][cl]
+                pred[classes_dic[cl]] = float(prob_classes[channel][cl])
             obj = {
                     "chan":channel+1,
                     "analysis":{
