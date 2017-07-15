@@ -27,6 +27,7 @@ class Editor:
         print("Actions:\n---------------")
         print("* (o): Open a dataset.")
         print("* (l): Load a folder of WAV files.")
+        print("* (S): Save the dataset (metadata generation).")
         print("* (m): Merge with an other dataset.")
         print("* (s): Split into two dataset.")
         print("-------------------")
@@ -44,10 +45,13 @@ class Editor:
             dataset_path = input()
             self.load_dataset(dataset_path)
 
+        elif a == 'S':
+            print("Metadata generation.")
+            self.dataset.save_meta()
+
         elif a == 's':
             print("Proportion:")
             p = float(input())
-
             self.dataset.split_dataset(p=p)
 
         elif a == 'l':
@@ -194,7 +198,7 @@ class Editor:
 
 if __name__ == "__main__":
     parser = optparse.OptionParser(usage="python src/editor.py")
-    parser.add_option("--open", action="store", type="string", dest="open",
+    parser.add_option("--dataset", action="store", type="string", dest="open",
         default=None, help="Open an exisiting dataset")
 
     parser.add_option("--stream", action="store", type="string", dest="stream",

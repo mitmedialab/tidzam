@@ -74,19 +74,20 @@ class Dataset:
     def __init__(self, name="/tmp/dataset",p=0.9, data_size=(150,186), max_file_size=1000):
         self.cur_batch = 0
 
-        self.dataw = data_size[0] #92
-        self.datah =  data_size[1] #300
+        self.dataw          = data_size[0]
+        self.datah          =  data_size[1]
         self.max_file_size  = max_file_size
         self.name           = name
 
         self.fileID         = 0
-        self.batchIDfile = 0
-        self.batchfile   = []
+        self.files_count    = 0
+        self.batchIDfile    = 0
+        self.batchfile      = []
+        self.cur_batch      = 0
 
-        self.cur_batch = 0
-        self.data = []
-        self.labels = []
-        self.labels_dic = []
+        self.data           = []
+        self.labels         = []
+        self.labels_dic     = []
 
         self.load(self.name)
 
@@ -96,36 +97,45 @@ class Dataset:
         print("\n===============")
         print("Load " + self.name)
         print("===============")
-        a = self.name.split('(')
-        if len(a) > 1:
-            a = a[1].split(')')
-            a = a[0].split(',')
-            self.dataw = int(a[0])
-            self.datah = int(a[1])
         try:
-            self.fileID = self.nb_files()
+            self.fileID = self.files_count = self.nb_files()
+            # Try to load metadata information
+            try:
+                f = np.load(self.name+"-0.npz")
+                self.dataw              = f["dataFormat"][0]
+                self.datah              = f["dataFormat"][1]
+                self.max_file_size      = f["maxfilesize"]
+                self.files_count        = f["files_count"]
+                self.count_samples      = f["count_samples"]
+                self.nb_features_count  = f["nb_features_count"]
+                self.count_by_classe    = f["count_by_classe"]
+            # Else generate them
+            except:
+                self.count_samples      = self.nb_samples()
+                self.nb_features_count  = self.get_nb_features()
+                self.count_by_classe    = self.get_sample_count_by_classe()
+                print("No metadata information found.")
+
+            # Load the last dataset chunk
             f = np.load(self.name+"-"+str(self.fileID)+".npz")
             self.data   = f["data"]
             self.labels = f["labels"]
             self.labels_dic = list(np.load(self.name+"_labels_dic.npy"))
-            #self.dataw = f["dataFormat"][0]
-            #self.datah = f["dataFormat"][1]
-            #self.max_file_size = f["maxfilesize"]
 
-            print(str(self.count_samples()) +" samples of " +
-                    str(self.get_nb_features() ) + " features in " +
+            # Print dataset information
+            print(str(self.count_samples) +" samples of " +
+                    str(self.nb_features_count ) + " features in " +
                     str(len(self.get_classes()) ) + " classes.")
+
             print(self.get_classes())
             print("Samples distribution:")
-            print(self.get_sample_count_by_classe())
+            print(self.count_by_classe)
+
         except Exception as ex:
             print("File not found: " + file)
-            print(ex)
             self.data = []
             self.labels_dic = []
             self.labels = []
-
-        self.nb_samples = self.count_samples()
 
     def save(self,name=None):
         if name is None:
@@ -138,16 +148,35 @@ class Dataset:
         try:
             np.savez(name + "-" + str(self.fileID) + ".npz",
                 data=self.data,
-                labels=self.labels,
-                labels_dic=self.labels_dic,
-                dataFormat=[self.dataw, self.datah],
-                maxfilesize=self.max_file_size,
-                name=tmp_name
+                labels=self.labels
                 )
             np.save(name + "_labels_dic", self.labels_dic)
         except:
             print("Unable to save the dataset (write permission ?)")
 
+    def save_meta(self):
+        print("\nGenerate metadata information.")
+        self.files_count        = self.nb_files()
+        self.count_samples      = self.nb_samples()
+        self.nb_features_count  = self.get_nb_features()
+        self.count_by_classe    = self.get_sample_count_by_classe()
+
+        tmp_name = self.name.split("/")
+        tmp_name = tmp_name[len(tmp_name)-1]
+        tmp_name = tmp_name.split("-")[0]
+
+        f = np.load(self.name+"-0.npz")
+        np.savez(self.name + "-0.npz",
+                data=f["data"],
+                labels=f["labels"],
+                dataFormat=[self.dataw, self.datah],
+                maxfilesize=self.max_file_size,
+                name=tmp_name,
+                files_count=self.files_count,
+                count_samples=self.count_samples,
+                nb_features_count=self.nb_features_count,
+                count_by_classe=self.count_by_classe
+                )
 
     def save_chunks(self, name=None):
         try:
@@ -165,6 +194,15 @@ class Dataset:
             self.save(name)
         except:
             print("error during saving.")
+
+    def rename(self,name):
+        for file in glob.glob(self.name+"-*.npz"):
+            a = file.split("/")
+            a = a[len(a)-1].split("-")[1]
+            print(file + " -> " + name + "-" + a)
+            os.rename(file, name + "-" + a)
+        self.name = name
+        np.save(name + "_labels_dic", self.labels_dic)
 
     def create_classe(self,name):
         try:
@@ -199,7 +237,7 @@ class Dataset:
                 self.labels = np.zeros((0,1))
 
     def load_from_wav_folder(self, folder, asOneclasse=None):
-        print("Folder " + folder)
+        print("\nLoading from folder " + folder)
         try:
             self.labels_dic = list(np.load(self.name + "_labels_dic.npy"))
         except:
@@ -270,6 +308,7 @@ class Dataset:
                     plt.pause(0.5)
 
     def balance_classe(self):
+        print("\nClasse balancing.")
         for cl in range(self.labels.shape[1]):
             print(self.labels_dic[cl])
             nb_cl = self.get_sample_count_by_classe()
@@ -339,6 +378,8 @@ class Dataset:
         return np.array(res)
 
     def randomize(self):
+        print("\nRandomization")
+
         tmp_name = self.name.split("/")
         tmp_name = tmp_name[len(tmp_name)-1]
         tmp_name = tmp_name.split("-")[0]
@@ -348,7 +389,6 @@ class Dataset:
         b = glob.glob(self.name+"-*.npz")
         random.shuffle(b)
 
-        print("Mixing the files")
         for file1 in a:
             print(file1)
             idx = np.arange(len(b))
@@ -415,6 +455,7 @@ class Dataset:
 
 
     def merge(self,dataset_name, asOneClasse=None):
+        print("\nMerging with " + dataset_name)
         id = 0
         if asOneClasse is not None:
             try:
@@ -442,6 +483,7 @@ class Dataset:
             except:
                 self.data = data
 
+            print(self.labels_dic)
             if asOneClasse is not None:
                 try:
                     # IS A NEW CLASSE
@@ -472,6 +514,7 @@ class Dataset:
 
                     # If classe not found, it is a new classe which must be added to the dataset
                     except:
+                        print("Create " + name)
                         self.create_classe(name)
                         pos = self.labels.shape[1] - 1
 
@@ -547,7 +590,7 @@ class Dataset:
                 if id > self.fileID:
                     os.remove(file)
 
-    def count_samples(self):
+    def nb_samples(self):
         count = 0
         countl = 0
         for f in glob.glob(self.name+"-*.npz"):
@@ -595,17 +638,18 @@ class Dataset:
         return count
 
     def next_batch(self, batch_size=128):
+        tmp_name = self.name.split("/")
+        tmp_name = tmp_name[len(tmp_name)-1]
+        tmp_name = tmp_name.split("-")[0]
+
         if batch_size > self.max_file_size:
             print("Batchsize must be lower than the dataset file size ("+str(self.max_file_size)+").")
             batch_size = self.max_file_size
 
-        idfile  = (int(self.cur_batch / self.max_file_size)) % self.nb_files()
+        idfile  = (int(self.cur_batch / self.max_file_size)) % self.files_count
         pos_file = self.cur_batch % self.max_file_size
 
         if idfile != self.batchIDfile or self.batchfile == []:
-            if self.batchfile == []:
-                self.nb_samples = self.count_samples()
-                self.nb_features_count = self.get_nb_features()
             self.batchIDfile = idfile
             self.batchfile = np.load(self.name+ "-"+str(self.batchIDfile)+".npz")
         d    = self.batchfile["data"]
@@ -625,12 +669,13 @@ class Dataset:
             data    = np.concatenate( (data, d[ :batch_size - (self.max_file_size - pos_file), :] ), axis=0)
             labels  = np.concatenate( (labels, l[ :batch_size - (self.max_file_size - pos_file), :] ), axis=0)
 
-        print("#{0} Batch (train) {1}/{2}: {3} samples of {4} features".format(
-                int(self.cur_batch / self.nb_samples),
-                int( (self.cur_batch % self.nb_samples) / batch_size ),
-                int(self.nb_samples / batch_size),
+        print("#{0} Batch({5}) {1}/{2}: {3} samples of {4} features".format(
+                int(self.cur_batch / self.count_samples),
+                int( (self.cur_batch % self.count_samples) / batch_size ),
+                int(self.count_samples / batch_size),
                 batch_size,
-                self.nb_features_count ) )
+                self.nb_features_count,
+                tmp_name ) )
 
         self.cur_batch += batch_size
         return data, labels
@@ -644,6 +689,9 @@ if __name__ == "__main__":
     parser.add_option("--dataset", action="store", type="string", dest="dataset",
         default=None, help="Open an exisiting dataset.")
 
+    parser.add_option("--rename", action="store", type="string", dest="rename",
+        default=None, help="Rename the dataset.")
+
     parser.add_option("--classe", action="store", type="string", dest="classe",
         default=None, help="Create an empty classe.")
 
@@ -656,6 +704,9 @@ if __name__ == "__main__":
     parser.add_option("--split", action="store", type="float", dest="split",
         default=None, help="Extraction proportion of a sub dataset for testing --split in [0...1]")
 
+    parser.add_option("--split-name", action="store", type="string", dest="split_name",
+        default=None, help="Name for the generated dataset.")
+
     parser.add_option("--balance", action="store_true", dest="balance",
         default=False, help="Automatic balance the classe in the dataset (by duplicating samples in small classes).")
 
@@ -664,6 +715,9 @@ if __name__ == "__main__":
 
     parser.add_option("--file-count", action="store_true", dest="nb_files",
         default=False, help="Return the number of files which compose the dataset.")
+
+    parser.add_option("--metadata", action="store_true", dest="metadata",
+        default=False, help="Generate metadata information and store them on file 0.")
 
     parser.add_option("--info", action="store_true", dest="info",
         default=False, help="Return some dataset information.")
@@ -675,6 +729,9 @@ if __name__ == "__main__":
     else:
         dataset = Dataset()
 
+    if options.rename:
+        dataset.rename(options.rename)
+
     if options.audio_folder:
         dataset.load_from_wav_folder(options.audio_folder, options.classe)
 
@@ -685,13 +742,16 @@ if __name__ == "__main__":
         dataset.create_classe(options.classe)
 
     if options.split:
-        dataset.split_dataset(p=options.split)
+        dataset.split_dataset(p=options.split, name=options.split_name)
 
     if options.balance:
         dataset.balance_classe()
 
     if options.randomize:
         dataset.randomize()
+
+    if options.metadata:
+        dataset.save_meta()
 
     if options.nb_files:
         print("Number of files: ")
