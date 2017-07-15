@@ -3,215 +3,241 @@ from __future__ import print_function
 import sys, optparse
 import numpy as np
 import shutil
+import time
 import math
 import os
 
 from tensorflow.contrib.tensorboard.plugins import projector
 import tensorflow as tf
-import tflearn
-from sklearn import *
 
 import vizualisation as vizu
-
-#from models import *
 
 import data as tiddata
 
 
 print("TensorFlow "+ tf.__version__)
-###################################
-### System configurations
-###################################
 
-usage="train.py --dataset=dataset_150x186 --out=save/ [OPTIONS]"
+###################################
+### Console Parameters
+###################################
+usage="train.py --dataset-train=mydataset --dataset-test=mydataset2 --dnn=models/vgg.py --out=save/ [OPTIONS]"
 parser = optparse.OptionParser(usage=usage)
-parser.add_option("-d", "--dataset",
-    action="store", type="string", dest="dataset",
+parser.add_option("-d", "--dataset-train",
+    action="store", type="string", dest="dataset_train",
     help='Define the dataset to train.')
+
+parser.add_option("-t", "--dataset-test",
+    action="store", type="string", dest="dataset_test",
+    help='Define the dataset for evaluation.')
+
 
 parser.add_option("-o", "--out",
     action="store", type="string", dest="out",
     default="/tmp/tflearn_logs",
-    help='Define output folder to store the neural network and checkpoints.')
+    help='Define output folder to store the neural network and trains.')
 
+parser.add_option("--dnn",
+    action="store", type="string", dest="dnn", default="default",
+    help='DNN model to train (Default: ).')
+###
 parser.add_option("--training-iterations",
-    action="store", type="int", dest="training_iters",default=400,
-    help='Number of training iterations (Default: 400 batchsize).')
+    action="store", type="int", dest="training_iters",default=20000,
+    help='Number of training iterations (Default: 20000 iterations).')
+
+parser.add_option("--testing-step",
+    action="store", type="int", dest="testing_iterations",default=10,
+    help='Number of training iterations between each testing step (Default: 10).')
 
 parser.add_option("--batchsize",
     action="store", type="int", dest="batch_size",default=64,
     help='Size of the training batch (Default:64).')
 
-parser.add_option("--embeddings",
-    action="store", type="int", dest="nb_embeddings", default=50,
-    help='Number of embeddings to compute (default: 50)..')
-
 parser.add_option("--learning-rate",
     action="store", type="float", dest="learning_rate", default=0.001,
     help='Learning rate (default: 0.001).')
+###
+parser.add_option("--stats-step",
+    action="store", type="int", dest="STATS_STEP", default="20",
+    help='Step period to compute statistics, embeddings and feature maps (Default: 10).')
 
-parser.add_option("--dnn",
-    action="store", type="string", dest="dnn", default="default",
-    help='DNN model to train (Default: ).')
+parser.add_option("--nb-embeddings",
+    action="store", type="int", dest="nb_embeddings", default=50,
+    help='Number of embeddings to compute (default: 50)..')
+###
+parser.add_option("--job-type",
+    action="store", type="string", dest="job_type", default="worker",
+    help='Selector the process job: ps or worker (default:worker).')
 
-parser.add_option("--embeddings-step",
-    action="store", type="int", dest="EMBEDDINGS_STEP", default="1",
-    help='Step period to compute embeddings and feature maps (Default: 1).')
+parser.add_option("--task-index",
+    action="store", type="int", dest="task_index", default=0,
+    help='Provide the task index to execute (default:0).')
 
+parser.add_option("--workers",
+    action="store", type="string", dest="workers", default="localhost:2222",
+    help='List of workers (worker1.mynet:2222,worker2.mynet:2222, etc).')
+
+parser.add_option("--ps",
+    action="store", type="string", dest="ps", default="",
+    help='List of parameter servers (ps1.mynet:2222,ps2.mynet:2222, etc).')
+###
 (opts, args) = parser.parse_args()
 
 ###################################
-# System configuration
+# Cluster configuration
 ###################################
-config = tflearn.config.init_graph (
-    num_cores=3,
-    #gpu_memory_fraction=1,
-    #log_device=True,
-    soft_placement=True)
+ps      = opts.ps.split(",")
+workers = opts.workers.split(",")
+cluster  = {"worker":workers}
+if ps[0] != "":
+    cluster["ps"] = ps
+cluster = tf.train.ClusterSpec(cluster)
+
+# start a server for a specific task
+server = tf.train.Server(cluster,   job_name=opts.job_type,
+                                    task_index=opts.task_index)
+
+if opts.job_type == "ps":
+    print("Parameter server " + ps[opts.task_index]+ " started.")
+    server.join()
+elif opts.job_type != "worker":
+    print("Bad argument in job name [ps | worker]")
+    sys.exit(0)
+
+print("Worker " + workers[opts.task_index]+ " started")
+
+gpu_options = tf.GPUOptions(
+#    per_process_gpu_memory_fraction=0.25
+#    allow_growth=True
+    )
+config = tf.ConfigProto(
+        intra_op_parallelism_threads=4,
+        inter_op_parallelism_threads=4,
+        gpu_options=gpu_options,
+#        log_device_placement=True,
+        allow_soft_placement=True
+        )
+
 
 ###################################
 # Load the data
 ###################################
-dataset      = tiddata.Dataset(opts.dataset)
-dataset_test = tiddata.Dataset(opts.dataset+"_test")
-
-from tflearn.data_utils import pad_sequences
-
-print("Sample size: " + str(dataset.dataw) + 'x' + str(dataset.datah))
-
-# Check limit of generable embeddings
-opts.nb_embeddings = min(opts.nb_embeddings, dataset.data.shape[0])
+dataset      = tiddata.Dataset(opts.dataset_train)
+dataset_test = tiddata.Dataset(opts.dataset_test)
+print("\nSample size: " + str(dataset.dataw) + 'x' + str(dataset.datah))
 
 ###################################
-# Build graphs and session
+# Between-graph replication
 ###################################
-with tf.variable_scope("embeddings"):
-    embedding_var = tf.get_variable("pred", [ opts.nb_embeddings, dataset.get_nb_classes()], trainable=False)
+with tf.device(tf.train.replica_device_setter(
+    worker_device="/job:worker/task:%d" % opts.task_index,
+    cluster=cluster)):
 
-with tf.name_scope('Accurancy-Score'):
-    precision   = tf.Variable(0.0, trainable=False)
-    recall      = tf.Variable(0.0, trainable=False)
-    f1          = tf.Variable(0.0, trainable=False)
-    matrix_conf = tf.get_variable("matric_conf", [1, dataset.get_nb_classes(), dataset.get_nb_classes(),1], trainable=False)
+    global_step = tf.contrib.framework.get_or_create_global_step()
+    writer_train = tf.summary.FileWriter(opts.out+"/train/")
+    writer_test  = tf.summary.FileWriter(opts.out+"/train/test/")
 
-with tf.Session(config=config) as sess:
-    ### Load the network model
+    ###################################
+    # Build graphs
+    ###################################
     print("Loading DNN model from:  " + opts.dnn)
     sys.path.append('./')
-
     exec("import "+os.path.dirname(opts.dnn)+"."+os.path.basename(opts.dnn).replace(".py","")+" as model")
     net = eval("model.DNN([dataset.dataw, dataset.datah], dataset.get_nb_classes())")
 
-    ## Build summaries
-    embed = vizu.Embedding(net.input, net.out, embedding_var, opts.out)
+    ## Generate summaries
+    with tf.name_scope('Summaries'):
+        summaries = vizu.Summaries(net, dataset.get_nb_classes())
 
-    with tf.name_scope('Stats'):
-        tf.summary.scalar('Precision', precision)
-        tf.summary.scalar('Recall', recall)
-        tf.summary.scalar('F1', f1)
-        tf.summary.image("Confusion Matrix", matrix_conf)
+        ## Construct filter images
+        with tf.name_scope('Visualize_filters'):
+            summaries.build_kernel_filters_summaries(net.show_kernel_map)
 
-    try:
-        for conv in net.show_kernel_map:
-            img = vizu.print_kernel_filters(conv)
-            nb_kernel = conv.get_shape()[3].__int__()
-            tf.summary.image("Visualize_kernels of " + str(conv.name), img,
-                max_outputs=nb_kernel)
+    with tf.variable_scope("embeddings"):
+        opts.nb_embeddings = min(opts.nb_embeddings, dataset.data.shape[0])
+        proj      = projector.ProjectorConfig()
+        embed_train     = vizu.Embedding("OUT_train", net.input, net.out, net.keep_prob, proj, opts.nb_embeddings, opts.out)
+        embed_test      = vizu.Embedding("OUT_test",  net.input, net.out, net.keep_prob, proj, opts.nb_embeddings, opts.out)
+        projector.visualize_embeddings(writer_test, proj)
+        projector.visualize_embeddings(writer_train, proj)
 
-        with tf.name_scope('Build_audio_from_filters') as scope:
-            nb_kernel = net.conv1.get_shape()[3].__int__()
-            W_c = tf.split(net.conv1, nb_kernel, 3)
-            tf.summary.audio("Visualize_audio", W_c[0][0], 48100,
-                max_outputs=6)
-    except:
-        print("No kernel map generated.")
-
+    print("Generate summaries graph.")
     merged = tf.summary.merge_all()
 
-    ### Define optimizer and cost function
-    cost = tflearn.regression( net.out,
-        optimizer='adam',
-        learning_rate=opts.learning_rate,
-        #loss='binary_crossentropy')
-        loss='softmax_categorical_crossentropy')
+    with tf.name_scope('Trainer'):
+        train_op = tf.train.AdagradOptimizer(opts.learning_rate).minimize(net.cost, global_step=global_step)
+        hooks=[tf.train.StopAtStepHook(last_step=opts.training_iters)]
 
-    ### Init the trainer
-    trainer = tflearn.DNN(cost,
-        session=sess,
-        tensorboard_dir= opts.out + "/",
-        tensorboard_verbose=3)
+    ###################################
+    # Start the session
+    ###################################
+    if opts.task_index != 0:
+        print("Waiting for the master worker.")
+    with tf.train.MonitoredTrainingSession(master=server.target,
+                                           is_chief=(opts.task_index == 0),
+                                           checkpoint_dir=opts.out+"/train/",
+                                           hooks=hooks,
+                                           config=config) as sess:
+            print("Training is starting.")
+            writer_train.add_graph(sess.graph)
+            writer_test.add_graph(sess.graph)
 
-    # Build the graph
-    sess.run(tf.global_variables_initializer())
+            while not sess.should_stop():
+                print("---")
+                start_time = time.time()
 
-    ### Load a previous session
-    if not os.path.exists(opts.out + "/"):
-        print("Create output folder : " + opts.out + "/")
-        os.makedirs(opts.out + "/")
-    else :
-        try:
-            print('Loading: ' + opts.out + "/" + net.name)
-            trainer.load(opts.out + "/" + net.name, create_new_session=False)
-        except:
-            print("The destination folder contains a previous session.\nDo you want to erase it ? [y/N]")
-            a = input()
-            if a == 'y':
-                shutil.rmtree(opts.out)
-            else:
-                print('Unable to load network: ' + opts.out)
-                quit()
+                ################### TRAINING
+                batch_x, batch_y    = dataset.next_batch(batch_size=opts.batch_size)
 
-    ### Run the training process
-    step = 1
-    while step < opts.training_iters:
-        print("Load batchs")
-        batch_x, batch_y            = dataset.next_batch(batch_size=opts.batch_size)
-        batch_test_x, batch_test_y  = dataset_test.next_batch(batch_size=opts.batch_size)
+                _, step = sess.run( [train_op, global_step],
+                    feed_dict={ net.input: batch_x, net.labels: batch_y, net.keep_prob: 0.5})
 
-        tflearn.is_training(True, session=sess)
-        trainer.fit(batch_x, batch_y,
-                n_epoch=1,
-                validation_set=(batch_test_x, batch_test_y),
-                show_metric=True,
-                run_id=net.name)
+                if step % opts.STATS_STEP == 0:
+                    run_options         = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+                    run_metadata        = tf.RunMetadata()
 
-        if opts.nb_embeddings > 0 and step % opts.EMBEDDINGS_STEP == 0 and step > 1:
-            print("--\nSummaries and Embeddings")
-            tflearn.is_training(False, session=sess)
-            trainer.trainer.summ_writer.reopen()
+                    _, accuracy_train, cost_train, summary_train = sess.run(
+                        [train_op, summaries.accuracy, net.cost, merged],
+                        feed_dict={ net.input: batch_x, net.labels: batch_y, net.keep_prob: 0.5},
+                        options=run_options, run_metadata=run_metadata)
 
-            y_pred = trainer.predict(batch_test_x)
-            y_pred = np.argmax(y_pred,1)
-            y_true = np.argmax(batch_test_y,1)
-            confusion = metrics.confusion_matrix(y_true, y_pred)
+                    embed_train.evaluate(
+                                batch_x[:opts.nb_embeddings,:],
+                                batch_y[:opts.nb_embeddings,:],
+                                session=sess,
+                                dic=dataset.labels_dic)
 
-            if confusion.shape[0] == dataset.get_nb_classes():
-                sess.run( [
-                    precision.assign(metrics.precision_score(y_true, y_pred, average='micro')),
-                    recall.assign(metrics.recall_score(y_true, y_pred, average='micro')),
-                    f1.assign(metrics.f1_score(y_true, y_pred, average='micro')),
-                    matrix_conf.assign(np.reshape(confusion, [1, dataset.get_nb_classes(), dataset.get_nb_classes(), 1]))
-                    ])
+                    summaries.evaluate(batch_x, batch_y, sess)
+                    writer_train.add_run_metadata(run_metadata, 'step%d' % step)
+                    writer_train.add_summary(summary_train, step)
+                else:
+                    accuracy_train = cost_train = 0
 
-            print("* Kernel feature map rendering")
-            merged_res  = sess.run([merged], feed_dict={ net.input: batch_x} )
-            trainer.trainer.summ_writer.add_summary(merged_res[0], trainer.trainer.global_step.eval())
+                ################### TESTING
+                if step % opts.testing_iterations == 0:
+                    batch_test_x, batch_test_y  = dataset_test.next_batch(batch_size=opts.batch_size)
 
-            print("* Generation of #" +str(opts.nb_embeddings)+ " embeddings for " + embedding_var.name)
-            embed.evaluate(dataset_test, opts.nb_embeddings, sess,
-                        dic=dataset_test.labels_dic)
+                    accuracy_test, cost_test, summary_test = sess.run(
+                        [summaries.accuracy, net.cost, merged ],
+                        feed_dict={net.input: batch_test_x,net.labels: batch_test_y, net.keep_prob: 1.0})
 
-            trainer.trainer.summ_writer.close()
+                    if step % opts.STATS_STEP == 0:
+                        embed_test.evaluate(
+                                    batch_test_x[:opts.nb_embeddings,:],
+                                    batch_test_y[:opts.nb_embeddings,:],
+                                    session=sess,
+                                    dic=dataset_test.labels_dic)
+                    summaries.evaluate(batch_test_x, batch_test_y, sess)
+                    writer_test.add_summary(summary_test, step)
+                else:
+                    accuracy_test = cost_test = 0
 
-            print("Saving in " + opts.out + "/" + net.name + "\n--")
-            trainer.save(opts.out + "/" + net.name)
+                print( "\033[1;37m Step {0} - \033[0m {1:.2f} sec  | train -\033[32m acc {2:.3f}\033[0m cost {3:.3f} | test -\033[32m acc {4:.3f}\033[0m cost {5:.3f} |".format(
+                                step,
+                                time.time() - start_time,
+                                accuracy_train,
+                                cost_train,
+                                accuracy_test,
+                                cost_test,
+                                 ))
 
-        if step == 1:
-            projector.visualize_embeddings(
-                    trainer.trainer.summ_writer,
-                    embed.config_projector)
-
-            np.save(opts.out + "/labels.dic", dataset.labels_dic)
-            shutil.copyfile(opts.dnn, opts.out + "/model.py")
-
-        step = step + 1
+            sv.stop()
