@@ -133,8 +133,8 @@ with tf.device(tf.train.replica_device_setter(
     cluster=cluster)):
 
     global_step = tf.contrib.framework.get_or_create_global_step()
-    writer_train = tf.summary.FileWriter(opts.out+"/train/")
-    writer_test  = tf.summary.FileWriter(opts.out+"/train/test/")
+    writer_train = tf.summary.FileWriter(opts.out+"/model/train/")
+    writer_test  = tf.summary.FileWriter(opts.out+"/model/test/")
 
     ###################################
     # Build graphs
@@ -174,12 +174,16 @@ with tf.device(tf.train.replica_device_setter(
         print("Waiting for the master worker.")
     with tf.train.MonitoredTrainingSession(master=server.target,
                                            is_chief=(opts.task_index == 0),
-                                           checkpoint_dir=opts.out+"/train/",
+                                           checkpoint_dir=opts.out+"/model/",
                                            hooks=hooks,
                                            config=config) as sess:
             print("Training is starting.")
             writer_train.add_graph(sess.graph)
             writer_test.add_graph(sess.graph)
+
+            shutil.copyfile(opts.dnn, opts.out + "/model.py")
+            shutil.copyfile(opts.dnn, opts.out + "/model.py")
+            shutil.copyfile(opts.dataset_train+"_labels_dic.npy", opts.out + "/labels_dic.npy")
 
             while not sess.should_stop():
                 print("---")

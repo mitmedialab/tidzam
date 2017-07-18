@@ -5,6 +5,7 @@ from tensorflow.contrib.tensorboard.plugins import projector
 import data as tiddata
 import numpy as np
 import math
+import os
 
 class Embedding:
     def __init__(self, name, input, ouput, dropout, projector, nb_embeddings, checkpoint_dir):
@@ -22,7 +23,7 @@ class Embedding:
 
         self.embedding = self.config_projector.embeddings.add()
         self.embedding.tensor_name = self.embedding_var.name
-        self.embedding.metadata_path = self.checkpoint_dir+'metadata-' + \
+        self.embedding.metadata_path = os.path.abspath(self.checkpoint_dir)+'/metadata-' + \
                         self.embedding_var.name.replace('/','-')+'.tsv'
 
     def evaluate(self, batch_x, batch_y, session, dic=None):
