@@ -7,7 +7,6 @@ import time
 
 import threading
 import tensorflow as tf
-import tflearn
 import importlib
 import socketio
 
@@ -20,10 +19,7 @@ import json
 import vizualisation as vizu
 import data as tiddata
 
-config = tflearn.config.init_graph (
-    num_cores=1,
-    gpu_memory_fraction=0.75,
-    soft_placement=False)
+config = tf.ConfigProto (allow_soft_placement=True)
 
 class Classifier:
     def __init__(self,folder):
@@ -31,8 +27,7 @@ class Classifier:
         self.datah = 186
         self.nn_folder = folder
         self.history   = None
-
-        self.label_dic = np.load(folder + "/labels.dic.npy").astype(str)
+        self.label_dic = np.load(folder + "/labels_dic.npy").astype(str)
 
         # Get Neural Net name
         path = self.nn_folder.split('/')
@@ -44,30 +39,30 @@ class Classifier:
         sys.path.append('./')
         exec("import "+self.nn_folder.replace("/",".")+".model as model")
 
-        # Create a new graph and load it in a new session
         g = tf.Graph()
         with g.as_default() as g:
-            network = eval("model.DNN([self.dataw, self.datah], len(self.label_dic))")
-            self.name = network.name
+            self.model = eval( "model.DNN([self.dataw,self.datah], len(self.label_dic))" )
+            self.name = self.model.name
 
-            with tf.Session( graph = g ) as sess:
-                self.classifier = tflearn.DNN(network.out,
-                    tensorboard_dir= self.nn_folder + "/",
-                    tensorboard_verbose=0)
+            self.sess = tf.InteractiveSession(config=config, graph=g)
+            self.sess.run( tf.global_variables_initializer() )
 
-                sess.run(tf.global_variables_initializer())
+            # Load the session of the neural network
+            ckpt = tf.train.get_checkpoint_state(folder + "/model/")
+            if ckpt and ckpt.model_checkpoint_path:
+                saver = tf.train.Saver(max_to_keep=2)
+                saver.restore(self.sess, ckpt.model_checkpoint_path)
+                print("Network loaded: " + folder)
+            else:
+                print("Not Neural Network found in " + checkpoint_dir)
+                quit()
 
-        try:
-            print('Loading : ' + self.nn_folder + "." + network.name)
-            self.classifier.load(self.nn_folder + "/" + network.name, create_new_session=False)
+            # Add the final softmax decision function
+            self.net = tf.nn.softmax (self.model.out)
 
-            # Add Softmax layer for decision function
-            self.classifier.net = tflearn.activations.softmax (self.classifier.net)
-            self.classifier.predictor = tflearn.Evaluator([self.classifier.net],
-                                   session=self.classifier.session,model=None)
-        except:
-            print('Unable to load model: ' + self.nn_folder)
-            quit()
+    def predict(self, batch):
+        return self.sess.run([self.net], feed_dict={self.model.input:batch, self.model.keep_prob: 1.0})[0]
+
 
 class Analyzer(threading.Thread):
     def __init__(self, nn_folder,session=False, callable_objects=[], debug=0):
@@ -127,25 +122,26 @@ class Analyzer(threading.Thread):
         # If Real-Time Stream stream, change date for current date
         if "http" in stream:
             stream = time.strftime("generated/today-%Y-%m-%d-%H-%M-%S.opus")
-            time_relative = "0:0:0:0ms"
+            hours = minutes = seconds = milliseconds = 0
+            #time_relative = "0:0:0:0ms"
             if stream == self.old_stream:
-                time_relative = "0:0:0:500ms"
+                milliseconds = 500
+                #time_relative = "0:0:0:500ms"
             self.old_stream = stream
 
         # From audio file, compute relative time from beginning
         else:
             self.count_run = self.count_run + 1
-            time_relative = str(int(self.count_run * 0.5 * (1-overlap) / 3600)) + ":" + \
-                    str( int((self.count_run * 0.5 * (1-overlap) % 3600)/60)) + ":" + \
-                    str( int(self.count_run * 0.5 * (1-overlap) % 3600 % 60)) + ":" + \
-                    str( int( ((self.count_run * 0.5 * (1-overlap) % 3600 % 60) * 1000) % 1000) ) + "ms"
+            hours   = int(self.count_run * 0.5 * (1-overlap) / 3600)
+            minutes = int((self.count_run * 0.5 * (1-overlap) % 3600)/60)
+            seconds = int(self.count_run * 0.5 * (1-overlap) % 3600 % 60)
+            milliseconds = int( ((self.count_run * 0.5 * (1-overlap) % 3600 % 60) * 1000) % 1000)
 
-        sample_time = time_relative.replace("ms","").split(":")
         sample_time = timedelta(
-            hours=int(sample_time[0]),
-            minutes=int(sample_time[1]),
-            seconds=int(sample_time[2]),
-            milliseconds=int(sample_time[3]))
+            hours=hours,
+            minutes=minutes,
+            seconds=seconds,
+            milliseconds=milliseconds)
 
         # Extract the datetime from the filename
         try:
@@ -156,7 +152,8 @@ class Analyzer(threading.Thread):
             date = datetime.strptime(date, "%Y%m%d%H%M%S")
         except:
             date = datetime(1970, 1, 1, 0, 0, 0, 0)
-        sample_timestamp = (date + sample_time).isoformat()
+        sample_timestamp = (date + sample_time).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+
 
 
         classes = []
@@ -165,7 +162,7 @@ class Analyzer(threading.Thread):
         # GENERAL CLASSIFIER
         for nn in self.classifiers:
             if nn.name[:8] == 'selector':
-                res_general       = nn.classifier.predict(Sxxs)
+                res_general       = nn.predict(Sxxs)
 
                 if nn.history is None:
                     nn.history = res_general
@@ -200,7 +197,7 @@ class Analyzer(threading.Thread):
                 # Request the expert classifier for the detected classe
                 pred = classes[channel].split('-')
                 if nn.name == pred[0]:
-                    res_expert = nn.classifier.predict([Sxxs[channel,:]])[0]
+                    res_expert = nn.predict([Sxxs[channel,:]])[0]
 
                     if nn.history is None:
                         nn.history = res_expert
@@ -226,7 +223,7 @@ class Analyzer(threading.Thread):
                     res[channel] += list(np.zeros(len(nn.label_dic)) )
 
             if self.debug > 1:
-                print(sample_timestamp + "\tchannel" + str(channel+1) + '\t' + classes[channel])
+                print(sample_timestamp + "\t\tchannel" + str(channel+1) + '\t' + classes[channel])
 
         # BUILD AND TRANSMIT RESULT
         for obj in self.callable_objects:
