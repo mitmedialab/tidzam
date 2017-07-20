@@ -13,7 +13,6 @@ class SampleExtractor(threading.Thread):
         self.classes_to_extract = classes_to_extract
         self.stopFlag = threading.Event()
         self.debug = debug
-
         self.buffer = []
 
         if not os.path.exists(self.extraction_dest):
@@ -42,7 +41,9 @@ class SampleExtractor(threading.Thread):
                     if cl in f:
                         self.dynamic_distribution_classes.append(f)
                         break
-        self.dynamic_distribution_update()
+
+        if self.dd is True:
+            self.dynamic_distribution_update()
 
         self.start()
 

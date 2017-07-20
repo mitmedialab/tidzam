@@ -31,7 +31,7 @@ if __name__ == "__main__":
         default=None,
         help="List of classes to extract (--extract=unknown,birds).")
 
-    parser.add_option("--extract-dd", action="store_true", dest="dd",
+    parser.add_option("--extract-dd", action="store_true", dest="dd", default=False,
         help="Activate the extraction according to a Dynamic Distribution of extracted sample (Default: False).")
 
     parser.add_option("--show", action="store_true", dest="show", default=False,

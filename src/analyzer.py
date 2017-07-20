@@ -136,7 +136,12 @@ class Analyzer(threading.Thread):
             minutes = int((self.count_run * 0.5 * (1-overlap) % 3600)/60)
             seconds = int(self.count_run * 0.5 * (1-overlap) % 3600 % 60)
             milliseconds = int( ((self.count_run * 0.5 * (1-overlap) % 3600 % 60) * 1000) % 1000)
+#            time_relative = str(int(self.count_run * 0.5 * (1-overlap) / 3600)) + ":" + \
+#                    str( int((self.count_run * 0.5 * (1-overlap) % 3600)/60)) + ":" + \
+#                    str( int(self.count_run * 0.5 * (1-overlap) % 3600 % 60)) + ":" + \
+                    str(  ) + "ms"
 
+        sample_time = time_relative.replace("ms","").split(":")
         sample_time = timedelta(
             hours=hours,
             minutes=minutes,
@@ -152,8 +157,7 @@ class Analyzer(threading.Thread):
             date = datetime.strptime(date, "%Y%m%d%H%M%S")
         except:
             date = datetime(1970, 1, 1, 0, 0, 0, 0)
-        sample_timestamp = (date + sample_time).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-
+        sample_timestamp = (date + sample_time).isoformat()
 
 
         classes = []
@@ -223,7 +227,7 @@ class Analyzer(threading.Thread):
                     res[channel] += list(np.zeros(len(nn.label_dic)) )
 
             if self.debug > 1:
-                print(sample_timestamp + "\t\tchannel" + str(channel+1) + '\t' + classes[channel])
+                print(sample_timestamp + "\tchannel" + str(channel+1) + '\t' + classes[channel])
 
         # BUILD AND TRANSMIT RESULT
         for obj in self.callable_objects:
