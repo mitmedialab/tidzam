@@ -5,11 +5,15 @@ export LD_LIBRARY_PATH=/opt/cuda/lib64/
 PID_FILE=/tmp/tidzam-pid
 RAM_LIMIT=7
 PID=`cat $PID_FILE`
+DEBUG=1
 
 ACTION=$1
 
-MPV_CMD="mpv -ao jack:no-connect --audio-channels=30 --start=0"
-STREAM="http://doppler.media.mit.edu:8000/impoundment.opus"
+STREAMS=(
+          "mpv -ao jack:no-connect --audio-channels=30 --start=0 http://doppler.media.mit.edu:8000/impoundment.opus"
+          "mpv -ao jack:no-connect --start=0 http://doppler.media.mit.edu:8000/herring.ogg"
+        )
+
 export CUDA_VISIBLE_DEVICES=1
 
 test_memory (){
@@ -27,12 +31,19 @@ if [ "$ACTION" == "start" ]; then
   if [ -f $PID_FILE ]; then
     echo "TidZam is already running"
   else
+    echo "Jack server starting"
+    nohup /usr/bin/jackd -r -p1024 -t500000 -ddummy -r44100 -p1024  1>&2 2>/dev/null &
+    echo $! > "$PID_FILE-jack"
+
     echo "TidZam starting "
     # Autostart MPV process
     while true; do
       if [[ `ps -A -ostat,pid,cmd | grep "mpv -ao " | grep -v grep` = "" ]]; then
-        echo "Starting MPV on $STREAM"
-        eval "$MPV_CMD $STREAM 1>&2 2>/dev/null"
+        for element in "${STREAMS[@]}"
+          do
+            echo "Starting MPV on $element"
+            eval "nohup $element $STREAM 1>&2 2>/dev/null &"
+          done
       fi
       sleep 5
     done  &
@@ -42,7 +53,7 @@ if [ "$ACTION" == "start" ]; then
     nohup python3 -u -W ignore src/tidzam.py \
           --nn=builds/prod/  \
           --overlap=0.25 \
-          --debug=1 \
+          --debug=$DEBUG \
           --jack=mpv \
           --chainAPI=slash:toto@chain-api.media.mit.edu/sites/18 \
           --out=/opt/tidzam/out-tidzam/ \
@@ -58,6 +69,7 @@ elif [ "$ACTION" == "stop" ]; then
   echo "TidZam stopping "
   kill -9 `cat $PID_FILE`
   kill -9 `cat $PID_FILE-mpv`
+  kill -9 `cat $PID_FILE-jack`
   pkill mpv
   pkill ecasound
   rm $PID_FILE

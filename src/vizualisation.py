@@ -28,8 +28,11 @@ class Embedding:
 
     def evaluate(self, batch_x, batch_y, session, dic=None):
         print("* Generation of #" +str(batch_x.shape[0])+ " embeddings for " + self.embedding_var.name)
-        session.run( [self.assign.op], feed_dict={self.input: batch_x, self.dropout: 1.0})
-        self.build_metadatafile(batch_y, dic=dic, out_file=self.checkpoint_dir+'/metadata-'+self.embedding_var.name.replace('/','-')+'.tsv')
+        try:
+                session.run( [self.assign.op], feed_dict={self.input: batch_x, self.dropout: 1.0})
+                self.build_metadatafile(batch_y, dic=dic, out_file=self.checkpoint_dir+'/metadata-'+self.embedding_var.name.replace('/','-')+'.tsv')
+        except:
+                print("Embeddings computation error")
 
     def build_metadatafile(self, Y, dic=None, out_file='database/metadata.tsv'):
         # Clean previous embedding for this place
