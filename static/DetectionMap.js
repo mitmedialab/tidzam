@@ -11,13 +11,13 @@ function DetectionMap(){
   /*************************************/
   /*            MAP CREATION           */
   /*************************************/
-  var location = {lat: 41.8997582, lng: -70.571101};
+  var location = {lat: 41.901, lng: -70.571101};
   var map = null;
   var markers = Array()
 
     map = new google.maps.Map(document.getElementById('detection_map_area'), {
       center: location,
-      zoom: 17,
+      zoom: 16,
       mapTypeId: google.maps.MapTypeId.SATELLITE
     });
 

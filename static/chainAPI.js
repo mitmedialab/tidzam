@@ -1,6 +1,6 @@
 
 function ChainAPI(){
-  this.chainapiURL = "http://chain-api.media.mit.edu"
+  this.chainapiURL = "//chain-api.media.mit.edu"
   this.getStreamsInfo = function(){
     streams = []
     try {
@@ -102,12 +102,12 @@ function ChainAPI(){
         });
       }
       catch(err){
-        console.log("Chain API error" + err + "\n")
+        console.log("Chain API error" + err + "\n" + data)
       }
       return list_devices;
   }
 
   this.getSensors = function(site_id, devices_id){
-    //http://chain-api.media.mit.edu/sensors/?device_id=24759
+    // //chain-api.media.mit.edu/sensors/?device_id=24759
   }
 }
