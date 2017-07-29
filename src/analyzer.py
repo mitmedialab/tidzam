@@ -117,8 +117,8 @@ class Analyzer(threading.Thread):
                                 # If the source is change, we reset the counter
                                 if obj["sys"].get("source"):
                                     self.count_run = 0
-                except:
-                    print("** Analyzer ** Error on redis message" + data)
+                except Exception as e:
+                    print("** Analyzer ** Error on redis message" + str(e) + "------\n"+data)
 
     # Function called by the streamer to predic its current sample
     def execute(self, Sxxs, fs, t, sound_obj, overlap=0, stream=None):
@@ -167,7 +167,7 @@ class Analyzer(threading.Thread):
             if nn.name[:8] == 'selector':
                 res_general       = nn.classifier.predict(Sxxs)
 
-                if nn.history is None:
+                if nn.history is None or len(nn.history) != Sxxs.shape[1]:
                     nn.history = res_general
 
                 label_dic += list(nn.label_dic)
@@ -202,7 +202,7 @@ class Analyzer(threading.Thread):
                 if nn.name == pred[0]:
                     res_expert = nn.classifier.predict([Sxxs[channel,:]])[0]
 
-                    if nn.history is None:
+                    if nn.history is None or len(nn.history) != Sxxs.shape[1]:
                         nn.history = res_expert
 
                     # Average with previous samples
@@ -225,7 +225,7 @@ class Analyzer(threading.Thread):
                 elif nn.name != 'selector':
                     res[channel] += list(np.zeros(len(nn.label_dic)) )
 
-            if self.debug > 1:
+            if self.debug > 2:
                 print(sample_timestamp + "\tchannel" + str(channel+1) + '\t' + classes[channel])
 
         # BUILD AND TRANSMIT RESULT
