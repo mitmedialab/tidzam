@@ -1,5 +1,6 @@
 import socketio
 from aiohttp import web
+import aiohttp_cors
 import json
 import asyncio
 from time import sleep
@@ -11,8 +12,15 @@ import atexit
 import input_jack as input_jack
 
 mgr = socketio.AsyncRedisManager('redis://')
-sio = socketio.AsyncServer(client_manager=mgr, ping_timeout=6000000)
+sio = socketio.AsyncServer(
+            client_manager=mgr,
+            ping_timeout=6000000,
+            cors_credentials='tidmarsh.media.mit.edu')
 app = web.Application()
+
+cors = aiohttp_cors.setup(app, defaults={
+        "tidmarsh.media.mit.edu": aiohttp_cors.ResourceOptions(),
+    })
 sio.attach(app)
 
 def create_socket(namespace):
@@ -178,7 +186,10 @@ class TidzamSocketIO(socketio.AsyncNamespace):
     def on_data(self, sid, data):
         print("data event : " + data)
 
-app.router.add_static('/static', 'static')
+
+cors.add(app.router.add_static('/static', 'static'), {
+        "*":aiohttp_cors.ResourceOptions(allow_credentials=True)
+    })
 def index(request):
      with open('static/index.html') as f:
          return web.Response(text=f.read(), content_type='text/html')
