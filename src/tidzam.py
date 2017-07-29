@@ -18,7 +18,7 @@ if __name__ == "__main__":
 
     parser.add_option("-j", "--jack", action="store", type="string", dest="jack",
         default=None,
-        help="Input audio stream from Jack audio mixer to analyze.")
+        help="List of Jack audio mixer ports to process.")
 
     parser.add_option("-n", "--nn", action="store", type="string", dest="nn",
         help="Neural Network session to load.")
@@ -118,7 +118,7 @@ if __name__ == "__main__":
 
         elif opts.jack is not None:
             import input_jack as cj
-            connector = cj.TidzamJack(opts.jack, callable_objects=callable_objects, debug=opts.DEBUG, overlap=opts.overlap)
+            connector = cj.TidzamJack(opts.jack.split(","), callable_objects=callable_objects, debug=opts.DEBUG, overlap=opts.overlap)
 
         connector.start()
         #time.sleep(2)
