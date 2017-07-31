@@ -91,7 +91,7 @@ class SampleExtractor(threading.Thread):
             if len(self.buffer) > 50:
                 print("** WARNING ** Sample extractor : buffer queue is " + str(len(self.buffer)))
 
-    def execute(self, prob_classes, predictions, classes_dic, sound_obj=None, time=None):
+    def execute(self, prob_classes, predictions, classes_dic, sound_obj=None, time=None, mapping=None):
         for channel in range(len(prob_classes)):
             for cl in self.classes_to_extract:
                 if cl in predictions[channel]:

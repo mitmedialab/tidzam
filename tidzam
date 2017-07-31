@@ -1,17 +1,19 @@
 #!/bin/bash
 
 export LD_LIBRARY_PATH=/opt/cuda/lib64/
+set +e
 
 PID_FILE=/tmp/tidzam-pid
-RAM_LIMIT=7
+RAM_LIMIT=10
 PID=`cat $PID_FILE`
 DEBUG=1
+JACK_NAME=tidzam
 
 ACTION=$1
 
 STREAMS=(
-          "mpv -ao jack:no-connect --audio-channels=30 --start=0 http://doppler.media.mit.edu:8000/impoundment.opus"
-          "mpv -ao jack:no-connect --start=0 http://doppler.media.mit.edu:8000/herring.ogg"
+          "mpv -ao jack:name=impoundment:no-connect --audio-channels=30 --start=0 http://doppler.media.mit.edu:8000/impoundment.opus"
+          "mpv -ao jack:name=herring:no-connect --start=0 http://doppler.media.mit.edu:8000/herring.ogg"
         )
 
 export CUDA_VISIBLE_DEVICES=1
@@ -32,7 +34,7 @@ if [ "$ACTION" == "start" ]; then
     echo "TidZam is already running"
   else
     echo "Jack server starting"
-    nohup /usr/bin/jackd -r -p1024 -t500000 -ddummy -r44100 -p1024  1>&2 2>/dev/null &
+    nohup /usr/bin/jackd -r -p1024 -t500000 -ddummy -r44100 -p4096 1>&2 2>jack.log.txt &
     echo $! > "$PID_FILE-jack"
 
     echo "TidZam starting "
@@ -54,7 +56,7 @@ if [ "$ACTION" == "start" ]; then
           --nn=builds/prod/  \
           --overlap=0.25 \
           --debug=$DEBUG \
-          --jack=mpv \
+          --jack=impoundment,herring \
           --chainAPI=slash:toto@chain-api.media.mit.edu/sites/18 \
           --out=/opt/tidzam/out-tidzam/ \
           --extract=birds- \
@@ -71,7 +73,7 @@ elif [ "$ACTION" == "stop" ]; then
   kill -9 `cat $PID_FILE-mpv`
   kill -9 `cat $PID_FILE-jack`
   pkill mpv
-  pkill ecasound
+  pkill ffmpeg
   rm $PID_FILE
   rm "$PID_FILE-mpv"
   echo "[   DONE   ]"

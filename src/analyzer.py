@@ -116,7 +116,7 @@ class Analyzer(threading.Thread):
                     print("** Analyzer ** Error on redis message" + str(e) + "------\n"+data)
 
     # Function called by the streamer to predic its current sample
-    def execute(self, Sxxs, fs, t, sound_obj, overlap=0, stream=None):
+    def execute(self, Sxxs, fs, t, sound_obj, overlap=0, stream=None, mapping=None):
         # Compute GMT Timestamp for current sampe
 
         # If Real-Time Stream stream, change date for current date
@@ -231,4 +231,4 @@ class Analyzer(threading.Thread):
 
         # BUILD AND TRANSMIT RESULT
         for obj in self.callable_objects:
-            obj.execute(res, classes, label_dic, sound_obj, sample_timestamp)
+            obj.execute(res, classes, label_dic, sound_obj, sample_timestamp, mapping=mapping)

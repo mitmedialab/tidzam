@@ -1,32 +1,32 @@
 
 function ChainAPI(){
-  this.chainapiURL = "//chain-api.media.mit.edu"
+  this.chainapiURL = "//chain-api.media.mit.edu";
+  this.site_id     = 18
+
   this.getStreamsInfo = function(){
     streams = []
-    try {
-        list_streams = $.ajax({
-            type: "GET",
-            url: this.chainapiURL+"/sensors/?device_id=22403",
-            async: false
-        }).responseText;
-        list_streams = JSON.parse(list_streams)._links
+    console.log("here " + this.chainapiURL+"/devices/?site_id="+this.site_id)
+    rsp = $.ajax({
+      type: "GET",
+      dataType: 'json',
+      url: this.chainapiURL+"/devices/?site_id="+this.site_id,
+      async: false
+      }).responseText
 
-        for (var i=0; i < list_streams.items.length; i++){
-          stream = $.ajax({
-              type: "GET",
-              url: list_streams.items[i].href,
-              async: false
-          }).responseText;
-          stream = JSON.parse(stream).geoLocation
-          stream.name = list_streams.items[i].title
-          streams.push(stream)
-        }
+    sensors = JSON.parse(rsp)._links.items
+    for (var i=0; i < sensors.length; i++){
+      console.log(sensors[i].title)
+      rsp = $.ajax({
+        type: "GET",
+        dataType: 'json',
+        url: sensors[i].href,
+        async: false
+        }).responseText
+      streams.push(JSON.parse(rsp))
       }
-    catch(err){
-      console.log("Chain API error" + err + "\n" + list_streams)
-    }
     return streams
   };
+
 
   this.list_devices = {}
   this.getData = function(target, callback_update){
@@ -49,13 +49,6 @@ function ChainAPI(){
           }).done(function(list_sensors){
           chain.list_devices[this.deviceID].list_sensors = list_sensors["_links"].items;
           for (var j=0; j< chain.list_devices[this.deviceID].list_sensors.length; j++){
-            /*if (chain.list_devices[this.deviceID].list_sensors[j].title.indexOf("-") != -1){
-              chain.list_devices[this.deviceID].list_sensors.splice(j,1);
-              j--;
-              }
-
-
-            else {*/
               if (target.year){
                 if (!target.month){
                   target.month_start = 1
@@ -90,24 +83,15 @@ function ChainAPI(){
                         }
 
                   chain.list_devices[this.deviceID].list_sensors[this.sensorID].data = data?data.data:[];
-              });
-        //    }
+                });
+              }
+            });
           }
-
-
-          });
-        }
-
-
         });
       }
       catch(err){
         console.log("Chain API error" + err + "\n" + data)
       }
       return list_devices;
-  }
-
-  this.getSensors = function(site_id, devices_id){
-    // //chain-api.media.mit.edu/sensors/?device_id=24759
   }
 }

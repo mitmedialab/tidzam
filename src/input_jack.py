@@ -20,6 +20,7 @@ class TidzamJack(Thread):
     def __init__(self, port_names, callable_objects=[], debug=0, overlap=0):
         Thread.__init__(self)
         global stream
+        print("======= JACK CLIENT =======")
         stream = "http"
         self.debug = debug
         self.port_names = port_names
@@ -27,6 +28,7 @@ class TidzamJack(Thread):
         self.lock   = threading.Lock()
 
         self.mustReload = False
+        self.mapping    = []
 
         self.samplerate = -1
         self.blocksize = -1
@@ -42,12 +44,14 @@ class TidzamJack(Thread):
 
     def init_client(self):
         if self.debug > 1:
-            print("Tidzam Jack client initialization.")
+            print("JACK Connector: Tidzam Jack client initialization.")
         self.client = jack.Client("tidzam")
         self.client.set_samplerate_callback(self.callback_samplerate)
         self.client.set_blocksize_callback(self.callback_blocksize)
         self.client.set_process_callback(self.callback_rt)
         self.client.set_shutdown_callback(self.callback_quit)
+        self.client.set_client_registration_callback(self.callback_client_registration)
+        self.client.set_port_registration_callback(self.callback_port_registration, only_available=True)
         self.client.set_port_connect_callback(self.callback_port_connection, only_available=True)
         self.channels_state = {}
 
@@ -58,15 +62,9 @@ class TidzamJack(Thread):
 
     def load_streamer(self):
         self.kill_streamer()
-        with open("icecast/ices-templates.xml", "r") as file_template:
-            for i in range(0, len(self.ports)):
-                file_template.seek(0)
-                template = file_template.read()
-                template = template.replace("/chan.ogg", "/ch"+str(i+1).zfill(2) +".ogg")
-                with open("/tmp/ices-chan"+str(i)+".xml", "w") as file:
-                    file.write(template)
-
-                cmd = ["./icecast/icecast_stream.sh", str(i)]
+        for i in range(0, len(self.ports)):
+            if "input" not in self.ports[i].name:
+                cmd = ["./icecast/icecast_stream.sh", self.ports[i].name.replace(":","-")]
                 self.streamer_process.append(subprocess.Popen(cmd,
                         shell=False,
                         stdout=self.FNULL,
@@ -77,8 +75,11 @@ class TidzamJack(Thread):
     def load_stream(self):
         try:
              # Wait that all jack ports are properly disconnected
+            print("JACK Connector: reset the Jack client.")
             self.client.deactivate()
-            time.sleep(5)
+            self.client.close()
+            time.sleep(1)
+            self.init_client()
             self.mustReload = False
 
             if self.debug > 0:
@@ -89,9 +90,11 @@ class TidzamJack(Thread):
             self.channels       = []
             self.ring_buffer    = []
             self.channels_data  = []
+            self.mapping        = []
             self.channels_state = {}
             self.client.inports.clear()
 
+            # Load the port patterns to connect
             for port in self.port_names:
                 self.ports = self.ports + self.client.get_ports(port)
             sorted_nicely(self.ports)
@@ -103,39 +106,34 @@ class TidzamJack(Thread):
 
             # If the ports have been connected, start audio streaming
             self.load_streamer()
-            time.sleep(2) # TODO: Wait that all ecasound process are ready
+            time.sleep(1) # TODO: Wait that all ecasound process are ready (asynchronous calls)
 
             # Activate TidZam ports and connecto MPV
-            print("JACK Connector: Tidzam client activation: " +str(len(self.ports))+" ports")
+            if self.debug > 0:
+                print("JACK Connector: Tidzam client activation: " +str(len(self.ports))+" ports")
             self.client.activate()
-            time.sleep(2)
+
             for i in range(0, len(self.ports)):
                 # Connect Tidzam
-                print("JACK Connector: Connection: " + self.ports[i].name + " -> " + self.channels[i].name)
-                self.client.connect(self.ports[i], self.channels[i])
-                # Connect output stream (ecasound)
-                if i != 0:
-                    self.client.connect(self.ports[i], self.client.get_port_by_name("ecasound-"+str(i).zfill(2)+":in_1" ))
-                    self.client.connect(self.ports[i], self.client.get_port_by_name("ecasound-"+str(i).zfill(2)+":in_2" ))
-                else:
-                    self.client.connect(self.ports[i], self.client.get_port_by_name("ecasound:in_1"))
-                    self.client.connect(self.ports[i], self.client.get_port_by_name("ecasound:in_2"))
+                if "input" not in self.ports[i].name:
+                    print("JACK Connector: Connection: " + self.ports[i].name + " -> " + self.channels[i].name)
+                    self.client.connect(self.ports[i], self.channels[i])
+                    self.mapping.append([self.ports[i].name, self.channels[i].name])
+                    # Connect output stereo stream
+                    self.client.connect(self.ports[i], self.client.get_port_by_name(self.ports[i].name.replace(":","-")+":input_1" ))
+                    self.client.connect(self.ports[i], self.client.get_port_by_name(self.ports[i].name.replace(":","-")+":input_2" ))
+
+            if self.debug > 0:
+                print("JACK Connector: audio stream mapping: ")
+                print(self.mapping)
 
             # Wait that all jack ports are connected
             time.sleep(1)
 
+
         except Exception as e:
             if self.debug > 0:
                 print("JACK Connector: Loading stream exception: " + str(e))
-                self.mustReload = True
-
-    def check_jack_connector(self):
-        ports = []
-        for port in self.port_names:
-            ports = ports + self.client.get_ports(port)
-        for port in ports:
-            if port not in self.ports:
-                print("JACK Connector: new input connector detected " + port.name)
                 self.mustReload = True
 
     def portsAllReady(self):
@@ -160,9 +158,6 @@ class TidzamJack(Thread):
             with self.lock:
                 if self.portsAllReady() and self.mustReload is False:
                     try:
-                        # check if there is a new jack device
-                        self.check_jack_connector()
-
                         for i in range(len(self.channels)):
                             data = self.ring_buffer[i].read(self.buffer_jack)
                             data = np.frombuffer(data, dtype='float32')
@@ -207,7 +202,8 @@ class TidzamJack(Thread):
                             for obj in self.callable_objects:
                                 obj.execute(Sxxs, fss, ts, [np.transpose(datas), self.samplerate],
                                             overlap=self.overlap,
-                                            stream=stream)
+                                            stream=stream,
+                                            mapping=self.mapping)
                     except Exception as e:
                         print("JACK Connector: buffer loading...")
 
@@ -224,6 +220,14 @@ class TidzamJack(Thread):
         self.client.deactivate()
         self.client.close()
         self.stopFlag.set()
+
+    def callback_client_registration(self, name, registered):
+        print("JACK Connector: new client connector detected " + name + "(" + str(registered) + ")")
+        if name in self.port_names:
+            self.mustReload = True
+
+    def callback_port_registration(self, port, registered):
+        print("JACK Connector: new port registration " + port.name + "(" + str(registered) + ")")
 
     def callback_port_connection(self,port_in, port_out, state):
         if state is True:
@@ -245,6 +249,7 @@ class TidzamJack(Thread):
 
     def callback_samplerate(self, samplerate):
         self.samplerate = samplerate
+        print("JACK Connector: Sample rate at " + str(samplerate))
 
     def callback_blocksize(self, blocksize):
         self.blocksize = blocksize
@@ -254,4 +259,4 @@ class TidzamJack(Thread):
             for i in range(len(self.channels)):
                 self.ring_buffer[i].write(self.channels[i].get_array())
         except:
-            print("Error loading RT ring buffer")
+            print("JACK Connector: Error loading RT ring buffer")

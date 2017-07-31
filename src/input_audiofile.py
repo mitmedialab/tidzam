@@ -53,7 +53,7 @@ class TidzamAudiofile(Thread):
                             ts = np.concatenate((ts, t), axis=0)
 
                     for obj in self.callable_objects:
-                        obj.execute(Sxxs, fss, ts, [data, f.samplerate], overlap=self.overlap,stream=audiofilename)
+                        obj.execute(Sxxs, fss, ts, [data, f.samplerate], overlap=self.overlap,stream=audiofilename, mapping=None)
 
                     f.seek(int(-sample_size*self.overlap), whence=sf.SEEK_CUR)
         print("End of stream ...")

@@ -18,7 +18,7 @@ class TidzamVizualizer (Thread):
 
         self.stopFlag = False
 
-    def execute(self, Sxxs, fs, t, sound_obj, overlap=0.5, stream=None):
+    def execute(self, Sxxs, fs, t, sound_obj, overlap=0.5, stream=None, mapping=None):
         if self.init:
             self.init = False
             if len(self.channels_to_print) == 0:

@@ -29,28 +29,33 @@ function DetectionMap(){
     this.chainAPI = new ChainAPI()
     this.streams  = this.chainAPI.getStreamsInfo();
     for (var i=0; i<this.streams.length; i++){
-      marker = new google.maps.Marker({
-        position: {lat: this.streams[i].latitude, lng: this.streams[i].longitude},
-        icon:{
-          url: "static/img/unknow.png",
-          scaledSize: new google.maps.Size(10)
-        }
-      })
-      marker.name = this.streams[i].name
-      marker.setMap(map);
-      markers.push(marker);
+      try {
+        marker = new google.maps.Marker({
+          position: {lat: this.streams[i].geoLocation.latitude, lng: this.streams[i].geoLocation.longitude},
+          icon:{
+            url: "static/img/unknow.png",
+            scaledSize: new google.maps.Size(10)
+          }
+        })
+        marker.name = this.streams[i].name
+        marker.setMap(map);
+        markers.push(marker);
 
-      google.maps.event.addListener(marker, 'click', function() {
-        channel = this.name
-        stream = 'http://tidzam.media.mit.edu:8000/'+this.name+'.ogg'
-        $( '#audio_player'  ).attr('src', stream);
-        $( '#audio_player'  ).load();
-        $( '#audio_player' ).trigger('play');
-        infowindow.open(map, this);
-        content = '<div id="graph" style="padding:1px"></div>'
-        content += "<center>GPS coord: (" + this.getPosition().lat() + ", " + this.getPosition().lng() + ')</center>';
-        infowindow.setContent(content)
-      });
+        google.maps.event.addListener(marker, 'click', function() {
+          channel = this.name
+          stream = 'http://tidzam.media.mit.edu:8000/'+this.name.replace(":","-")+'.ogg'
+          $( '#audio_player'  ).attr('src', stream);
+          $( '#audio_player'  ).load();
+          $( '#audio_player' ).trigger('play');
+          infowindow.open(map, this);
+          content = '<div id="graph" style="padding:1px"></div>'
+          content += "<center>GPS coord: (" + this.getPosition().lat() + ", " + this.getPosition().lng() + ')</center>';
+          infowindow.setContent(content)
+        });
+      }
+      catch(err){
+        console.log("Unable to load marker for " + this.streams[i].name)
+      }
     }
 
   socket.on('sys', function(msg){
@@ -58,7 +63,7 @@ function DetectionMap(){
       current_time = msg[i].analysis.time;
       // Update all Marker icons
       for(var j=0; j < markers.length; j++)
-      if (markers[j].name == "ch"+("0" + msg[i].chan).slice(-2)){
+      if (markers[j].name == msg[i].chan){
         markers[j].setIcon({
           url: "static/img/"+msg[i].analysis.result[0]+".png" ,
           scaledSize: new google.maps.Size(50, 31)
@@ -66,7 +71,7 @@ function DetectionMap(){
       }
 
       // Update graph of the selected one
-      if (channel == "ch"+("0" + msg[i].chan).slice(-2)){
+      if (channel == msg[i].chan){
         if (graph.name != channel){
           graph_div = document.getElementById("graph")
           graph = new Chart(graph_div, channel, null)

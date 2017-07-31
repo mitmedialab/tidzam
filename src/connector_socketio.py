@@ -68,7 +68,7 @@ class TidzamSocketIO(socketio.AsyncNamespace):
     def build_time(self):
         return {"sys": {"time": self.time}}
 
-    def execute(self, prob_classes, predictions, classes_dic, sound_obj=None, time=None):
+    def execute(self, prob_classes, predictions, classes_dic, sound_obj=None, time=None, mapping=None):
         self.time = time
 
         if self.external_sio is None:
@@ -89,8 +89,11 @@ class TidzamSocketIO(socketio.AsyncNamespace):
             pred = {}
             for cl in range(0, len(classes_dic)):
                 pred[classes_dic[cl]] = float(prob_classes[channel][cl])
+            for m in mapping:
+                if m[1] == "tidzam:chan"+str(channel):
+                    break
             obj = {
-                    "chan":channel+1,
+                    "chan":m[0],
                     "analysis":{
                         "time":time,
                         "result":[predictions[channel]],
@@ -161,12 +164,15 @@ class TidzamSocketIO(socketio.AsyncNamespace):
             if obj["sys"].get("classifier"):
                 await sio.emit('sys',self.build_classes_dic())
 
+            # Request to change the input stream
             if obj["sys"].get("source"):
                 self.load_source(obj["sys"]["source"])
 
+            # Request the current timestamp of the stream
             if obj["sys"].get("time") == "":
                 await sio.emit('sys', self.build_time())
 
+            # Request the list of available recordings in database
             if obj["sys"].get("database") == "":
                 files = sorted(glob.glob(self.path_database + "/*.opus"))
                 rsp = []
