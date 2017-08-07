@@ -123,10 +123,8 @@ class Analyzer(threading.Thread):
         if "http" in stream:
             stream = time.strftime("generated/today-%Y-%m-%d-%H-%M-%S.opus")
             hours = minutes = seconds = milliseconds = 0
-            #time_relative = "0:0:0:0ms"
             if stream == self.old_stream:
                 milliseconds = 500
-                #time_relative = "0:0:0:500ms"
             self.old_stream = stream
 
         # From audio file, compute relative time from beginning
@@ -136,12 +134,7 @@ class Analyzer(threading.Thread):
             minutes = int((self.count_run * 0.5 * (1-overlap) % 3600)/60)
             seconds = int(self.count_run * 0.5 * (1-overlap) % 3600 % 60)
             milliseconds = int( ((self.count_run * 0.5 * (1-overlap) % 3600 % 60) * 1000) % 1000)
-#            time_relative = str(int(self.count_run * 0.5 * (1-overlap) / 3600)) + ":" + \
-#                    str( int((self.count_run * 0.5 * (1-overlap) % 3600)/60)) + ":" + \
-#                    str( int(self.count_run * 0.5 * (1-overlap) % 3600 % 60)) + ":" + \
-                    str(  ) + "ms"
 
-        sample_time = time_relative.replace("ms","").split(":")
         sample_time = timedelta(
             hours=hours,
             minutes=minutes,
