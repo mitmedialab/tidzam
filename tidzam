@@ -41,11 +41,11 @@ if [ "$ACTION" == "start" ]; then
           --jack=tidzam-livestreams,impoundment,herring \
           --out=/opt/tidzam/out-tidzam/ \
           --port=8001 \
+          --chainAPI=slash:toto@chain-api.media.mit.edu/sites/18 \
+          --extract=birds- \
+          --extract-dd \
           2>&1 > tidzam.log.txt &
 
-#          --chainAPI=slash:toto@chain-api.media.mit.edu/sites/18 \
-#          --extract=birds- \
-#          --extract-dd \
     echo $! > $PID_FILE
     echo "[   DONE   ]"
   fi

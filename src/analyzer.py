@@ -71,7 +71,7 @@ class Analyzer(threading.Thread):
         self.debug = debug
         self.nn_folder = nn_folder
         self.count_run = -1
-        self.starting_time = None
+        self.starting_time = -1
         self.callable_objects = callable_objects
 
         self.history = None
@@ -116,9 +116,9 @@ class Analyzer(threading.Thread):
                     print("** Analyzer ** Error on redis message" + str(e) + "------\n"+data)
 
     # Function called by the streamer to predic its current sample
-    def execute(self, Sxxs, fs, t, sound_obj, overlap=0, starting_time=None, mapping=None):
+    def execute(self, Sxxs, fs, t, sound_obj, overlap=0, starting_time=-1, mapping=None):
         # If Real-Time Stream stream, load the current datetime
-        if starting_time == None:
+        if starting_time == -1:
             starting_time = time.strftime("%Y-%m-%dT%H:%M:%S")
             hours = minutes = seconds = milliseconds = 0
             if starting_time == self.starting_time:

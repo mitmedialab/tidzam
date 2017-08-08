@@ -51,7 +51,7 @@ class SocketioJackConnector():
 
         self.sio_tidzam = socketio.AsyncRedisManager('redis://')
 
-        self.starting_time = None
+        self.starting_time = -1
         self.path_database = "/mnt/tidmarsh-audio/impoundment-mc"
         self.stream_rt = "http://doppler.media.mit.edu:8000/impoundment.opus"
 
@@ -120,7 +120,7 @@ class SocketioJackConnector():
     def load_source(self, name, url, permanent=False):
         seek_seconds = 0
         stream_name  = url
-        self.starting_time = None
+        self.starting_time = -1
         self.unload_source(name)
 
         if "database_" in url:
@@ -161,7 +161,7 @@ class SocketioJackConnector():
             fpred = self.stream_rt
             seek_seconds = 0
             desired_date = fpred.replace(".opus","") + desired_date + ".opus"
-            self.starting_time = None
+            self.starting_time = -1
             print('** Socket IO ** Real Time stream: ' + fpred)
 
         # Looking for the file and compute seek position
@@ -318,7 +318,7 @@ if __name__ == '__main__':
             obj = json.loads(data)
 
             if obj["sys"].get("loadsource"):
-                stream_name = jack_service.load_source(
+                jack_service.load_source(
                             obj["sys"]["loadsource"]["name"],
                             obj["sys"]["loadsource"]["url"],
                             obj["sys"]["loadsource"]["permanent"])

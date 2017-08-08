@@ -24,7 +24,7 @@ class TidzamJack(Thread):
         global TIDZAM_JACK_PORTS
 
         print("======= JACK CLIENT =======")
-        starting_time = None
+        starting_time = -1
         self.debug = debug
         TIDZAM_JACK_PORTS = port_names
         self.FNULL  = open(os.devnull, 'w')

@@ -11,6 +11,8 @@ var LiveStream = function(source){
        forceNew:true});
 
 
+       livestream_io.emit('sys', JSON.stringify({"sys":{"database":""}}));
+
   portname = null
   callback = null
 

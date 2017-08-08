@@ -112,7 +112,7 @@ class TidzamSocketIO(socketio.AsyncNamespace):
             obj = data
 
         if obj.get('sys') is not None:
-            if obj["sys"].get("starting_time") is not None:
+            if obj["sys"].get("starting_time"):
                 input_jack.starting_time = obj["sys"].get("starting_time")
 
             if obj["sys"].get("classifier"):
