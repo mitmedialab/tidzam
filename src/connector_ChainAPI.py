@@ -69,7 +69,6 @@ class ChainAPI(threading.Thread):
             if len(self.buffer) > 10:
                 print("** TidZam ChainAPI ** Queue size "+str(len(self.buffer)))
 
-
     def execute(self, prob_classes, predictions, classes_dic, sound_obj=None, time=None, mapping=None):
         for channel in range(len(prob_classes)):
             if predictions[channel] is not 'unknow':
@@ -77,7 +76,3 @@ class ChainAPI(threading.Thread):
                     if m[1] == "tidzam:chan"+str(channel):
                         self.buffer.append([m[0], predictions[channel], time])
                         break
-
-#ch = ChainAPI()
-#ch.connect('http://chain-api.media.mit.edu/sites/16', auth=HTTPBasicAuth('slash','toto'))
-#ch.push("Yahoo", "sensor2", "2017-04-07T13:10:50.500000")

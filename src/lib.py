@@ -27,4 +27,4 @@ def fc(x, size):
     b = bias_variable( [size] )
     h = tf.matmul(x, W) + b
     tf.summary.histogram("pre-activation", h)
-    return h
+    return h, W, b

@@ -1,0 +1,10 @@
+[
+  {
+    "name":"impoundment",
+    "url":"http://doppler.media.mit.edu:8000/impoundment.opus"
+  },
+    {
+      "name":"herring",
+      "url":"http://doppler.media.mit.edu:8000/herring.ogg"
+    }
+]

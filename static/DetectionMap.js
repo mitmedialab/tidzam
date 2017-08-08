@@ -8,6 +8,13 @@ function DetectionMap(){
   me.statistic_conf = {}
   me.col_name = "";
 
+  const livestream_io = io("//tidzam.media.mit.edu/",
+        { path: '/livestream/socket.io'});
+
+  const socket = io("//tidzam.media.mit.edu/",
+      { path: '/socket.io' ,
+       forceNew:true});
+
   /*************************************/
   /*            MAP CREATION           */
   /*************************************/
@@ -76,7 +83,8 @@ function DetectionMap(){
           graph_div = document.getElementById("graph")
           graph = new Chart(graph_div, channel, null)
           // Ask the list of classifier outputs
-          socket.emit('sys', JSON.stringify( {sys:{databases:{list:''},classifier: {list:''}}} ));
+          //livestream_io.emit('sys', JSON.stringify( {sys:{databases:{list:''}}))
+          socket.emit('sys', JSON.stringify( {sys:{classifier: {list:''}}} ));
         }
         graph.updateHistory(msg[i].analysis)
       }
@@ -103,9 +111,8 @@ function DetectionMap(){
       $( "#time_label" ).text(hours+":"+minutes+":"+seconds)
     }
   });
-  socket.emit('sys', JSON.stringify({"sys":{"time":""}}));
-  socket.emit('sys', JSON.stringify({"sys":{"database":""}}));
-  socket.on('sys', function(msg){
+  livestream_io.on('sys', function(msg){
+    //console.log(JSON.stringify(msg))
     if (!msg.sys)
     return
 
@@ -130,6 +137,10 @@ function DetectionMap(){
       });
     }
   });
+  setTimeout(function(){
+    socket.emit('sys', JSON.stringify({"sys":{"time":""}}));
+    livestream_io.emit('sys', JSON.stringify({"sys":{"database":""}}));
+  },2000);
 
 
   $( "#source_btn" ).on("click", function(){
@@ -139,10 +150,14 @@ function DetectionMap(){
     console.log("Change source : " + source);
     req = {
       "sys":{
-        "source":source
+        "loadsource":{
+          "name":"impoundment",
+          "url":"database_" + source,
+          "permanent":false
+        }
       }
     }
-    socket.emit('sys', JSON.stringify(req));
+    livestream_io.emit('sys', JSON.stringify(req));
   });
 
 

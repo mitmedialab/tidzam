@@ -71,7 +71,7 @@ class Analyzer(threading.Thread):
         self.debug = debug
         self.nn_folder = nn_folder
         self.count_run = -1
-        self.old_stream = ""
+        self.starting_time = None
         self.callable_objects = callable_objects
 
         self.history = None
@@ -116,17 +116,14 @@ class Analyzer(threading.Thread):
                     print("** Analyzer ** Error on redis message" + str(e) + "------\n"+data)
 
     # Function called by the streamer to predic its current sample
-    def execute(self, Sxxs, fs, t, sound_obj, overlap=0, stream=None, mapping=None):
-        # Compute GMT Timestamp for current sampe
-
-        # If Real-Time Stream stream, change date for current date
-        if "http" in stream:
-            stream = time.strftime("generated/today-%Y-%m-%d-%H-%M-%S.opus")
+    def execute(self, Sxxs, fs, t, sound_obj, overlap=0, starting_time=None, mapping=None):
+        # If Real-Time Stream stream, load the current datetime
+        if starting_time == None:
+            starting_time = time.strftime("%Y-%m-%dT%H:%M:%S")
             hours = minutes = seconds = milliseconds = 0
-            if stream == self.old_stream:
+            if starting_time == self.starting_time:
                 milliseconds = 500
-            self.old_stream = stream
-
+            self.starting_time = starting_time
         # From audio file, compute relative time from beginning
         else:
             self.count_run = self.count_run + 1
@@ -135,23 +132,13 @@ class Analyzer(threading.Thread):
             seconds = int(self.count_run * 0.5 * (1-overlap) % 3600 % 60)
             milliseconds = int( ((self.count_run * 0.5 * (1-overlap) % 3600 % 60) * 1000) % 1000)
 
+        date = datetime.strptime(starting_time, "%Y-%m-%dT%H:%M:%S")
         sample_time = timedelta(
             hours=hours,
             minutes=minutes,
             seconds=seconds,
             milliseconds=milliseconds)
-
-        # Extract the datetime from the filename
-        try:
-            date = stream.split("/")
-            date = date[len(date)-1].split(".")[0].split("-")
-            date.pop(0)
-            date = ''.join(date)
-            date = datetime.strptime(date, "%Y%m%d%H%M%S")
-        except:
-            date = datetime(1970, 1, 1, 0, 0, 0, 0)
         sample_timestamp = (date + sample_time).isoformat()
-
 
         classes = []
         label_dic = []
@@ -209,7 +196,7 @@ class Analyzer(threading.Thread):
                     a = np.argmax(res_average)
                     a = np.argsort(res_average)
                     if res_average[a[len(a)-1]] - res_average[a[len(a)-2]] > 0.3:
-                        classes[channel] = classes[channel] + '-' + str(nn.label_dic[ a[len(a)-1] ]) #+ ' ('  + str(a) + ')'
+                        classes[channel] = str(nn.label_dic[ a[len(a)-1] ])
 
                     # Store result and history
                     res[channel] += res_average
