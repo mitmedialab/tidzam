@@ -97,7 +97,7 @@ class Dataset:
         print("\n===============")
         print("Load " + self.name)
         print("===============")
-        try:
+        if True:
             self.fileID = self.files_count = self.nb_files()
             # Try to load metadata information
             try:
@@ -130,12 +130,12 @@ class Dataset:
             print(self.get_classes())
             print("Samples distribution:")
             print(self.count_by_classe)
-
-        except Exception as ex:
-            print("File not found: " + file)
-            self.data = []
-            self.labels_dic = []
-            self.labels = []
+        #
+        # except Exception as ex:
+        #     print("File not found: " + file + str(ex))
+        #     self.data = []
+        #     self.labels_dic = []
+        #     self.labels = []
 
     def save(self,name=None):
         if name is None:
@@ -393,7 +393,7 @@ class Dataset:
             print(file1)
             idx = np.arange(len(b))
             np.random.shuffle(idx)
-            for i in idx[:int(np.maximum(len(idx)*0.2,1))]:
+            for i in idx[:int(np.maximum(len(idx)*0.5,1))]:
                 file2 = b[i]
                 # Extract randomly half of the sample in the file 1
                 file        = np.load(file1)
@@ -617,6 +617,8 @@ class Dataset:
     def nb_files(self):
         for file in sorted_nicely(glob.glob(self.name+"-*.npz")):
             pass
+        file = file.split("/")
+        file = file[len(file)-1]
         file = file.split(".npz")[0]
         return int(file.split("-")[1])
 
