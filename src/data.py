@@ -257,10 +257,7 @@ class Dataset:
             else:
                 classe = asOneclasse
 
-            if np.isnan(raw).any():
-                print("Bad sample containing NaN value: " + f)
-                os.remove(f)
-                continue
+            raw = np.nan_to_num(raw)
 
             # Add the raw to dataset
             try:
