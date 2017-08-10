@@ -118,6 +118,8 @@ class Analyzer(threading.Thread):
     # Function called by the streamer to predic its current sample
     def execute(self, Sxxs, fs, t, sound_obj, overlap=0, starting_time=-1, mapping=None):
         # If Real-Time Stream stream, load the current datetime
+        Sxxs =  np.nan_to_num(Sxxs)
+
         if starting_time == -1:
             starting_time = time.strftime("%Y-%m-%dT%H:%M:%S")
             hours = minutes = seconds = milliseconds = 0
