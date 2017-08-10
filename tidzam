@@ -30,10 +30,16 @@ if [ "$ACTION" == "start" ]; then
   else
     echo "Jack server starting"
     nohup /usr/bin/jackd -r -t500000 -ddummy -r44100 -p8192 1>&2 2>jack.log.txt &
-    #nohup /usr/bin/jackd -r -d alsa -r 44100 &
     echo $! > "$PID_FILE-jack"
+    #nohup /usr/bin/jackd -r -d alsa -r 44100 &
+    sleep 1
 
-    echo "TidZam starting "
+    echo "TidZam Stream Loader starting "
+    nohup python3 src/SocketioJackConnector.py --debug=$DEBUG --sources=tidzam-source.json 1>&2 2>stream_loader.log.txt &
+    echo $! > "$PID_FILE-stream_loader"
+    sleep 1
+
+    echo "TidZam Analyzer starting "
     nohup python3 -u -W ignore src/Tidzam.py \
           --nn=builds/prod/  \
           --overlap=0.25 \
@@ -54,6 +60,7 @@ elif [ "$ACTION" == "stop" ]; then
   echo "TidZam stopping "
   kill -9 `cat $PID_FILE`
   kill -9 `cat $PID_FILE-jack`
+  kill -9 `cat $PID_FILE-stream_loader`
   pkill mpv
   pkill ffmpeg
   rm $PID_FILE

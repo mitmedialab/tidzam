@@ -7,10 +7,11 @@ import copy
 import glob
 
 class SampleExtractor(threading.Thread):
-    def __init__(self, classes_to_extract, extraction_dest='/tmp/tidzam/opus', dd=False, debug=0):
+    def __init__(self, classes_to_extract, channels=[], extraction_dest='/tmp/tidzam/opus', dd=False, debug=0):
         threading.Thread.__init__(self)
-        self.extraction_dest = extraction_dest
-        self.classes_to_extract = classes_to_extract
+        self.extraction_dest        = extraction_dest
+        self.classes_to_extract     = classes_to_extract
+        self.channels                = channels
         self.stopFlag = threading.Event()
         self.debug = debug
         self.buffer = []
@@ -41,6 +42,10 @@ class SampleExtractor(threading.Thread):
                     if cl in f:
                         self.dynamic_distribution_classes.append(f)
                         break
+
+        for cl in self.classes_to_extract:
+            if cl not in self.dynamic_distribution_classes:
+                self.dynamic_distribution_classes.append(cl)
 
         if self.dd is True:
             self.dynamic_distribution_update()
@@ -93,6 +98,9 @@ class SampleExtractor(threading.Thread):
 
     def execute(self, prob_classes, predictions, classes_dic, sound_obj=None, time=None, mapping=None):
         for channel in range(len(prob_classes)):
+            if len(self.channels) > 0 and self.channels[0] != ""  and str(channel) not in self.channels:
+                continue
+
             for cl in self.classes_to_extract:
                 if cl in predictions[channel]:
                     if predictions[channel] not in self.dynamic_distribution_classes:
