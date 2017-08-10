@@ -284,9 +284,6 @@ if __name__ == '__main__':
                 buffer_jack_size=opts.buffer_size,
                 debug=opts.DEBUG)
 
-    tidzam_address = opts.tidzam_address.split(":")
-    sio_tidzam = SocketIO(tidzam_address[0], tidzam_address[1])
-
     # Load initial sources
     try:
         with open(opts.sources) as data_file:
@@ -296,6 +293,10 @@ if __name__ == '__main__':
                 jack_service.load_source(stream["name"], stream["url"])
     except:
         print("** SocketioJackConnector ** no valid source file.")
+
+
+    tidzam_address = opts.tidzam_address.split(":")
+    sio_tidzam = SocketIO(tidzam_address[0], tidzam_address[1])
 
     @sio.on('connect', namespace='/')
     def connect(sid, environ):
