@@ -26,7 +26,7 @@ var LiveStream = function(source){
   this.stop = function(){
     console.log("Stream terminated")
     mediaStreamContext.close()
-    livestream_io.emit("sys", JSON.stringify({sys:{delstream:true}}))
+    livestream_io.emit("sys", JSON.stringify({sys:{del_livestream:true}}))
     tidzam_io.removeAllListeners(portname);
     portname = null
     callback = null
@@ -48,7 +48,7 @@ var LiveStream = function(source){
     if (callback || false){
       livestream_io.on("sys",function(obj){
         if (obj.portname == null)
-          livestream_io.emit("sys", JSON.stringify({sys:{addstream:true}}));
+          livestream_io.emit("sys", JSON.stringify({sys:{add_livestream:true}}));
         else {
           portname = obj.portname.replace(":","-")
           if ( tidzam_io._callbacks[portname] == undefined ){
@@ -67,7 +67,7 @@ var LiveStream = function(source){
 
       // Ask the portname of the stream
       if (count-- == 0 && portname == null ){
-        livestream_io.emit("sys", JSON.stringify({sys:{addstream:true}}))
+        livestream_io.emit("sys", JSON.stringify({sys:{add_livestream:true}}))
         count = 5
       }
     }

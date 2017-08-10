@@ -5,6 +5,7 @@ import jack
 import numpy as np
 import os, signal
 import subprocess
+import threading
 
 from aiohttp import web
 import socketio
@@ -15,6 +16,7 @@ import glob
 import datetime
 import json
 import atexit
+import time
 
 import optparse
 class Stream():
@@ -25,6 +27,7 @@ class Stream():
         self.id                 = id
         self.portname           = None
         self.debug              = debug
+
 
     def add_data(self,data):
         data = np.frombuffer(data, dtype='int16')
@@ -38,8 +41,10 @@ class Stream():
         if self.ring_buffer.write_space == 0:
             self.ring_buffer.reset()
 
-class SocketioJackConnector():
+class SocketioJackConnector(threading.Thread):
     def __init__(self, available_ports=10, samplerate=44100, buffer_jack_size=50, debug=0):
+        threading.Thread.__init__(self)
+
         self.available_ports    = available_ports
         self.available_ports    = available_ports
         self.samplerate         = samplerate
@@ -48,6 +53,11 @@ class SocketioJackConnector():
 
         self.streams            = []
         self.sources            = []
+        self.streamer_process   = []
+        self.FNULL              = open(os.devnull, 'w')
+
+        self.portstoconnect      = []
+        self.stopFlag               = threading.Event()
 
         self.sio_tidzam = socketio.AsyncRedisManager('redis://')
 
@@ -72,10 +82,29 @@ class SocketioJackConnector():
         for i in range(0,self.available_ports):
             self.client.outports.register('out_{0}'.format(i))
         self.client.activate()
+        self.start()
+
+    def run(self):
+        while not self.stopFlag.wait(0.1):
+            for connection in self.portstoconnect:
+                try:
+                    port_in = self.client.get_port_by_name(connection[0])
+                    port_ou = self.client.get_port_by_name(connection[1])
+                    self.client.connect(port_in, port_ou)
+                    if self.debug > 0:
+                        print("** SocketioJackConnector **  port connection " + port_in.name + " -> " + port_ou.name)
+                except:
+                    if self.debug > 0:
+                        print("** SocketioJackConnector **  The streamer is not ready")
+                self.portstoconnect.remove(connection)
 
     def exit(self):
         for source in self.sources:
             subprocess.Popen.kill(source[2])
+
+        for pro in self.streamer_process:
+            os.killpg(os.getpgid(pro[0].pid), signal.SIGKILL)
+        self.streamer_process = []
 
     ############
     # Live Stream Interface for capturing Web microphone
@@ -117,7 +146,7 @@ class SocketioJackConnector():
             res.append(s[1])
         return res
 
-    def load_source(self, name, url, permanent=False):
+    def load_source(self, url, name=None, permanent=False):
         seek_seconds = 0
         stream_name  = url
         self.starting_time = -1
@@ -126,6 +155,9 @@ class SocketioJackConnector():
         if "database_" in url:
             [url, seek_seconds, stream_name] = self.load_source_local_database(name, url.split("_")[1])
 
+        if name == None:
+            name = str(round(time.time()))
+
         cmd = ['mpv', "-ao", "jack:name=" + name + ":no-connect", "--start="+str(seek_seconds), url]
         logfile = open(os.devnull, 'w')
         self.sources.append([name, stream_name, subprocess.Popen(cmd,
@@ -133,8 +165,10 @@ class SocketioJackConnector():
                 stdout=logfile,
                 stderr=logfile,
                 preexec_fn=os.setsid)])
-        print("** Socket IO ** New source is loading: " + name + " ("+stream_name+")")
-        return stream_name
+
+        if self.debug > 1:
+            print("** Socket IO ** New source is loading: " + name + " ("+stream_name+")")
+        return name
 
     def unload_source(self,name):
         found = False
@@ -145,7 +179,6 @@ class SocketioJackConnector():
 
         if found:
             subprocess.Popen.kill(source[2])
-            #print("** Socket IO ** Source remove: " + source[0] + " ("+source[1]+")")
             self.sources.remove(source)
             return 0
 
@@ -162,7 +195,8 @@ class SocketioJackConnector():
             seek_seconds = 0
             desired_date = fpred.replace(".opus","") + desired_date + ".opus"
             self.starting_time = -1
-            print('** Socket IO ** Real Time stream: ' + fpred)
+            if self.debug > 0:
+                print('** Socket IO ** Real Time stream: ' + fpred)
 
         # Looking for the file and compute seek position
         else:
@@ -184,14 +218,10 @@ class SocketioJackConnector():
                 desired_date = files[0]
                 seek_seconds = 0
 
-            print('** Socket IO ** Load source from database: ' + fpred + ' at ' + str(seek_seconds) + ' seconds')
+            if self.debug > 0:
+                print('** Socket IO ** Load source from database: ' + fpred + ' at ' + str(seek_seconds) + ' seconds')
 
         return fpred, seek_seconds, desired_date
-
-#        input_jack.stream = desired_date
-#        if self.external_sio:
-#            self.loop.run_until_complete(self.external_sio.emit('sys', {'sys':{'source':desired_date}} ) )
-
 
     ############
     # JACK Callbacks
@@ -200,13 +230,66 @@ class SocketioJackConnector():
         if self.debug > 0:
             print("** SocketioJackConnector ** new client connector detected " + name + "(" + str(registered) + ")")
 
+    def port_create_streamer(self, port):
+        print("create  " + port.name.replace(":","-"))
+        cmd = ["./icecast/icecast_stream.sh", port.name.replace(":","-")]
+        self.streamer_process.append([subprocess.Popen(cmd,
+                shell=False,
+                stdout=self.FNULL,
+                stderr=self.FNULL,
+                preexec_fn=os.setsid), port.name
+                ])
+
+    def port_connect_streamer(self, port):
+        name_ori = port.name.split(":")[0]
+        if name_ori != "analyzer":
+            name_ori = name_ori.split("-")
+            port_connection = name_ori[len(name_ori)-1]
+            port_name       = name_ori[0]
+            for i in range(1, len(name_ori)-1):
+                port_name += "-" + name_ori[i]
+
+            try: # Try to connect to the output port
+                port_in = self.client.get_port_by_name(port_name + ":" + port_connection)
+                port_test = self.client.get_port_by_name(port.name)
+                self.portstoconnect.append([port_in.name, port.name])
+
+            except jack.JackError: # The input port don t exist anymore
+                self.port_remove_streamer(port.name)
+
     def callback_port_registration(self, port, registered):
-        if self.debug > 1:
-            print("** SocketioJackConnector ** new port registration " + port.name + "(" + str(registered) + ")")
+        if self.debug > 0:
+            print("** SocketioJackConnector ** port registration status " + port.name + "(" + str(registered) + ")")
+
+        if registered is True:
+            # If there is a new stream producer (create a streamer)
+            if port.is_output:
+                self.port_create_streamer(port)
+            # If the streamer has been created, we ask its connection to its stream producer
+            else:
+                self.port_connect_streamer(port)
+        else:
+            # If the link has been destroyed, we remove the streamer
+            self.port_remove_streamer(port.name)
+
+    def port_remove_streamer(self,portname):
+        for pro in self.streamer_process:
+            if pro[1] == portname:
+                #for tmp in self.portstoconnect:
+                #    if pro[1] == tmp[1]:
+                #        self.portstoconnect.remove(tmp)
+                os.killpg(os.getpgid(pro[0].pid), signal.SIGKILL)
+                self.streamer_process.remove(pro)
 
     def callback_port_connection(self,port_in, port_out, state):
-        if self.debug > 1:
-            print("** SocketioJackConnector ** This link is created: " + port_in.name + " -> " + port_out.name + " " + str(state))
+        if state is True:
+            if self.debug > 0:
+                print("** SocketioJackConnector ** This link is created: " + port_in.name + " -> " + port_out.name + " " + str(state))
+        else:
+            if self.debug > 0:
+                print("** SocketioJackConnector ** This link has been destroyed: " + port_in.name + " -> " + port_out.name + " " + str(state))
+            if "analyzer" not in port_out.name:
+                self.port_connect_streamer(port_out)
 
     def callback_quit(self,status, reason):
         if self.debug > 0:
@@ -222,8 +305,6 @@ class SocketioJackConnector():
         self.blocksize = blocksize
 
     def callback_rt(self,frame):
-        # print("frame: " + str(frame)) = 1024
-
         ports = self.client.outports
         for id, s in enumerate(self.streams):
             try:
@@ -288,9 +369,8 @@ if __name__ == '__main__':
     try:
         with open(opts.sources) as data_file:
             jfile = json.load(data_file)
-            print(str(jfile) )
             for stream in jfile:
-                jack_service.load_source(stream["name"], stream["url"])
+                jack_service.load_source(stream["url"], stream["name"])
     except:
         print("** SocketioJackConnector ** no valid source file.")
 
@@ -313,6 +393,12 @@ if __name__ == '__main__':
             print("** SocketioJackConnector ** client disconnected ", sid)
         jack_service.del_stream(sid)
 
+        # Delete the stream that has been created by this web user
+        for stream in jack_service.sources:
+            if len(stream) > 3:
+                if stream[3] == sid:
+                    jack_service.unload_source(stream[0])
+
     @sio.on('sys', namespace='/')
     async def sys(sid, data):
         try:
@@ -320,8 +406,8 @@ if __name__ == '__main__':
 
             if obj["sys"].get("loadsource"):
                 jack_service.load_source(
-                            obj["sys"]["loadsource"]["name"],
                             obj["sys"]["loadsource"]["url"],
+                            obj["sys"]["loadsource"]["name"],
                             obj["sys"]["loadsource"]["permanent"])
 
                 sio_tidzam.emit('sys', {"sys":{"starting_time":jack_service.starting_time}} )
@@ -329,14 +415,26 @@ if __name__ == '__main__':
             elif obj["sys"].get("unloadsource"):
                 jack_service.unload_source(obj["sys"]["unloadsource"]["name"])
 
-            elif obj["sys"].get("addstream"):
+            if obj["sys"].get("load_stream"):
+                name = jack_service.load_source("database_"+obj["sys"]["load_stream"])
+                # Add a tag in order to trace this stream for future deletion
+                for stream in jack_service.sources:
+                    if stream[0] == name:
+                        stream.append(sid)
+                # send the url to the user
+                sio_tidzam.emit('sys', {"sys":{"starting_time":jack_service.starting_time}} )
+                await sio.emit('sys',
+                        {"sys":{"stream":"http://http://tidzam.media.mit.edu:8000/"+name}} ,
+                        room=sid)
+
+            elif obj["sys"].get("add_livestream"):
                 for s in jack_service.streams:
                     if s.id == sid:
                         await sio.emit('sys',
                                 data={'portname': s.portname},
                                 room=sid)
 
-            elif obj["sys"].get("delstream"):
+            elif obj["sys"].get("del_livestream"):
                 jack_service.del_stream(sid)
 
             # Request the list of available recordings in database

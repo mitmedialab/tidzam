@@ -11,10 +11,10 @@ class SampleExtractor(threading.Thread):
         threading.Thread.__init__(self)
         self.extraction_dest        = extraction_dest
         self.classes_to_extract     = classes_to_extract
-        self.channels                = channels
-        self.stopFlag = threading.Event()
-        self.debug = debug
-        self.buffer = []
+        self.channels               = channels
+        self.stopFlag               = threading.Event()
+        self.debug                  = debug
+        self.buffer                 = []
 
         if not os.path.exists(self.extraction_dest):
             os.makedirs(self.extraction_dest)

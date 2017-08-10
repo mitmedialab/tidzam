@@ -6,7 +6,7 @@ set +e
 PID_FILE=/tmp/tidzam-pid
 RAM_LIMIT=10
 PID=`cat $PID_FILE`
-DEBUG=0
+DEBUG=2
 JACK_NAME=tidzam
 
 ACTION=$1
@@ -29,13 +29,16 @@ if [ "$ACTION" == "start" ]; then
     echo "TidZam is already running"
   else
     echo "Jack server starting"
-    nohup /usr/bin/jackd -r -t500000 -ddummy -r44100 -p8192 1>&2 2>jack.log.txt &
+    nohup /usr/bin/jackd -r -t500000 -ddummy -r44100 -p8192 2>&1 > jack.log.txt &
     echo $! > "$PID_FILE-jack"
     #nohup /usr/bin/jackd -r -d alsa -r 44100 &
     sleep 1
 
     echo "TidZam Stream Loader starting "
-    nohup python3 src/SocketioJackConnector.py --debug=$DEBUG --sources=tidzam-source.json 1>&2 2>stream_loader.log.txt &
+    nohup python3 -u -W ignore src/SocketioJackConnector.py \
+        --debug=$DEBUG \
+        --sources=tidzam-source.json \
+        2>&1 > stream_loader.log.txt &
     echo $! > "$PID_FILE-stream_loader"
     sleep 1
 
@@ -44,7 +47,7 @@ if [ "$ACTION" == "start" ]; then
           --nn=builds/prod/  \
           --overlap=0.25 \
           --debug=$DEBUG \
-          --jack=tidzam-livestreams,impoundment,herring \
+          --jack=tidzam-,impoundment,herring \
           --out=/opt/tidzam/out-tidzam/ \
           --port=8001 \
           --chainAPI=slash:toto@chain-api.media.mit.edu/sites/18 \

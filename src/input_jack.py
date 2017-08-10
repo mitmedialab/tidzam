@@ -4,9 +4,7 @@ import sys, os, signal,time
 import numpy as np
 import threading
 from threading import Thread
-import subprocess
 import data as tiddata
-import atexit
 
 
 import re
@@ -27,7 +25,6 @@ class TidzamJack(Thread):
         starting_time = -1
         self.debug = debug
         TIDZAM_JACK_PORTS = port_names
-        self.FNULL  = open(os.devnull, 'w')
         self.lock   = threading.Lock()
 
         self.mustReload = False
@@ -38,17 +35,15 @@ class TidzamJack(Thread):
         self.buffer_size = 24000
         self.overlap = overlap
         self.buffer_jack = self.buffer_size * 20
-        self.streamer_process = []
         self.stopFlag = threading.Event()
 
         self.callable_objects = callable_objects
         self.init_client()
-        atexit.register(self.kill_streamer)
 
     def init_client(self):
         if self.debug > 1:
             print("JACK Connector: Tidzam Jack client initialization.")
-        self.client = jack.Client("tidzam")
+        self.client = jack.Client("analyzer")
         self.client.set_samplerate_callback(self.callback_samplerate)
         self.client.set_blocksize_callback(self.callback_blocksize)
         self.client.set_process_callback(self.callback_rt)
@@ -58,23 +53,6 @@ class TidzamJack(Thread):
         self.client.set_port_connect_callback(self.callback_port_connection, only_available=True)
         self.client.set_xrun_callback(self.callback_xrun)
         self.channels_state = {}
-
-    def kill_streamer(self):
-        for pro in self.streamer_process:
-            os.killpg(os.getpgid(pro.pid), signal.SIGKILL)
-        self.streamer_process = []
-
-    def load_streamer(self):
-        self.kill_streamer()
-        for i in range(0, len(self.ports)):
-            if "input" not in self.ports[i].name:
-                cmd = ["./icecast/icecast_stream.sh", self.ports[i].name.replace(":","-")]
-                self.streamer_process.append(subprocess.Popen(cmd,
-                        shell=False,
-                        stdout=self.FNULL,
-                        stderr=self.FNULL,
-                        preexec_fn=os.setsid)
-                        )
 
     def load_stream(self):
         global TIDZAM_JACK_PORTS
@@ -115,12 +93,8 @@ class TidzamJack(Thread):
 
             # Register TidZam inputs for each MPV ports
             for i in range(0, len(self.ports)):
-                self.channels.append(self.client.inports.register("chan"+str(i)))
+                self.channels.append(self.client.inports.register("input_"+str(i)))
                 self.ring_buffer.append(jack.RingBuffer(self.buffer_jack))
-
-            # If the ports have been connected, start audio streaming
-            self.load_streamer()
-            time.sleep(2) # TODO: Wait that all ecasound process are ready (asynchronous calls)
 
             # Activate TidZam ports and connecto MPV
             if self.debug > 0:
@@ -134,9 +108,6 @@ class TidzamJack(Thread):
                         print("JACK Connector: Connection: " + self.ports[i].name + " -> " + self.channels[i].name)
                     self.client.connect(self.ports[i], self.channels[i])
                     self.mapping.append([self.ports[i].name, self.channels[i].name])
-                    # Connect output stereo stream
-                    self.client.connect(self.ports[i], self.client.get_port_by_name(self.ports[i].name.replace(":","-")+":input_1" ))
-                    self.client.connect(self.ports[i], self.client.get_port_by_name(self.ports[i].name.replace(":","-")+":input_2" ))
 
             if self.debug > 0:
                 print("JACK Connector: audio stream mapping: ")
@@ -238,25 +209,27 @@ class TidzamJack(Thread):
     def callback_client_registration(self, name, registered):
         global TIDZAM_JACK_PORTS
         if self.debug > 1:
-            print("JACK Connector: new client connector detected " + name + "(" + str(registered) + ")")
+            print("JACK Connector: client connector change " + name + "(" + str(registered) + ")")
         for port in TIDZAM_JACK_PORTS:
-            if port in name:
+            if port in name and "-out_" not in name:
                 self.mustReload = True
                 break
 
     def callback_port_registration(self, port, registered):
         if self.debug > 1:
-            print("JACK Connector: new port registration " + port.name + "(" + str(registered) + ")")
+            print("JACK Connector: port registration " + port.name + "(" + str(registered) + ")")
 
     def callback_port_connection(self,port_in, port_out, state):
         if state is True:
-            self.channels_state[port_in.name] = state
             if self.debug > 1:
                 print("JACK Connector: This link is created: " + port_in.name + " -> " + port_out.name)
+            if "analyzer" in port_in.name:
+                self.channels_state[port_in.name] = state
         else:
             if self.debug > 1:
                 print("JACK Connector: This link is broke: " + port_in.name + " -> " + port_out.name)
-            self.mustReload = True
+            if "analyzer" in port_in.name:
+                    self.mustReload = True
 
     def callback_xrun(self, delay):
         if self.debug > 0:

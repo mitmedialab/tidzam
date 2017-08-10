@@ -84,7 +84,7 @@ class TidzamSocketIO(socketio.AsyncNamespace):
             for cl in range(0, len(classes_dic)):
                 pred[classes_dic[cl]] = float(prob_classes[channel][cl])
             for m in mapping:
-                if m[1] == "tidzam:chan"+str(channel):
+                if m[1] == "analyzer:input_"+str(channel):
                     break
             obj = {
                     "chan":m[0],
