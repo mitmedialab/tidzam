@@ -90,9 +90,9 @@ class SocketioJackConnector(threading.Thread):
                 try:
                     port_in = self.client.get_port_by_name(connection[0])
                     port_ou = self.client.get_port_by_name(connection[1])
-                    self.client.connect(port_in, port_ou)
                     if self.debug > 0:
                         print("** SocketioJackConnector **  port connection " + port_in.name + " -> " + port_ou.name)
+                    self.client.connect(port_in, port_ou)
                 except:
                     if self.debug > 0:
                         print("** SocketioJackConnector **  The streamer is not ready")
@@ -150,7 +150,8 @@ class SocketioJackConnector(threading.Thread):
         seek_seconds = 0
         stream_name  = url
         self.starting_time = -1
-        self.unload_source(name)
+        self.wait_jack_client(name)
+        self.kill_streamers(name)
 
         if "database_" in url:
             [url, seek_seconds, stream_name] = self.load_source_local_database(name, url.split("_")[1])
@@ -170,7 +171,17 @@ class SocketioJackConnector(threading.Thread):
             print("** Socket IO ** New source is loading: " + name + " ("+stream_name+")")
         return name
 
-    def unload_source(self,name):
+    def wait_jack_client(self,name):
+        found = True
+        while found:
+            found = False
+            for connection in self.portstoconnect:
+                if name in connection:
+                    found = True
+            if found:
+                time.sleep(0.01)
+
+    def kill_streamers(self, name):
         found = False
         for source in self.sources:
             if name == source[0]:
@@ -181,8 +192,11 @@ class SocketioJackConnector(threading.Thread):
             subprocess.Popen.kill(source[2])
             self.sources.remove(source)
             return 0
-
         return -1
+
+    def unload_source(self, name):
+        self.wait_jack_client(name)
+        self.kill_streamers(name)
 
     def load_source_local_database(self, name, desired_date, seek=0):
         self.starting_time = desired_date
@@ -231,7 +245,6 @@ class SocketioJackConnector(threading.Thread):
             print("** SocketioJackConnector ** new client connector detected " + name + "(" + str(registered) + ")")
 
     def port_create_streamer(self, port):
-        print("create  " + port.name.replace(":","-"))
         cmd = ["./icecast/icecast_stream.sh", port.name.replace(":","-")]
         self.streamer_process.append([subprocess.Popen(cmd,
                 shell=False,
