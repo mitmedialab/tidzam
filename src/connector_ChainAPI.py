@@ -25,7 +25,7 @@ class ChainAPI(threading.Thread):
     def push(self, device, sensor, time):
         devices_coll = self.site.rels['ch:devices']
         found = False
-
+        
         for dev in devices_coll.rels['items']:
             if dev.name == str(device):
                 found = True
@@ -73,6 +73,6 @@ class ChainAPI(threading.Thread):
         for channel in range(len(prob_classes)):
             if predictions[channel] is not 'unknow':
                 for m in mapping:
-                    if m[1] == "tidzam:chan"+str(channel):
+                    if m[1] == "analyzer:input_"+str(channel):
                         self.buffer.append([m[0], predictions[channel], time])
                         break
