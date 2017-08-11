@@ -123,6 +123,7 @@ class TidzamSocketIO(socketio.AsyncNamespace):
                 await sio.emit('sys', self.build_time())
 
             if obj["sys"].get("stream"):
+                print(desired_date)
                 input_jack.stream = desired_date
                 self.loop.run_until_complete(self.external_sio.emit('sys', {'sys':{'source':desired_date}} ) )
 

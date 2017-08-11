@@ -146,7 +146,7 @@ function DetectionMap(){
   $( "#source_btn" ).on("click", function(){
     var date = $( "#dateselector" ).val().split('/');
     var time = $( "#time_label" ).html();
-    source = date[2]+"-"+date[0]+"-"+date[1]+"T"+time
+    source = date[2]+"-"+date[0]+"-"+date[1]+"-"+time
     console.log("Change source : " + source);
     req = {
       "sys":{

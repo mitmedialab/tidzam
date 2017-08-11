@@ -121,7 +121,7 @@ class Analyzer(threading.Thread):
         Sxxs =  np.nan_to_num(Sxxs)
 
         if starting_time == -1:
-            starting_time = time.strftime("%Y-%m-%dT%H:%M:%S")
+            starting_time = time.strftime("%Y-%m-%d-%H-%M-%S")
             hours = minutes = seconds = milliseconds = 0
             if starting_time == self.starting_time:
                 milliseconds = 500
@@ -134,7 +134,7 @@ class Analyzer(threading.Thread):
             seconds = int(self.count_run * 0.5 * (1-overlap) % 3600 % 60)
             milliseconds = int( ((self.count_run * 0.5 * (1-overlap) % 3600 % 60) * 1000) % 1000)
 
-        date = datetime.strptime(starting_time, "%Y-%m-%dT%H:%M:%S")
+        date = datetime.strptime(starting_time, "%Y-%m-%d-%H-%M-%S")
         sample_time = timedelta(
             hours=hours,
             minutes=minutes,

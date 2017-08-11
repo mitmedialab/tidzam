@@ -3,6 +3,8 @@
 export LD_LIBRARY_PATH=/opt/cuda/lib64/
 set +e
 
+LOGS="logs"
+
 PID_FILE=/tmp/tidzam-pid
 RAM_LIMIT=10
 PID=`cat $PID_FILE`
@@ -29,21 +31,21 @@ if [ "$ACTION" == "start" ]; then
     echo "TidZam is already running"
   else
     echo "Jack server starting"
-    nohup /usr/bin/jackd -r -t500000 -ddummy -r44100 -p8192 2>&1 > jack.log.txt &
+    nohup /usr/bin/jackd -r -t500000 -ddummy -r44100 -p8192 2>&1 > $LOGS/tidzam-jack.log.txt &
     echo $! > "$PID_FILE-jack"
     #nohup /usr/bin/jackd -r -d alsa -r 44100 &
     sleep 1
 
     echo "TidZam Stream Loader starting "
-    nohup python3 -u -W ignore src/SocketioJackConnector.py \
+    nohup python3 -u -W ignore src/TidzamStreamManager.py \
         --debug=$DEBUG \
-        --sources=tidzam-source.json \
-        2>&1 > stream_loader.log.txt &
+        --sources=tidzam.conf \
+        2>&1 > $LOGS/tidzam-stream-manager.log.txt &
     echo $! > "$PID_FILE-stream_loader"
     sleep 1
 
     echo "TidZam Analyzer starting "
-    nohup python3 -u -W ignore src/Tidzam.py \
+    nohup python3 -u -W ignore src/TidzamAnalyzer.py \
           --nn=builds/prod/  \
           --overlap=0.25 \
           --debug=$DEBUG \
@@ -53,7 +55,7 @@ if [ "$ACTION" == "start" ]; then
           --chainAPI=slash:toto@chain-api.media.mit.edu/sites/18 \
           --extract=birds- \
           --extract-dd \
-          2>&1 > tidzam.log.txt &
+          2>&1 > $LOGS/tidzam-analyzer.log.txt &
 
     echo $! > $PID_FILE
     echo "[   DONE   ]"
