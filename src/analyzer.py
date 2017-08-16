@@ -116,101 +116,144 @@ class Analyzer(threading.Thread):
                     print("** Analyzer ** Error on redis message" + str(e) + "------\n"+data)
 
     # Function called by the streamer to predic its current sample
-    def execute(self, Sxxs, fs, t, sound_obj, overlap=0, starting_time=-1, mapping=None):
+    def execute(self, Sxxs, fs, t, sound_obj, overlap=0, sources=None, mapping=None):
         # If Real-Time Stream stream, load the current datetime
         Sxxs =  np.nan_to_num(Sxxs)
 
-        if starting_time == -1:
-            starting_time = time.strftime("%Y-%m-%d-%H-%M-%S")
-            hours = minutes = seconds = milliseconds = 0
-            if starting_time == self.starting_time:
-                milliseconds = 500
-            self.starting_time = starting_time
-        # From audio file, compute relative time from beginning
-        else:
-            self.count_run = self.count_run + 1
-            hours   = int(self.count_run * 0.5 * (1-overlap) / 3600)
-            minutes = int((self.count_run * 0.5 * (1-overlap) % 3600)/60)
-            seconds = int(self.count_run * 0.5 * (1-overlap) % 3600 % 60)
-            milliseconds = int( ((self.count_run * 0.5 * (1-overlap) % 3600 % 60) * 1000) % 1000)
-
-        date = datetime.strptime(starting_time, "%Y-%m-%d-%H-%M-%S")
+        self.count_run = self.count_run + 1
+        hours   = int(self.count_run * 0.5 * (1-overlap) / 3600)
+        minutes = int((self.count_run * 0.5 * (1-overlap) % 3600)/60)
+        seconds = int(self.count_run * 0.5 * (1-overlap) % 3600 % 60)
+        milliseconds = int( ((self.count_run * 0.5 * (1-overlap) % 3600 % 60) * 1000) % 1000)
         sample_time = timedelta(
             hours=hours,
             minutes=minutes,
             seconds=seconds,
             milliseconds=milliseconds)
-        sample_timestamp = (date + sample_time).isoformat()
+
+        for source in sources:
+            if source["starting_time"] is None:
+                source["starting_time"] = time.strftime("%Y-%m-%d-%H-%M-%S")
+            date = datetime.strptime(source["starting_time"], "%Y-%m-%d-%H-%M-%S")
+            source["time"] = (date + sample_time).isoformat()
+
+        # GENERAL CLASSIFIER
+        # for nn in self.classifiers:
+        #     if nn.name[:8] == 'selector':
+        #         res_general       = nn.predict(Sxxs)
+        #
+        #         if nn.history is None or len(nn.history) != Sxxs.shape[1]:
+        #             nn.history = res_general
+        #
+        #         label_dic += list(nn.label_dic)
+        #         for channel in range(0, Sxxs.shape[0]):
+        #             res.append(res_general[channel])
+        #             # Qverage current classifier output with previous (to reduce fault positive)
+        #             if overlap > 0:
+        #                 res[channel] = list(np.mean([res_general[channel], nn.history[channel] ], axis=0))
+        #
+        #             out_classes = ""
+        #             a = np.argmax(res[channel])
+        #             a = np.argsort(res[channel])
+        #             # If the trusting interval between two first options is bigger that 20%
+        #             if res[channel][a[len(a)-1]] - res[channel][a[len(a)-2]] > 0.2:
+        #                 out_classes = str(nn.label_dic[a[len(a)-1]])
+        #             else:
+        #                 out_classes = 'unknow'
+        #             classes.append(out_classes)
+        #         break
+        # nn.history = res_general
+        #
+        # # EXPERT CLASSIFIER
+        # for channel in range(0, Sxxs.shape[0]):
+        #     for nn in self.classifiers:
+        #         # Complete the dictionnary with other classifier
+        #         if nn.name != 'selector' and channel == 0:
+        #             label_dic += list(nn.label_dic)
+        #
+        #
+        #         # Request the expert classifier for the detected classe
+        #         pred = classes[channel].split('-')
+        #         if nn.name == pred[0]:
+        #             res_expert = nn.predict([Sxxs[channel,:]])[0]
+        #
+        #             if nn.history is None or len(nn.history) != Sxxs.shape[1]:
+        #                 nn.history = res_expert
+        #
+        #             # Average with previous samples
+        #             if overlap > 0:
+        #                 res_average = list(np.mean([res_expert, nn.history ], axis=0))
+        #             else:
+        #                 res_average = res_expert
+        #
+        #             # Decision functions
+        #             a = np.argmax(res_average)
+        #             a = np.argsort(res_average)
+        #             if res_average[a[len(a)-1]] - res_average[a[len(a)-2]] > 0.3:
+        #                 classes[channel] = str(nn.label_dic[ a[len(a)-1] ])
+        #
+        #             # Store result and history
+        #             res[channel] += res_average
+        #             nn.history = res_expert
+        #
+        #         # Fill in with zeros for all other expert classifiers
+        #         elif nn.name != 'selector':
+        #             res[channel] += list(np.zeros(len(nn.label_dic)) )
+        #
+        #     if self.debug > 2:
+        #         print(sample_timestamp + "\tchannel" + str(channel+1) + '\t' + classes[channel])
+
 
         classes = []
         label_dic = []
         res = []
-        # GENERAL CLASSIFIER
-        for nn in self.classifiers:
-            if nn.name[:8] == 'selector':
-                res_general       = nn.predict(Sxxs)
 
-                if nn.history is None or len(nn.history) != Sxxs.shape[1]:
-                    nn.history = res_general
-
-                label_dic += list(nn.label_dic)
-                for channel in range(0, Sxxs.shape[0]):
-                    res.append(res_general[channel])
-                    # Qverage current classifier output with previous (to reduce fault positive)
-                    if overlap > 0:
-                        res[channel] = list(np.mean([res_general[channel], nn.history[channel] ], axis=0))
-
-                    out_classes = ""
-                    a = np.argmax(res[channel])
-                    a = np.argsort(res[channel])
-                    # If the trusting interval between two first options is bigger that 20%
-                    if res[channel][a[len(a)-1]] - res[channel][a[len(a)-2]] > 0.2:
-                        out_classes = str(nn.label_dic[a[len(a)-1]])
-                    else:
-                        out_classes = 'unknow'
-                    classes.append(out_classes)
+        for selector in self.classifiers:
+            if selector.name == "selector":
+                res = selector.predict(Sxxs)
+                label_dic += list(selector.label_dic)
                 break
-        nn.history = res_general
 
-        # EXPERT CLASSIFIER
-        for channel in range(0, Sxxs.shape[0]):
-            for nn in self.classifiers:
-                # Complete the dictionnary with other classifier
-                if nn.name != 'selector' and channel == 0:
-                    label_dic += list(nn.label_dic)
+        for nn in self.classifiers:
+            if nn.name != "selector":
+                label_dic += list(nn.label_dic)
+                weight_selector = res[:,np.where(selector.label_dic==nn.name)[0][0]]
+                res = np.concatenate( (res, np.transpose( np.transpose(nn.predict(Sxxs))  * weight_selector) ), axis=1 )
 
-
-                # Request the expert classifier for the detected classe
-                pred = classes[channel].split('-')
-                if nn.name == pred[0]:
-                    res_expert = nn.predict([Sxxs[channel,:]])[0]
-
-                    if nn.history is None or len(nn.history) != Sxxs.shape[1]:
-                        nn.history = res_expert
-
-                    # Average with previous samples
-                    if overlap > 0:
-                        res_average = list(np.mean([res_expert, nn.history ], axis=0))
-                    else:
-                        res_average = res_expert
-
-                    # Decision functions
-                    a = np.argmax(res_average)
-                    a = np.argsort(res_average)
-                    if res_average[a[len(a)-1]] - res_average[a[len(a)-2]] > 0.3:
-                        classes[channel] = str(nn.label_dic[ a[len(a)-1] ])
-
-                    # Store result and history
-                    res[channel] += res_average
-                    nn.history = res_expert
-
-                # Fill in with zeros for all other expert classifiers
-                elif nn.name != 'selector':
-                    res[channel] += list(np.zeros(len(nn.label_dic)) )
-
-            if self.debug > 2:
-                print(sample_timestamp + "\tchannel" + str(channel+1) + '\t' + classes[channel])
+        detections = []
+        for i in range(res.shape[0]):
+            detections_classe = []
+            for j in range(res.shape[1]):
+                if res[i,j] > 0.9:
+                    detections_classe.append(label_dic[j])
+            if len(detections_classe) == 0:
+                detections_classe.append("unknow")
+            detections.append(detections_classe)
 
         # BUILD AND TRANSMIT RESULT
+        results = []
+        for i in range(0, Sxxs.shape[0]):
+            channel = {}
+            channel["outputs"]      = res[i,:]
+            channel["detections"]   = detections[i]
+            channel["samplerate"]   = sound_obj[1]
+            try:
+                channel["audio"]        = sound_obj[0][:,i]
+            except:
+                channel["audio"]        = sound_obj[0] # mono
+
+            for m in mapping:
+                if m[1] == "analyzer:input_"+str(i):
+                    break
+            channel["mapping"] = m
+            for source in sources:
+                if source["name"] in m[0]:
+                 break
+            channel["time"] = source["time"]
+            results.append(channel)
+
+            if self.debug > 2:
+                print(source["time"] + "\tchannel: " + channel["mapping"][0] + '\t' + str(detections[i]))
+
         for obj in self.callable_objects:
-            obj.execute(res, classes, label_dic, sound_obj, sample_timestamp, mapping=mapping)
+            obj.execute(results, label_dic)

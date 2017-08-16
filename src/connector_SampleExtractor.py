@@ -43,9 +43,9 @@ class SampleExtractor(threading.Thread):
                         self.dynamic_distribution_classes.append(f)
                         break
 
-        for cl in self.classes_to_extract:
-            if cl not in self.dynamic_distribution_classes:
-                self.dynamic_distribution_classes.append(cl)
+#        for cl in self.classes_to_extract:
+#            if cl not in self.dynamic_distribution_classes:
+#                self.dynamic_distribution_classes.append(cl)
 
         if self.dd is True:
             self.dynamic_distribution_update()
@@ -96,18 +96,15 @@ class SampleExtractor(threading.Thread):
             if len(self.buffer) > 50:
                 print("** WARNING ** Sample extractor : buffer queue is " + str(len(self.buffer)))
 
-    def execute(self, prob_classes, predictions, classes_dic, sound_obj=None, time=None, mapping=None):
-        for channel in range(len(prob_classes)):
-            if len(self.channels) > 0 and self.channels[0] != ""  and str(channel) not in self.channels:
+    def execute(self, results, label_dic):
+        for i, channel in enumerate(results):
+            if len(self.channels) > 0 and self.channels[0] != ""  and channel["name"] not in self.channels:
                 continue
 
             for cl in self.classes_to_extract:
-                if cl in predictions[channel]:
-                    if predictions[channel] not in self.dynamic_distribution_classes:
-                        self.dynamic_distribution_classes.append(predictions[channel])
+                if cl in channel["detections"]:
+                    if channel["detections"] not in self.dynamic_distribution_classes:
+                        self.dynamic_distribution_classes.append(channel["detections"])
 
-                    if self.dd is False or self.dynamic_distribution_decision(predictions[channel]) is True:
-                        try:
-                            self.buffer.append([channel+1, predictions[channel], time, sound_obj[0][:,channel], sound_obj[1] ])
-                        except:
-                            self.buffer.append([channel+1, predictions[channel], time, sound_obj[0], sound_obj[1] ])
+                    if self.dd is False or self.dynamic_distribution_decision(channel["detections"]) is True:
+                        self.buffer.append([i+1, channel["detections"], channel["time"], channel["audio"], channel["samplerate"] ])

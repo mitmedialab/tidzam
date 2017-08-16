@@ -7,6 +7,7 @@ from time import sleep
 
 import input_jack as input_jack
 
+import numpy as np
 mgr = socketio.AsyncRedisManager('redis://')
 sio = socketio.AsyncServer(
             client_manager=mgr,
@@ -25,17 +26,14 @@ def create_socket(namespace):
     sio.register_namespace(socket)
     return socket
 
-
 class TidzamSocketIO(socketio.AsyncNamespace):
 
     def __init__(self,namespace):
         socketio.AsyncNamespace.__init__(self,namespace)
 
-        self.external_sio = None
-        self.classes_dic  = None
-        self.time         = None
-
-        self.sources      = []
+        self.external_sio   = None
+        self.label_dic      = None
+        self.sources        = []
 
     def start(self, port=80):
         web.run_app(app, port=port)
@@ -50,20 +48,15 @@ class TidzamSocketIO(socketio.AsyncNamespace):
     def create_socketClient(self):
         self.external_sio = socketio.AsyncRedisManager('redis://', write_only=True)
 
-    def build_classes_dic(self):
+    def build_label_dic(self):
         classes = []
-        for cl in  self.classes_dic:
+        for cl in  self.label_dic:
             classes.append('classifier-' +  cl + '.nn')
         obj =  {'sys':{'classifier':{'list':classes}}}
         return obj
 
-    def build_time(self):
-        return {"sys": {"time": self.time}}
-
     # This function is called from another Thread
-    def execute(self, prob_classes, predictions, classes_dic, sound_obj=None, time=None, mapping=None):
-        self.time = time
-
+    def execute(self, results, label_dic):
         if self.external_sio is None:
             self.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.loop)
@@ -71,30 +64,27 @@ class TidzamSocketIO(socketio.AsyncNamespace):
             self.create_socketClient()
             print("======= TidZam RUNNING =======")
 
-        if self.classes_dic is None:
-            self.classes_dic = classes_dic
-            self.loop.run_until_complete(self.external_sio.emit('sys', self.build_classes_dic() ) )
-            self.loop.run_until_complete(self.external_sio.emit('sys', self.build_time() ) )
+        if self.label_dic is None:
+            self.label_dic = label_dic
+            self.loop.run_until_complete(self.external_sio.emit('sys', self.build_label_dic() ) )
             sleep(0.1)
 
         resp_common = []        # Streams from public access
         resp_livestream = []    # Streams from livestreams
-        for channel in range(len(prob_classes)):
-            pred = {}
-            for cl in range(0, len(classes_dic)):
-                pred[classes_dic[cl]] = float(prob_classes[channel][cl])
-            for m in mapping:
-                if m[1] == "analyzer:input_"+str(channel):
-                    break
+        for channel in results:
+            outputs = {}
+            for cl in range(0, len(label_dic)):
+                outputs[label_dic[cl]] = float(channel["outputs"][cl])
+
             obj = {
-                    "chan":m[0],
-                    "analysis":{
-                        "time":time,
-                        "result":[predictions[channel]],
-                        "predicitions":pred
-                    }
-                }
-            if "tidzam-livestreams" in m[0]:
+                     "chan":channel["mapping"][0],
+                     "analysis":{
+                         "time":channel["time"],
+                         "result":channel["detections"],
+                         "predicitions":outputs
+                     }
+                 }
+            if "tidzam-livestreams" in channel["mapping"][0]:
                 resp_livestream.append(obj)
             else:
                 resp_common.append(obj)
@@ -111,21 +101,11 @@ class TidzamSocketIO(socketio.AsyncNamespace):
         except:
             obj = data
 
-        if obj.get('sys') is not None:
-            if obj["sys"].get("starting_time"):
-                input_jack.starting_time = obj["sys"].get("starting_time")
+        if obj["sys"].get("classifier"):
+            await sio.emit('sys',self.build_label_dic())
 
-            if obj["sys"].get("classifier"):
-                await sio.emit('sys',self.build_classes_dic())
-
-            # Request the current timestamp of the stream
-            if obj["sys"].get("time") == "":
-                await sio.emit('sys', self.build_time())
-
-            if obj["sys"].get("stream"):
-                print(desired_date)
-                input_jack.stream = desired_date
-                self.loop.run_until_complete(self.external_sio.emit('sys', {'sys':{'source':desired_date}} ) )
+        if obj["sys"].get("sources"):
+            input_jack.SOURCES = obj["sys"]["sources"]
 
     def on_data(self, sid, data):
         print("** Socket IO ** data event : " + data)

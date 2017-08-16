@@ -67,12 +67,13 @@ function DetectionMap(){
 
   socket.on('sys', function(msg){
     for (var i=0; i < msg.length; i ++){
-      current_time = msg[i].analysis.time;
+      if (msg[i].chan.indexOf("impoundment") != -1)
+        current_time = msg[i].analysis.time;
       // Update all Marker icons
       for(var j=0; j < markers.length; j++)
       if (markers[j].name == msg[i].chan){
         markers[j].setIcon({
-          url: "static/img/"+msg[i].analysis.result[0]+".png" ,
+          url: "static/img/"+ msg[i].analysis.result[msg[i].analysis.result.length-1] +".png" ,
           scaledSize: new google.maps.Size(50, 31)
         });
       }
@@ -82,8 +83,6 @@ function DetectionMap(){
         if (graph.name != channel){
           graph_div = document.getElementById("graph")
           graph = new Chart(graph_div, channel, null)
-          // Ask the list of classifier outputs
-          //livestream_io.emit('sys', JSON.stringify( {sys:{databases:{list:''}}))
           socket.emit('sys', JSON.stringify( {sys:{classifier: {list:''}}} ));
         }
         graph.updateHistory(msg[i].analysis)

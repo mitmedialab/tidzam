@@ -8,7 +8,7 @@ LOGS="logs"
 PID_FILE=/tmp/tidzam-pid
 RAM_LIMIT=10
 PID=`cat $PID_FILE`
-DEBUG=2
+DEBUG=1
 JACK_NAME=tidzam
 
 ACTION=$1
@@ -50,13 +50,14 @@ if [ "$ACTION" == "start" ]; then
           --overlap=0.25 \
           --debug=$DEBUG \
           --jack=tidzam-,impoundment,herring \
-          --out=/opt/tidzam/out-tidzam/ \
           --port=8001 \
-          --chainAPI=slash:toto@chain-api.media.mit.edu/sites/18 \
+          --out=/opt/tidzam/out-tidzam/ \
           --extract=birds- \
           --extract-dd \
           2>&1 > $LOGS/tidzam-analyzer.log.txt &
 
+
+          # --chainAPI=slash:toto@chain-api.media.mit.edu/sites/18 \
     echo $! > $PID_FILE
     echo "[   DONE   ]"
   fi

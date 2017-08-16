@@ -18,17 +18,17 @@ def sorted_nicely( l ):
 class TidzamJack(Thread):
     def __init__(self, port_names, callable_objects=[], debug=0, overlap=0):
         Thread.__init__(self)
-        global starting_time
         global TIDZAM_JACK_PORTS
+        global SOURCES
 
         print("======= JACK CLIENT =======")
-        starting_time = -1
         self.debug = debug
         TIDZAM_JACK_PORTS = port_names
         self.lock   = threading.Lock()
 
         self.mustReload = False
         self.mapping    = []
+        SOURCES    = []
 
         self.samplerate = -1
         self.blocksize = -1
@@ -41,7 +41,7 @@ class TidzamJack(Thread):
         self.init_client()
 
     def init_client(self):
-        if self.debug > 1:
+        if self.debug > 0:
             print("JACK Connector: Tidzam Jack client initialization.")
         self.client = jack.Client("analyzer")
         self.client.set_samplerate_callback(self.callback_samplerate)
@@ -56,9 +56,11 @@ class TidzamJack(Thread):
 
     def load_stream(self):
         global TIDZAM_JACK_PORTS
+        global SOURCES
         try:
              # Wait that all jack ports are properly disconnected
-            print("JACK Connector: reset the Jack client.")
+            if self.debug > 0:
+                print("JACK Connector: reset the Jack client.")
             self.client.deactivate()
             self.client.close()
             time.sleep(2)
@@ -104,10 +106,21 @@ class TidzamJack(Thread):
             for i in range(0, len(self.ports)):
                 # Connect Tidzam
                 if "input" not in self.ports[i].name:
-                    if self.debug > 0:
-                        print("JACK Connector: Connection: " + self.ports[i].name + " -> " + self.channels[i].name)
+                    if self.debug > 1:
+                        print("JACK Connector: Connection " + self.ports[i].name + " -> " + self.channels[i].name)
                     self.client.connect(self.ports[i], self.channels[i])
+
+                    # Store the stream mapping
                     self.mapping.append([self.ports[i].name, self.channels[i].name])
+
+                    # If there is no starting time defined for this stream, we create one
+                    tmp = self.ports[i].name.split(":")[0]
+                    found = False
+                    for source in SOURCES:
+                        if source["name"] in tmp:
+                            found = True
+                    if found is False:
+                        SOURCES.append({"name":tmp,"starting_time":time.strftime("%Y-%m-%d-%H-%M-%S")})
 
             if self.debug > 0:
                 print("JACK Connector: audio stream mapping: ")
@@ -137,7 +150,7 @@ class TidzamJack(Thread):
         return False
 
     def run(self):
-        global starting_time
+        global SOURCES
         run = False
         while not self.stopFlag.wait(0.01):
             with self.lock:
@@ -184,10 +197,11 @@ class TidzamJack(Thread):
                                     datas   = np.vstack((datas, data))
 
                         if run is True:
+                            # Call all thread consumers
                             for obj in self.callable_objects:
                                 obj.execute(Sxxs, fss, ts, [np.transpose(datas), self.samplerate],
                                             overlap=self.overlap,
-                                            starting_time=starting_time,
+                                            sources=SOURCES,
                                             mapping=self.mapping)
                     except Exception as e:
                         print("JACK Connector: buffer loading..." + str(e))

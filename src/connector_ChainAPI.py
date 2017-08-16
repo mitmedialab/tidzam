@@ -25,7 +25,7 @@ class ChainAPI(threading.Thread):
     def push(self, device, sensor, time):
         devices_coll = self.site.rels['ch:devices']
         found = False
-        
+
         for dev in devices_coll.rels['items']:
             if dev.name == str(device):
                 found = True
@@ -69,10 +69,7 @@ class ChainAPI(threading.Thread):
             if len(self.buffer) > 10:
                 print("** TidZam ChainAPI ** Queue size "+str(len(self.buffer)))
 
-    def execute(self, prob_classes, predictions, classes_dic, sound_obj=None, time=None, mapping=None):
-        for channel in range(len(prob_classes)):
-            if predictions[channel] is not 'unknow':
-                for m in mapping:
-                    if m[1] == "analyzer:input_"+str(channel):
-                        self.buffer.append([m[0], predictions[channel], time])
-                        break
+    def execute(self, results, label_dic):
+        for channel in results:
+            if channel["detections"] is not 'unknow' and channel["detections"] is not 'no_signal':
+                self.buffer.append([channel["mapping"][0], channel["detections"], channel["time"]])
