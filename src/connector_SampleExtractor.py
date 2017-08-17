@@ -88,7 +88,7 @@ class SampleExtractor(threading.Thread):
 
             # Process all extracted samples in buffer queue
             for o in self.buffer:
-                sf.write (self.extraction_dest + '/unchecked/+' + o[1] + '(' + str(o[0]) + ')_' + o[2] +'.wav', o[3], o[4])
+                sf.write (self.extraction_dest + '/unchecked/+' + o[1] + '(' + str(o[0].replace("_","-")) + ')_' + o[2] +'.wav', o[3], o[4])
                 try:
                     self.buffer.remove(o)
                 except:
@@ -102,9 +102,10 @@ class SampleExtractor(threading.Thread):
                 continue
 
             for cl in self.classes_to_extract:
-                if cl in channel["detections"]:
-                    if channel["detections"] not in self.dynamic_distribution_classes:
-                        self.dynamic_distribution_classes.append(channel["detections"])
+                for detection in channel["detections"]:
+                    if cl in detection:
+                        if detection not in self.dynamic_distribution_classes:
+                            self.dynamic_distribution_classes.append(detection)
 
-                    if self.dd is False or self.dynamic_distribution_decision(channel["detections"]) is True:
-                        self.buffer.append([i+1, channel["detections"], channel["time"], channel["audio"], channel["samplerate"] ])
+                        if self.dd is False or self.dynamic_distribution_decision(detection) is True:
+                            self.buffer.append([channel["mapping"][0], detection, channel["time"], channel["audio"], channel["samplerate"] ])
