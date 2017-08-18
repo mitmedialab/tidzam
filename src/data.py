@@ -97,7 +97,7 @@ class Dataset:
         print("\n===============")
         print("Load " + self.name)
         print("===============")
-        if True:
+        try:
             self.fileID = self.files_count = self.nb_files()
             # Try to load metadata information
             try:
@@ -130,12 +130,12 @@ class Dataset:
             print(self.get_classes())
             print("Samples distribution:")
             print(self.count_by_classe)
-        #
-        # except Exception as ex:
-        #     print("File not found: " + file + str(ex))
-        #     self.data = []
-        #     self.labels_dic = []
-        #     self.labels = []
+
+        except Exception as ex:
+             print("File not found: " + file + str(ex))
+             self.data = []
+             self.labels_dic = []
+             self.labels = []
 
     def save(self,name=None):
         if name is None:
