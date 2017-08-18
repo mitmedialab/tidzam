@@ -47,6 +47,7 @@ class Source():
         self.url            = url
         self.starting_time  = starting_time
         self.seek           = 0
+        self.process        = None
 
         self.sid            = -1
         self.is_permanent   = is_permanent
@@ -98,6 +99,14 @@ class TidzamStreamManager(threading.Thread):
 
     def run(self):
         while not self.stopFlag.wait(0.1):
+            # Check if all sources are loaded
+            for source in self.sources:
+                if source.process.poll() is not None:
+                    if self.debug > 0:
+                        print("** TidzamStreamManager **  the source "+source.name+" has been terminated")
+                        self.load_source(source)
+
+            # Check if there are port connections to create
             for connection in self.portstoconnect:
                 try:
                     port_in = self.client.get_port_by_name(connection[0])
