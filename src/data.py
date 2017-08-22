@@ -5,11 +5,15 @@ import sys, os
 import numpy as np
 import optparse
 import random
+import math
 import copy
 from matplotlib import pyplot as plt
 import glob
 import time
 import re
+
+import multiprocessing as mp
+import atexit
 
 from scipy import signal
 import soundfile as sf
@@ -71,11 +75,11 @@ def sorted_nicely( l ):
     return sorted(l, key = alphanum_key)
 
 class Dataset:
-    def __init__(self, name="/tmp/dataset",p=0.9, data_size=(150,186), max_file_size=1000):
+    def __init__(self, name="/tmp/dataset",p=0.9, data_size=(150,186), max_file_size=1000, split=0.9):
         self.cur_batch = 0
 
         self.dataw          = data_size[0]
-        self.datah          =  data_size[1]
+        self.datah          = data_size[1]
         self.max_file_size  = max_file_size
         self.name           = name
 
@@ -88,10 +92,130 @@ class Dataset:
         self.data           = []
         self.labels         = []
         self.labels_dic     = []
+        self.batch_size     = 128
 
+        self.mode                  = None
+        self.thread_count_training = 3
+        self.thread_count_testing  = 1
+        self.threads               = []
+        self.queue_training        = None
+        self.queue_maxsize         = 20
+        self.split                 = split
+
+        atexit.register(self.exit)
         self.load(self.name)
 
-    def load(self, file):
+    def exit(self):
+        for t in self.threads:
+            t. terminate()
+
+    def load(self, input):
+        if os.path.isdir(input) is False:
+            self.mode = "file"
+            self.load_file(input)
+        else:
+            self.mode = "onfly"
+            self.load_onfly(input)
+
+    def load_onfly(self, folder):
+        self.name   = folder
+        ctx = mp.get_context('spawn')
+        self.queue_training  = ctx.Queue(self.queue_maxsize)
+        self.queue_testing   = ctx.Queue(self.queue_maxsize)
+
+        # Build classe dictionnary
+        for cl in glob.glob(self.name + "/*"):
+            cl = cl.split("/")
+            self.labels_dic.append(cl[len(cl)-1])
+
+        # Extract file for training and testing
+        if self.split == None:
+            print("**Tidzam data ** You must specify the attribute --split for the proportion of testing sample")
+            return
+
+        self.files_training = {}
+        self.files_testing  = {}
+        for cl in self.labels_dic:
+            files_cl = np.array(glob.glob(self.name + "/" + cl + "/**/*.wav", recursive=True))
+            idx = np.arange(len(files_cl))
+            np.random.shuffle(idx)
+            self.files_training[cl] = files_cl[ idx[:int(len(idx)*self.split)] ]
+            self.files_testing[cl]  = files_cl[ idx[int(len(idx)*self.split):] ]
+            print("**Tidzam data ** training / testing datasets for " + cl + ": " + str(len(self.files_training[cl])) + " / " +str(len(self.files_testing[cl]))+" samples" )
+
+        # Start the workers
+        for i in range(self.thread_count_training):
+            t = ctx.Process(target=self.build_batch_onfly,
+                    args=(self.queue_training, self.files_training, self.batch_size))
+            t.start()
+            self.threads.append(t)
+
+        for i in range(self.thread_count_testing):
+            t = ctx.Process(target=self.build_batch_onfly,
+                    args=(self.queue_testing, self.files_testing, self.batch_size))
+            t.start()
+            self.threads.append(t)
+
+        while self.queue_training.empty():
+            pass
+        self.data, self.labels = self.queue_training.get()
+
+    def next_batch_onfly(self, batch_size=128, testing=False):
+        if testing is False:
+            if self.queue_training.qsize() == 0:
+                print("**Tidzam data ** Next batch size on fly is waiting (queue empty).")
+            while self.queue_training.empty():
+                pass
+            return self.queue_training.get()
+        else:
+            if self.queue_testing.qsize() == 0:
+                print("**Tidzam data ** Next batch size on fly is waiting (queue empty).")
+            while self.queue_testing.empty():
+                pass
+            return self.queue_testing.get()
+
+    def build_batch_onfly(self, queue, files, batch_size=128):
+        while True:
+            while self.queue_training.full():
+                pass
+
+            count = math.ceil(batch_size / len(self.labels_dic))
+            data   = []
+            labels = []
+            for i, cl in enumerate(self.labels_dic):
+                files_cl = files[cl]
+                idx = np.arange(len(files_cl))
+                np.random.shuffle(idx)
+                idx = idx[:count]
+                for id in idx:
+                    try:
+                        #print(files_cl[id])
+                        raw, time, freq = play_spectrogram_from_stream(files_cl[id])
+                        raw             = np.nan_to_num(raw)
+                        raw             = np.reshape(raw, [1, raw.shape[0]*raw.shape[1]])
+                        label           = np.zeros((1,len(self.labels_dic)))
+                        label[0,i]        = 1
+                        try:
+                            data = np.concatenate((data, raw), axis=0)
+                            labels = np.concatenate((labels, label), axis=0)
+                        except:
+                            data   = raw
+                            labels = label
+
+                    except Exception as e :
+                        print("Bad file" + str(e))
+
+            idx = np.arange(data.shape[0])
+            np.random.shuffle(idx)
+            data   = data[idx,:]
+            labels = labels[idx,:]
+
+            data   = data[:batch_size,:]
+            labels = labels[:batch_size,:]
+
+            queue.put([data, labels])
+
+    def load_file(self, file):
         self.cur_batch = 0
         self.name = file
         print("\n===============")
@@ -605,7 +729,7 @@ class Dataset:
         return features["data"].shape[1]
 
     def get_nb_classes(self):
-        return len(np.load(self.name+"_labels_dic.npy"))
+        return len(self.labels_dic)
 
     def get_classes(self):
         classes = np.load(self.name+"_labels_dic.npy")
@@ -636,7 +760,17 @@ class Dataset:
                     count = np.sum(count + tmp)
         return count
 
-    def next_batch(self, batch_size=128):
+    def next_batch(self, batch_size=128, testing=False):
+        if self.mode == "file":
+            return self.next_batch_file(batch_size)
+
+        elif self.mode == "onfly":
+            return self.next_batch_onfly(batch_size, testing)
+        else:
+            return -1
+
+
+    def next_batch_file(self, batch_size=128):
         tmp_name = self.name.split("/")
         tmp_name = tmp_name[len(tmp_name)-1]
         tmp_name = tmp_name.split("-")[0]
@@ -724,7 +858,7 @@ if __name__ == "__main__":
     (options, args) = parser.parse_args()
 
     if options.dataset:
-        dataset = Dataset(options.dataset)
+        dataset = Dataset(options.dataset, split=options.split)
     else:
         dataset = Dataset()
 
@@ -740,7 +874,7 @@ if __name__ == "__main__":
     elif options.classe:
         dataset.create_classe(options.classe)
 
-    if options.split:
+    if options.split and dataset.mode == "file":
         dataset.split_dataset(p=options.split, name=options.split_name)
 
     if options.balance:
