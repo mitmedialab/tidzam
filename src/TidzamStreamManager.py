@@ -42,9 +42,11 @@ class Stream():
             self.ring_buffer.reset()
 
 class Source():
-    def __init__(self, name, url=None, database=None, path_database=None, starting_time=None,is_permanent=False):
+    def __init__(self, name, url=None, channel=None, nb_channels=2, database=None, path_database=None, starting_time=None,is_permanent=False):
         self.name           = name
         self.url            = url
+        self.nb_channels    = nb_channels
+        self.channel        = channel # By default all channel are loaded
         self.database       = database
         self.starting_time  = starting_time
         self.seek           = 0
@@ -223,6 +225,7 @@ class TidzamStreamManager(threading.Thread):
             for s in self.sources:
                 if s.database == source.database:
                     source.path_database  = s.path_database
+                    source.nb_channels    = s.nb_channels
                     source.default_stream = s.default_stream
                     break
         # Else we stop the current stream to reload it with new parameters
@@ -231,6 +234,7 @@ class TidzamStreamManager(threading.Thread):
             if source_old is not None:
                 source.path_database  = source_old.path_database
                 source.default_stream = source_old.default_stream
+                source.nb_channels    = source_old.nb_channels
                 source.is_permanent   = source_old.is_permanent
 
         # If there is a starting time, look up in the database
@@ -330,6 +334,12 @@ class TidzamStreamManager(threading.Thread):
             except jack.JackError: # The input port don t exist anymore
                 self.port_remove_streamer(port.name)
 
+    def get_source(self,name):
+        for source in self.sources:
+            if source.name == name:
+                return source
+        return None
+
     def callback_port_registration(self, port, registered):
         if self.debug > 1:
             print("** TidzamStreamManager ** port registration status " + port.name + "(" + str(registered) + ")")
@@ -337,6 +347,13 @@ class TidzamStreamManager(threading.Thread):
         if registered is True:
             # If there is a new stream producer (create a streamer)
             if port.is_output:
+                tmp = port.name.split(":") # source name
+                source = self.get_source(tmp[0])
+                if source:
+                    tmp    = tmp[1].split("_")[1] # channel id
+                    if source.channel != None and source.channel != int(tmp):
+                        return
+
                 self.port_create_streamer(port.name)
             # If the streamer has been created, we ask its connection to its stream producer
             else:
@@ -444,6 +461,7 @@ if __name__ == '__main__':
                     jack_service.load_source( Source(
                         name=stream["name"],
                         url=stream["url"],
+                        nb_channels=stream["nb_channels"],
                         path_database=path_database,
                         is_permanent=True ))
 
@@ -487,7 +505,7 @@ if __name__ == '__main__':
 
     @sio.on('sys', namespace='/')
     async def sys(sid, data):
-        if True:
+        try:
             obj = json.loads(data)
 
             # A source is connected to the tidzam analyzer
@@ -507,9 +525,15 @@ if __name__ == '__main__':
                 else:
                     database = None
 
+                if obj["sys"]["loadsource"].get("channel") is not None:
+                    channel = int(obj["sys"]["loadsource"]["channel"])
+                else:
+                    channel = None
+
                 source = jack_service.load_source(Source(
                         name=obj["sys"]["loadsource"]["name"],
                         url=url,
+                        channel=channel,
                         database=database,
                         starting_time=date ))
                 source.sid = sid
@@ -539,7 +563,9 @@ if __name__ == '__main__':
                 rsp = {}
                 for source in jack_service.sources:
                     if source.is_permanent:
-                        rsp[source.name] = []
+                        rsp[source.name] = {}
+                        rsp[source.name]["nb_channels"] = source.nb_channels
+                        rsp[source.name]["database"] = []
                         if source.path_database:
                             files = sorted(glob.glob(source.path_database + "/*.opus")+glob.glob(source.path_database + "/*.ogg"))
                             for fo in files:
@@ -549,7 +575,7 @@ if __name__ == '__main__':
                                 start = datetime.datetime(int(f[0]),int(f[1]),int(f[2]),int(f[3]),int(f[4]),int(f[5]))
                                 nb_seconds = int(int(os.stat(fo).st_size)*0.000013041)
                                 end = start + datetime.timedelta(seconds=nb_seconds)
-                                rsp[source.name].append([
+                                rsp[source.name]["database"].append([
                                         start.strftime('%Y-%m-%d-%H-%M-%S'),
                                         end.strftime('%Y-%m-%d-%H-%M-%S')
                                         ])
@@ -557,7 +583,7 @@ if __name__ == '__main__':
 
             else:
                 print("** TidzamStreamManager ** umknow socket.io command: " +str(data)+ " ("+str(sid)+")")
-        #except Exception as e:
-        #    print("** TidzamStreamManager ** umknow socket.io command: " +str(data)+ " ("+str(sid)+") " + str(e))
+        except Exception as e:
+            print("** TidzamStreamManager ** umknow socket.io command: " +str(data)+ " ("+str(sid)+") " + str(e))
 
     web.run_app(app, port=opts.port)
