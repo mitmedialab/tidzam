@@ -89,8 +89,10 @@ class TidzamSocketIO(socketio.AsyncNamespace):
             else:
                 resp_common.append(obj)
 
+        # Send results to all clients
         self.loop.run_until_complete(self.external_sio.emit('sys', resp_common) )
 
+        # Send the result of each independent livestream
         for resp in resp_livestream:
             self.loop.run_until_complete(self.external_sio.emit(resp["chan"].replace(":","-"), resp) )
         sleep(0.1)
@@ -101,9 +103,11 @@ class TidzamSocketIO(socketio.AsyncNamespace):
         except:
             obj = data
 
+        # Classifier list requested by the clients
         if obj["sys"].get("classifier"):
             await sio.emit('sys',self.build_label_dic())
 
+        # Sources list received from the TidzamStreamManeger
         if obj["sys"].get("sources"):
             input_jack.SOURCES = obj["sys"]["sources"]
 

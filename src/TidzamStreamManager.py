@@ -42,9 +42,10 @@ class Stream():
             self.ring_buffer.reset()
 
 class Source():
-    def __init__(self, name, url=None, path_database=None, starting_time=None,is_permanent=False):
+    def __init__(self, name, url=None, database=None, path_database=None, starting_time=None,is_permanent=False):
         self.name           = name
         self.url            = url
+        self.database       = database
         self.starting_time  = starting_time
         self.seek           = 0
         self.process        = None
@@ -55,11 +56,14 @@ class Source():
         self.path_database  = path_database
         self.default_stream = url
 
+        if self.database is None:
+            self.database = self.name
+
         if self.url is None:
             self.url = self.path_database
 
 class TidzamStreamManager(threading.Thread):
-    def __init__(self, available_ports=10, samplerate=44100, buffer_jack_size=50, debug=0):
+    def __init__(self, available_ports=10, samplerate=44100, buffer_jack_size=50, debug=0, streamer_max=100):
         threading.Thread.__init__(self)
 
         self.available_ports    = available_ports
@@ -71,6 +75,7 @@ class TidzamStreamManager(threading.Thread):
         self.streams            = []
         self.sources            = []
         self.streamer_process   = []
+        self.streamer_max       = streamer_max
         self.FNULL              = open(os.devnull, 'w')
 
         self.portstoconnect      = []
@@ -103,8 +108,23 @@ class TidzamStreamManager(threading.Thread):
             for source in self.sources:
                 if source.process.poll() is not None:
                     if self.debug > 0:
-                        print("** TidzamStreamManager **  the source "+source.name+" has been terminated")
+                        print("** TidzamStreamManager **  the source "+source.name+" has been terminated.")
+                    if source.is_permanent:
+                        source.process = None
                         self.load_source(source)
+                    else:
+                        self.sources.remove(source)
+                    time.sleep(1)
+
+            for pro in self.streamer_process:
+                if pro[0].poll() is not None:
+                    if self.debug > 1:
+                        print("** TidzamStreamManager **  the streamer "+pro[1]+" has been terminated.")
+                    self.streamer_process.remove(pro)
+                    name = pro[1].split(":")[0]
+                    for source in self.sources:
+                        if source.name == name and source.is_permanent and source.process is not None:
+                            self.port_create_streamer(pro[1])
 
             # Check if there are port connections to create
             for connection in self.portstoconnect:
@@ -175,7 +195,7 @@ class TidzamStreamManager(threading.Thread):
                 if name in connection:
                     found = True
             if found:
-                time.sleep(0.01)
+                time.sleep(0.2)
 
     def unload_source(self, name):
         self.wait_jack_client(name)
@@ -186,19 +206,34 @@ class TidzamStreamManager(threading.Thread):
                 break
 
         if found:
-            subprocess.Popen.kill(source.process)
+            if self.debug > 0:
+                print("** TidzamStreamManager ** remove source stream " + str(source.name))
+            if source.process is not None:
+                subprocess.Popen.kill(source.process)
             self.sources.remove(source)
             return source
         return None
 
     def load_source(self, source):
         self.wait_jack_client(source.name)
-        source_old = self.unload_source(source.name)
-        if source_old is not None:
-            source.path_database  = source_old.path_database
-            source.default_stream = source_old.default_stream
-            source.is_permanent   = source_old.is_permanent
 
+        # If request an additionnal stream from a permanent stream
+        source_old = None
+        if source.name is not source.database:
+            for s in self.sources:
+                if s.database == source.database:
+                    source.path_database  = s.path_database
+                    source.default_stream = s.default_stream
+                    break
+        # Else we stop the current stream to reload it with new parameters
+        else:
+            source_old = self.unload_source(source.name)
+            if source_old is not None:
+                source.path_database  = source_old.path_database
+                source.default_stream = source_old.default_stream
+                source.is_permanent   = source_old.is_permanent
+
+        # If there is a starting time, look up in the database
         if source.starting_time:
             source = self.load_source_local_database(source)
 
@@ -234,23 +269,27 @@ class TidzamStreamManager(threading.Thread):
 
         # Looking for the file and compute seek position
         else:
-            desired_date = source.path_database + "/"+source.name+"-" + source.starting_time + ".opus"
-            files = sorted(glob.glob(source.path_database + "/*.opus"))
+            desired_date = source.path_database + "/"+source.database+"-" + source.starting_time
+            files = sorted(glob.glob(source.path_database + "/*.opus")+glob.glob(source.path_database + "/*.ogg"))
             stream_url = None
             for f in files:
-                if f > desired_date:
+                if "opus" in f:
+                    ext = ".opus"
+                elif "ogg" in f:
+                    ext = ".ogg"
+                if f > desired_date + ext:
                     break
                 stream_url = f
 
             if stream_url is not None:
-                datetime_file = datetime.datetime.strptime(stream_url, source.path_database + '/'+source.name+'-%Y-%m-%d-%H-%M-%S.opus')
+                datetime_file = datetime.datetime.strptime(stream_url, source.path_database + '/'+source.database+'-%Y-%m-%d-%H-%M-%S' + ext)
                 source.url           = stream_url
                 source.seek          = (datetime_asked-datetime_file).total_seconds()
 
             # Boudary: if the date is too old, load first file
             else :
                 source.url              = files[0]
-                source.starting_time    = datetime.datetime.strptime(files[0], source.path_database + '/'+source.name+'-%Y-%m-%d-%H-%M-%S.opus').strftime('%Y-%m-%d-%H-%M-%S')
+                source.starting_time    = datetime.datetime.strptime(files[0], source.path_database + '/'+source.database+'-%Y-%m-%d-%H-%M-%S'+ext).strftime('%Y-%m-%d-%H-%M-%S')
                 source.seek             = 0
 
         return source
@@ -262,13 +301,16 @@ class TidzamStreamManager(threading.Thread):
         if self.debug > 1:
             print("** TidzamStreamManager ** new client connector detected " + name + "(" + str(registered) + ")")
 
-    def port_create_streamer(self, port):
-        cmd = ["./icecast/icecast_stream.sh", port.name.replace(":","-")]
+    def port_create_streamer(self, portname):
+        cmd = ["./icecast/icecast_stream.sh", portname.replace(":","-")]
+        if len(self.streamer_process) >= self.streamer_max:
+            print("** TidzamStreamManager ** maximum number of streamer already allocated ("+str(len(self.streamer_process))+")")
+            return
         self.streamer_process.append([subprocess.Popen(cmd,
                 shell=False,
-                stdout=self.FNULL,
-                stderr=self.FNULL,
-                preexec_fn=os.setsid), port.name
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                preexec_fn=os.setsid), portname
                 ])
 
     def port_connect_streamer(self, port):
@@ -295,7 +337,7 @@ class TidzamStreamManager(threading.Thread):
         if registered is True:
             # If there is a new stream producer (create a streamer)
             if port.is_output:
-                self.port_create_streamer(port)
+                self.port_create_streamer(port.name)
             # If the streamer has been created, we ask its connection to its stream producer
             else:
                 self.port_connect_streamer(port)
@@ -344,7 +386,8 @@ class TidzamStreamManager(threading.Thread):
                 if self.debug > 1:
                     print("** TidzamStreamManager ** Error loading RT ring buffer " + s.id + "("+str(e)+")")
                 ports[id].get_array()[:].fill(0)
-                self.del_stream(s.id)
+                if len(bufr) == 0:
+                    self.del_stream(s.id)
 
     ############
     # Socket.IO controller
@@ -378,8 +421,8 @@ if __name__ == '__main__':
 
     (opts, args) = parser.parse_args()
     sio = socketio.AsyncServer(
-            ping_timeout=7,
-            ping_interval=3)
+            ping_timeout=21,
+            ping_interval=10)
     app = web.Application()
     sio.attach(app)
 
@@ -432,13 +475,19 @@ if __name__ == '__main__':
         jack_service.del_stream(sid)
 
         # Delete the stream that has been created by this web user
-        for stream in jack_service.sources:
-            if stream.sid == sid and stream.is_permanent is False:
+        found = True
+        while found:
+            found = False
+            for stream in jack_service.sources:
+                if stream.sid == sid and stream.is_permanent is False:
+                    found = True
+                    break
+            if found:
                 jack_service.unload_source(stream.name)
 
     @sio.on('sys', namespace='/')
     async def sys(sid, data):
-        try:
+        if True:
             obj = json.loads(data)
 
             # A source is connected to the tidzam analyzer
@@ -453,7 +502,16 @@ if __name__ == '__main__':
                 else:
                     url = None
 
-                source = jack_service.load_source(Source(name=obj["sys"]["loadsource"]["name"], url=url, starting_time=date ))
+                if obj["sys"]["loadsource"].get("database"):
+                    database = obj["sys"]["loadsource"]["database"]
+                else:
+                    database = None
+
+                source = jack_service.load_source(Source(
+                        name=obj["sys"]["loadsource"]["name"],
+                        url=url,
+                        database=database,
+                        starting_time=date ))
                 source.sid = sid
 
                 # Send the new stream configuration to tidzam analyzer process and clients TODO
@@ -461,11 +519,6 @@ if __name__ == '__main__':
                 for source in jack_service.sources:
                     rsp.append({"name":source.name,"starting_time":source.starting_time})
                 sio_tidzam.emit('sys', {"sys":{"sources":rsp}} )
-
-
-                # await sio.emit('sys',
-                #         {"sys":{"stream":"http://http://tidzam.media.mit.edu:8000/" + source.name}} ,
-                #         room=sid)
 
             elif obj["sys"].get("unloadsource"):
                 jack_service.unload_source(obj["sys"]["unloadsource"]["name"])
@@ -481,29 +534,30 @@ if __name__ == '__main__':
             elif obj["sys"].get("del_livestream"):
                 jack_service.del_stream(sid)
 
-            # Request the list of available recordings in database
+            # Request the list of available recordings in database TODO : Ugly
             elif obj["sys"].get("database") == "":
                 rsp = {}
                 for source in jack_service.sources:
-                    rsp[source.name] = []
-                    if source.path_database:
-                        files = sorted(glob.glob(source.path_database + "/*.opus"))
-                        for fo in files:
-                            f = fo.split("/")
-                            f = f[len(f)-1].replace(".opus", "").replace("impoundment-","")
-                            f = f.split("-")
-                            start = datetime.datetime(int(f[0]),int(f[1]),int(f[2]),int(f[3]),int(f[4]),int(f[5]))
-                            nb_seconds = int(int(os.stat(fo).st_size)*0.000013041)
-                            end = start + datetime.timedelta(seconds=nb_seconds)
-                            rsp[source.name].append([
-                                    start.strftime('%Y-%m-%d-%H-%M-%S'),
-                                    end.strftime('%Y-%m-%d-%H-%M-%S')
-                                    ])
+                    if source.is_permanent:
+                        rsp[source.name] = []
+                        if source.path_database:
+                            files = sorted(glob.glob(source.path_database + "/*.opus")+glob.glob(source.path_database + "/*.ogg"))
+                            for fo in files:
+                                f = fo.split("/")
+                                f = f[len(f)-1].replace(".opus", "").replace(".ogg", "").replace(source.database+"-","")
+                                f = f.split("-")
+                                start = datetime.datetime(int(f[0]),int(f[1]),int(f[2]),int(f[3]),int(f[4]),int(f[5]))
+                                nb_seconds = int(int(os.stat(fo).st_size)*0.000013041)
+                                end = start + datetime.timedelta(seconds=nb_seconds)
+                                rsp[source.name].append([
+                                        start.strftime('%Y-%m-%d-%H-%M-%S'),
+                                        end.strftime('%Y-%m-%d-%H-%M-%S')
+                                        ])
                 await sio.emit('sys', {"sys":{"database":rsp}})
 
             else:
                 print("** TidzamStreamManager ** umknow socket.io command: " +str(data)+ " ("+str(sid)+")")
-        except Exception as e:
-            print("** TidzamStreamManager ** umknow socket.io command: " +str(data)+ " ("+str(sid)+") " + str(e))
+        #except Exception as e:
+        #    print("** TidzamStreamManager ** umknow socket.io command: " +str(data)+ " ("+str(sid)+") " + str(e))
 
     web.run_app(app, port=opts.port)

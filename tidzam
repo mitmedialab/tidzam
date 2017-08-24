@@ -31,7 +31,7 @@ if [ "$ACTION" == "start" ]; then
     echo "TidZam is already running"
   else
     echo "Jack server starting"
-    nohup /usr/bin/jackd -r -t500000 -ddummy -r44100 -p8192 2>&1 > $LOGS/tidzam-jack.log.txt &
+    nohup /usr/bin/jackd  --port-max 2048 -v -r -t5000000000 -ddummy -r44100 -p8192 2>&1 > $LOGS/tidzam-jack.log.txt &
     echo $! > "$PID_FILE-jack"
     #nohup /usr/bin/jackd -r -d alsa -r 44100 &
     sleep 1
@@ -51,10 +51,10 @@ if [ "$ACTION" == "start" ]; then
           --debug=$DEBUG \
           --jack=tidzam-,impoundment,herring \
           --port=8001 \
-          --out=/opt/tidzam/out-tidzam/ \
-          --extract=birds,unknown,frog \
           --chainAPI=slash:toto@chain-api.media.mit.edu/sites/18 \
           2>&1 > $LOGS/tidzam-analyzer.log.txt &
+#          --out=/opt/tidzam/out-tidzam/ \
+#          --extract=birds,unknown,frog \
 
           #--extract-dd \
     echo $! > $PID_FILE
