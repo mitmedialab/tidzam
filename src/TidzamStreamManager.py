@@ -42,15 +42,16 @@ class Stream():
             self.ring_buffer.reset()
 
 class Source():
-    def __init__(self, name, url=None, channel=None, nb_channels=2, database=None, path_database=None, starting_time=None,is_permanent=False):
+    def __init__(self, name, url=None, channels=None, nb_channels=2, database=None, path_database=None, format="ogg", starting_time=None,is_permanent=False):
         self.name           = name
         self.url            = url
         self.nb_channels    = nb_channels
-        self.channel        = channel # By default all channel are loaded
+        self.channels        = channels # By default all channels are loaded
         self.database       = database
         self.starting_time  = starting_time
         self.seek           = 0
         self.process        = None
+        self.format         = format
 
         self.sid            = -1
         self.is_permanent   = is_permanent
@@ -143,7 +144,8 @@ class TidzamStreamManager(threading.Thread):
 
     def exit(self):
         for source in self.sources:
-            subprocess.Popen.kill(source.process)
+            if source.process is not None:
+                subprocess.Popen.kill(source.process)
 
         for pro in self.streamer_process:
             os.killpg(os.getpgid(pro[0].pid), signal.SIGKILL)
@@ -247,13 +249,19 @@ class TidzamStreamManager(threading.Thread):
         if source.name == None:
             source.name = str(round(time.time()))
 
-        cmd = ['mpv', "-ao", "jack:name=" + source.name + ":no-connect", "--start="+str(source.seek), source.url]
+
         logfile = open(os.devnull, 'w')
+        if source.format == "ogg":
+            cmd      = ['mpv', "-ao", "jack:name=" + source.name + ":no-connect", "--start="+str(source.seek), source.url]
+        elif source.format == "copy":
+            cmd = ['ffmpeg', "-re", "-i", source.url, "-codec","copy","-legacy_icecast","1","-content_type","audio/ogg","-ice_name",source.name,"-f","ogg","icecast://source:tidzam17@localhost:8000/"+source.name+".ogg"]
+
         source.process = subprocess.Popen(cmd,
-                shell=False,
-                stdout=logfile,
-                stderr=logfile,
-                preexec_fn=os.setsid)
+                    shell=False,
+                    stdout=logfile,
+                    stderr=logfile,
+                    preexec_fn=os.setsid)
+
         self.sources.append(source)
 
         if self.debug > 0:
@@ -312,8 +320,8 @@ class TidzamStreamManager(threading.Thread):
             return
         self.streamer_process.append([subprocess.Popen(cmd,
                 shell=False,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=self.FNULL,
+                stderr=self.FNULL, #subprocess.PIPE,
                 preexec_fn=os.setsid), portname
                 ])
 
@@ -351,7 +359,7 @@ class TidzamStreamManager(threading.Thread):
                 source = self.get_source(tmp[0])
                 if source:
                     tmp    = tmp[1].split("_")[1] # channel id
-                    if source.channel != None and source.channel != int(tmp):
+                    if source.channels != None and tmp not in source.channels:
                         return
 
                 self.port_create_streamer(port.name)
@@ -525,16 +533,30 @@ if __name__ == '__main__':
                 else:
                     database = None
 
-                if obj["sys"]["loadsource"].get("channel") is not None:
-                    channel = int(obj["sys"]["loadsource"]["channel"])
+                if obj["sys"]["loadsource"].get("channels") is not None:
+                    channels = obj["sys"]["loadsource"]["channels"].split(",")
                 else:
-                    channel = None
+                    channels = None
+
+                if obj["sys"]["loadsource"].get("is_permanent") is not None:
+                    is_permanent = int(obj["sys"]["loadsource"]["is_permanent"])
+                else:
+                    is_permanent = False
+
+                if obj["sys"]["loadsource"].get("format") is not None:
+                    format = obj["sys"]["loadsource"]["format"]
+                else:
+                    format = "ogg"
+                if format != "ogg" and format != "copy":
+                    format = "ogg"
 
                 source = jack_service.load_source(Source(
                         name=obj["sys"]["loadsource"]["name"],
                         url=url,
-                        channel=channel,
+                        channels=channels,
                         database=database,
+                        is_permanent=is_permanent,
+                        format=format,
                         starting_time=date ))
                 source.sid = sid
 

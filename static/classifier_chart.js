@@ -75,7 +75,7 @@ function Chart (parent, name, classifier_list) {
           found = false;
           for (j=1; j < this.data.getNumberOfColumns(); j++){
             n  = this.data.getColumnLabel(j)[0]=='!' || this.data.getColumnLabel(j)[0]=='?' ?this.data.getColumnLabel(j).substr(1): this.data.getColumnLabel(j);
-            if ('classifier-' +  n + '.nn' == this.classifier_list[i]){
+            if (n == this.classifier_list[i]){
 
               running = false;
               for (var key in obj.predicitions)
@@ -88,13 +88,13 @@ function Chart (parent, name, classifier_list) {
             }
           }
           if(found){
-          name = this.classifier_list[i].substr(11, this.classifier_list[i].indexOf('.nn') - 11);
+          name = this.classifier_list[i];
 
           if (running) this.data.setColumnLabel(j, name);
           else         this.data.setColumnLabel(j,'!' + name);
           }
           if (!found){
-            name = this.classifier_list[i].substr(11, this.classifier_list[i].indexOf('.nn') - 11);
+            name = this.classifier_list[i];
             this.data.addColumn('number', name);
           }
         }

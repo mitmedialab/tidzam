@@ -155,7 +155,7 @@ class TidzamJack(Thread):
         while not self.stopFlag.wait(0.01):
             with self.lock:
                 if self.portsAllReady() and self.mustReload is False:
-                    if True:
+                    #try:
                         for i in range(len(self.channels)):
                             data = self.ring_buffer[i].read(self.buffer_jack)
                             data = np.frombuffer(data, dtype='float32')

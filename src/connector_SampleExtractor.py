@@ -9,12 +9,16 @@ import glob
 class SampleExtractor(threading.Thread):
     def __init__(self, classes_to_extract, channels=[], extraction_dest='/tmp/tidzam/opus', dd=False, debug=0):
         threading.Thread.__init__(self)
+        global EXTRACTION_RULES
+
         self.extraction_dest        = extraction_dest
         self.classes_to_extract     = classes_to_extract
         self.channels               = channels
         self.stopFlag               = threading.Event()
         self.debug                  = debug
         self.buffer                 = []
+
+        EXTRACTION_RULES            = {}
 
         if not os.path.exists(self.extraction_dest):
             os.makedirs(self.extraction_dest)
@@ -96,16 +100,30 @@ class SampleExtractor(threading.Thread):
             if len(self.buffer) > 50:
                 print("** WARNING ** Sample extractor : buffer queue is " + str(len(self.buffer)))
 
+    def evaluate_extraction_rules(self, channel, results):
+        global EXTRACTION_RULES
+        channel = channel.replace(":","-")
+        if channel in EXTRACTION_RULES:
+            for cl in EXTRACTION_RULES[channel].split(","):
+                for cl2 in results:
+                    if cl == cl2:
+                        return True
+        return False
+
     def execute(self, results, label_dic):
         for i, channel in enumerate(results):
-            if len(self.channels) > 0 and self.channels[0] != ""  and channel["name"] not in self.channels:
-                continue
+            if self.evaluate_extraction_rules(channel["mapping"][0], channel["detections"]) is True:
+                self.buffer.append([channel["mapping"][0], str(channel["detections"]), channel["time"], channel["audio"], channel["samplerate"] ])
 
-            for cl in self.classes_to_extract:
-                for detection in channel["detections"]:
-                    if cl in detection:
-                        if detection not in self.dynamic_distribution_classes:
-                            self.dynamic_distribution_classes.append(detection)
-
-                        if self.dd is False or self.dynamic_distribution_decision(detection) is True:
-                            self.buffer.append([channel["mapping"][0], detection, channel["time"], channel["audio"], channel["samplerate"] ])
+            #
+            # if len(self.channels) > 0 and self.channels[0] != "" and channel["name"] not in self.channels:
+            #     continue
+            #
+            # for cl in self.classes_to_extract:
+            #     for detection in channel["detections"]:
+            #         if cl in detection:
+            #             if detection not in self.dynamic_distribution_classes:
+            #                 self.dynamic_distribution_classes.append(detection)
+            #
+            #             if self.dd is False or self.dynamic_distribution_decision(detection) is True:
+            #                 self.buffer.append([channel["mapping"][0], detection, channel["time"], channel["audio"], channel["samplerate"] ])

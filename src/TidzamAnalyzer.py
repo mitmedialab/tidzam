@@ -62,7 +62,10 @@ if __name__ == "__main__":
         callable_objects = []
 
         ### Sample Extractor Output Connector
-        if opts.out is not None and opts.extract is not None:
+        if opts.out is not None:
+            if opts.extract is None:
+                opts.extract = ""
+                
             if opts.stream is not None:
                 # Build folder to store wav file
                 a = opts.stream.split('/')

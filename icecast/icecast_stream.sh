@@ -6,4 +6,4 @@ ffmpeg  -f jack                     \
         -content_type audio/ogg     \
         -ice_name $1                \
         -f ogg                      \
-        icecast://source:tidzam17@localhost:8000/$1.ogg 
+        icecast://source:tidzam17@localhost:8000/$1.ogg

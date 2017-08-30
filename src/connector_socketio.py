@@ -6,6 +6,7 @@ import asyncio
 from time import sleep
 
 import input_jack as input_jack
+import connector_SampleExtractor as extractor
 
 import numpy as np
 mgr = socketio.AsyncRedisManager('redis://')
@@ -51,7 +52,7 @@ class TidzamSocketIO(socketio.AsyncNamespace):
     def build_label_dic(self):
         classes = []
         for cl in  self.label_dic:
-            classes.append('classifier-' +  cl + '.nn')
+            classes.append(cl)
         obj =  {'sys':{'classifier':{'list':classes}}}
         return obj
 
@@ -106,6 +107,13 @@ class TidzamSocketIO(socketio.AsyncNamespace):
         # Classifier list requested by the clients
         if obj["sys"].get("classifier"):
             await sio.emit('sys',self.build_label_dic())
+
+        if obj["sys"].get("extraction_rules"):
+            if obj["sys"].get("extraction_rules") == "":
+                await sio.emit('sys', extractor.EXTRACTION_RULES)
+            else:
+                print(obj["sys"].get("extraction_rules"))
+                extractor.EXTRACTION_RULES = obj["sys"].get("extraction_rules")
 
         # Sources list received from the TidzamStreamManeger
         if obj["sys"].get("sources"):
