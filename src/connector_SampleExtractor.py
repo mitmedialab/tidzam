@@ -7,9 +7,11 @@ import copy
 import glob
 
 class SampleExtractor(threading.Thread):
-    def __init__(self, classes_to_extract, channels=[], extraction_dest='/tmp/tidzam/opus', dd=False, debug=0):
+    def __init__(self, classes_to_extract, channels=[], extraction_dest='/tmp/tidzam/opus', dd=True, debug=0):
         threading.Thread.__init__(self)
         global EXTRACTION_RULES
+
+        self.label_dic              = []
 
         self.extraction_dest        = extraction_dest
         self.classes_to_extract     = classes_to_extract
@@ -35,51 +37,32 @@ class SampleExtractor(threading.Thread):
         self.dynamic_distribution_prev = []
         self.dynamic_distribution_inc = 0
 
-        # Preload the list of classe already extracted in extraction_dest folder
-        self.dynamic_distribution_classes = []
-
-        for f in glob.glob(self.extraction_dest + "/*/"):
-            f = f.split("/")
-            f = f[len(f)-2]
-            if f not in self.dynamic_distribution_classes:
-                for cl in self.classes_to_extract: # Only directory interested in extraction rule
-                    if cl in f:
-                        self.dynamic_distribution_classes.append(f)
-                        break
-
-#        for cl in self.classes_to_extract:
-#            if cl not in self.dynamic_distribution_classes:
-#                self.dynamic_distribution_classes.append(cl)
-
-        if self.dd is True:
-            self.dynamic_distribution_update()
-
         self.start()
 
     def dynamic_distribution_update(self):
-        count = np.zeros(len(self.dynamic_distribution_classes))
+        count = np.zeros(len(self.label_dic))
+        primary_count = {}
+        for i, classe in enumerate(self.label_dic):
+            # Compute the number of sample of this classe
+            count[i] += len(glob.glob(self.extraction_dest + "/**/"+classe+"*/**/*.wav", recursive=True))
 
-        for f in glob.glob(self.extraction_dest + "/*/*"):
-            for i, cl in enumerate(self.dynamic_distribution_classes):
-                if cl in f:
-                    count[i] = count[i] + 1
-        self.dynamic_distribution = count/np.max(count)
+            # Get the name of its primary classe in order to determine if it is the biggest classe
+            primary_name = "".join(classe.split("-")[:-1])
+            if primary_count.get(primary_name) is None:
+                primary_count[primary_name] = 0
+            primary_count[primary_name] = max(primary_count[primary_name], count[i])
+
+        # Normalize the distribution
+        for i, classe in enumerate(self.label_dic):
+            primary_name = "".join(classe.split("-")[:-1])
+            count[i] /= primary_count[primary_name]
+        self.dynamic_distribution = count
 
         if self.debug > 0 and np.array_equiv(self.dynamic_distribution_prev,self.dynamic_distribution) is False:
             self.dynamic_distribution_prev = self.dynamic_distribution
             print("\n** Sample Extractor **: Extraction Dynamic Distribution Update")
-            for i, cl in enumerate(self.dynamic_distribution_classes):
-                print(cl + ": " + str(self.dynamic_distribution[i]) )
-
-    def dynamic_distribution_decision(self, classe):
-        for i, cl in enumerate(self.dynamic_distribution_classes):
-            if cl == classe:
-                try:
-                    if random.uniform(0, 1) > self.dynamic_distribution[i]:
-                        return True
-                except:
-                    pass # This is a new registered classe, the update has not be done
-                return False
+            for i, classe in enumerate(self.label_dic):
+                print(classe + ": " + str(self.dynamic_distribution[i]) )
 
     def run(self):
         while not self.stopFlag.wait(0.1):
@@ -104,26 +87,27 @@ class SampleExtractor(threading.Thread):
         global EXTRACTION_RULES
         channel = channel.replace(":","-")
         if channel in EXTRACTION_RULES:
-            for cl in EXTRACTION_RULES[channel].split(","):
-                for cl2 in results:
-                    if cl == cl2:
-                        return True
+            if EXTRACTION_RULES[channel]["classes"]:
+                for cl in EXTRACTION_RULES[channel]["classes"].split(","):
+                    if cl in results:
+                        if EXTRACTION_RULES[channel]["rate"] is None:
+                            EXTRACTION_RULES[channel]["rate"] = 0
+
+                        if EXTRACTION_RULES[channel]["rate"] == "auto":
+                            if cl == "unknow":
+                                return True
+                            if random.uniform(0, 1) > self.dynamic_distribution[self.label_dic.index(cl)]:
+                                return True
+
+                        elif random.uniform(0, 1) > 1 - float(EXTRACTION_RULES[channel]["rate"]):
+                            return True
         return False
 
     def execute(self, results, label_dic):
+        self.label_dic = label_dic
         for i, channel in enumerate(results):
-            if self.evaluate_extraction_rules(channel["mapping"][0], channel["detections"]) is True:
-                self.buffer.append([channel["mapping"][0], str(channel["detections"]), channel["time"], channel["audio"], channel["samplerate"] ])
-
-            #
-            # if len(self.channels) > 0 and self.channels[0] != "" and channel["name"] not in self.channels:
-            #     continue
-            #
-            # for cl in self.classes_to_extract:
-            #     for detection in channel["detections"]:
-            #         if cl in detection:
-            #             if detection not in self.dynamic_distribution_classes:
-            #                 self.dynamic_distribution_classes.append(detection)
-            #
-            #             if self.dd is False or self.dynamic_distribution_decision(detection) is True:
-            #                 self.buffer.append([channel["mapping"][0], detection, channel["time"], channel["audio"], channel["samplerate"] ])
+            try:
+                if self.evaluate_extraction_rules(channel["mapping"][0], channel["detections"]) is True:
+                    self.buffer.append([channel["mapping"][0], str(channel["detections"]), channel["time"], channel["audio"], channel["samplerate"] ])
+            except:
+                print("** Sample Extractor **: Extraction rule error ("+str(EXTRACTION_RULES[channel])+")")

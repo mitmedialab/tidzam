@@ -36,6 +36,8 @@ class TidzamSocketIO(socketio.AsyncNamespace):
         self.label_dic      = None
         self.sources        = []
 
+        self.debug          = 1
+
     def start(self, port=80):
         web.run_app(app, port=port)
 
@@ -61,7 +63,7 @@ class TidzamSocketIO(socketio.AsyncNamespace):
         if self.external_sio is None:
             self.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.loop)
-            print('** Socket IO **Create Redis client socket ')
+            print('** Socket IO ** Create Redis client socket ')
             self.create_socketClient()
             print("======= TidZam RUNNING =======")
 
@@ -108,11 +110,15 @@ class TidzamSocketIO(socketio.AsyncNamespace):
         if obj["sys"].get("classifier"):
             await sio.emit('sys',self.build_label_dic())
 
-        if obj["sys"].get("extraction_rules"):
+        if obj["sys"].get("extraction_rules") is not None:
             if obj["sys"].get("extraction_rules") == "":
-                await sio.emit('sys', extractor.EXTRACTION_RULES)
+                print("HERRE")
+                print(extractor.EXTRACTION_RULES)
+                await sio.emit('sys', {'sys':{'extraction_rules':extractor.EXTRACTION_RULES }} )
             else:
-                print(obj["sys"].get("extraction_rules"))
+                if self.debug > 0:
+                    print("** Socket IO ** New extraction rules received :")
+                    print(obj["sys"].get("extraction_rules"))
                 extractor.EXTRACTION_RULES = obj["sys"].get("extraction_rules")
 
         # Sources list received from the TidzamStreamManeger

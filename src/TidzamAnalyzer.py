@@ -31,8 +31,8 @@ if __name__ == "__main__":
         default=None,
         help="List of classes to extract (--extract=unknown,birds).")
 
-    parser.add_option("--extract-dd", action="store_true", dest="dd", default=False,
-        help="Activate the extraction according to a Dynamic Distribution of extracted sample (Default: False).")
+    parser.add_option("--extract-dd", action="store_true", dest="dd", default=True,
+        help="Activate the extraction according to a Dynamic Distribution of extracted sample (Default: True).")
 
     parser.add_option("--extract-channels", action="store", type="string", dest="extract_channels",
         default="",
@@ -65,7 +65,7 @@ if __name__ == "__main__":
         if opts.out is not None:
             if opts.extract is None:
                 opts.extract = ""
-                
+
             if opts.stream is not None:
                 # Build folder to store wav file
                 a = opts.stream.split('/')

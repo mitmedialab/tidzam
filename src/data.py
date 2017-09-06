@@ -125,8 +125,11 @@ class Dataset:
 
         # Build classe dictionnary
         for cl in glob.glob(self.name + "/*"):
-            cl = cl.split("/")
-            self.labels_dic.append(cl[len(cl)-1])
+            if os.path.isdir(cl):
+                cl = cl.split("/")
+                cl = cl[len(cl)-1].split("(")[0]
+                if cl not in self.labels_dic and cl != "unchecked":
+                    self.labels_dic.append(cl)
 
         # Extract file for training and testing
         if self.split == None:
@@ -136,7 +139,7 @@ class Dataset:
         self.files_training = {}
         self.files_testing  = {}
         for cl in self.labels_dic:
-            files_cl = np.array(glob.glob(self.name + "/" + cl + "/**/*.wav", recursive=True))
+            files_cl = np.array(glob.glob(self.name + "/" + cl + "*/**/*.wav", recursive=True))
             idx = np.arange(len(files_cl))
             np.random.shuffle(idx)
             self.files_training[cl] = files_cl[ idx[:int(len(idx)*self.split)] ]
