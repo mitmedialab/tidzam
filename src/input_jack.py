@@ -155,7 +155,7 @@ class TidzamJack(Thread):
         while not self.stopFlag.wait(0.01):
             with self.lock:
                 if self.portsAllReady() and self.mustReload is False:
-                    #try:
+                    try:
                         for i in range(len(self.channels)):
                             data = self.ring_buffer[i].read(self.buffer_jack)
                             data = np.frombuffer(data, dtype='float32')
@@ -203,8 +203,8 @@ class TidzamJack(Thread):
                                             overlap=self.overlap,
                                             sources=SOURCES,
                                             mapping=self.mapping)
-                    #except Exception as e:
-                    #    print("JACK Connector: buffer loading..." + str(e))
+                    except Exception as e:
+                        print("JACK Connector: buffer loading..." + str(e))
 
                 # If there there is no port ready => nothing to wait
                 elif self.portStarting() is False or self.mustReload is True:

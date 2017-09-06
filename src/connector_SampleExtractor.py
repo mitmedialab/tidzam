@@ -96,15 +96,20 @@ class SampleExtractor(threading.Thread):
                         if EXTRACTION_RULES[channel]["rate"] == "auto":
                             if cl == "unknow":
                                 return True
-                            if random.uniform(0, 1) > self.dynamic_distribution[self.label_dic.index(cl)]:
-                                return True
+
+                            if len(self.dynamic_distribution) > 0:
+                                if random.uniform(0, 1) > self.dynamic_distribution[self.label_dic.index(cl)]:
+                                    return True
 
                         elif random.uniform(0, 1) > 1 - float(EXTRACTION_RULES[channel]["rate"]):
                             return True
         return False
 
     def execute(self, results, label_dic):
-        self.label_dic = label_dic
+        if len(self.label_dic) == 0:
+            self.label_dic = label_dic
+            self.dynamic_distribution_update()
+
         for i, channel in enumerate(results):
             try:
                 if self.evaluate_extraction_rules(channel["mapping"][0], channel["detections"]) is True:
