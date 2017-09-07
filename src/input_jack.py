@@ -4,8 +4,8 @@ import sys, os, signal,time
 import numpy as np
 import threading
 from threading import Thread
-import data as tiddata
 
+import TidzamDatabase as database
 
 import re
 
@@ -174,7 +174,7 @@ class TidzamJack(Thread):
                             if run is True:
                                 data = self.channels_data[i][0:self.buffer_size]
                                 self.channels_data[i] = self.channels_data[i][int(self.buffer_size*(1-self.overlap) ):len(self.channels_data[i])]
-                                fs, t, Sxx = tiddata.get_spectrogram(data, self.samplerate)
+                                fs, t, Sxx = database.get_spectrogram(data, self.samplerate)
 
                                 if i == 0:
                                     if int(len(self.channels_data[i])/self.buffer_size) > 1:

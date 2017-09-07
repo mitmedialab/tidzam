@@ -16,9 +16,7 @@ import time
 import pickle
 import json
 
-
 import vizualisation as vizu
-import data as tiddata
 
 config = tf.ConfigProto (allow_soft_placement=True)
 

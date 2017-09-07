@@ -52,7 +52,7 @@ if [ "$ACTION" == "start" ]; then
           --jack=tidzam-,impoundment,herring \
           --port=8001 \
           --out=/opt/tidzam/out-tidzam/ \
-          --chainAPI=user:pwd@http://url/sites/18 \
+          --chainAPI=slash:toto@chain-api.media.mit.edu/sites/18 \
           2>&1 > $LOGS/tidzam-analyzer.log.txt &
 
     echo $! > $PID_FILE

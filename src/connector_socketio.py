@@ -112,7 +112,6 @@ class TidzamSocketIO(socketio.AsyncNamespace):
 
         if obj["sys"].get("extraction_rules") is not None:
             if obj["sys"].get("extraction_rules") == "":
-                print("HERRE")
                 print(extractor.EXTRACTION_RULES)
                 await sio.emit('sys', {'sys':{'extraction_rules':extractor.EXTRACTION_RULES }} )
             else:

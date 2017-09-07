@@ -1,11 +1,11 @@
 from __future__ import division
 
-import tensorflow as tf
-from tensorflow.contrib.tensorboard.plugins import projector
-import data as tiddata
 import numpy as np
 import math
 import os
+
+import tensorflow as tf
+from tensorflow.contrib.tensorboard.plugins import projector
 
 class Embedding:
     def __init__(self, name, input, ouput, dropout, projector, nb_embeddings, checkpoint_dir):

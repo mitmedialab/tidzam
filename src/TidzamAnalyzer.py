@@ -4,7 +4,7 @@ import datetime
 import analyzer as Analyzer
 
 if __name__ == "__main__":
-    usage = 'analyzer.py --nn=build/test --stream=stream.wav [--show, -h]'
+    usage = 'TidzamAnalyzer.py --nn=build/test [--stream=stream.wav | --jack=jack-output] [OPTIONS]'
     parser = optparse.OptionParser(usage=usage)
     parser.set_defaults(stream=False,dic=False,nn="build/default")
 

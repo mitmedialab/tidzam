@@ -3,7 +3,7 @@ import numpy as np
 from threading import Thread
 import os, glob
 
-import data as tiddata
+import TidzamDatabase as database
 
 class TidzamAudiofile(Thread):
     def __init__(self, streams, callable_objects=[], overlap=0, channel=None):
@@ -39,9 +39,9 @@ class TidzamAudiofile(Thread):
 
                     for i in channels:
                         if f.channels > 1:
-                            fs, t, Sxx = tiddata.get_spectrogram(data[:,i], f.samplerate, i)
+                            fs, t, Sxx = database.get_spectrogram(data[:,i], f.samplerate, i)
                         else:
-                            fs, t, Sxx = tiddata.get_spectrogram(data, f.samplerate, i)
+                            fs, t, Sxx = database.get_spectrogram(data, f.samplerate, i)
 
                         if i == 0:
                             Sxxs = Sxx
