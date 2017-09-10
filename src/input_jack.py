@@ -4,10 +4,12 @@ import sys, os, signal,time
 import numpy as np
 import threading
 from threading import Thread
+import re
 
 import TidzamDatabase as database
+from socketIO_client import SocketIO
+from App import App
 
-import re
 
 def sorted_nicely( l ):
     """ Sort the given iterable in the way that humans expect."""
@@ -16,19 +18,19 @@ def sorted_nicely( l ):
     return sorted(l, key = alphanum_key)
 
 class TidzamJack(Thread):
-    def __init__(self, port_names, callable_objects=[], debug=0, overlap=0):
+    def __init__(self, port_names, callable_objects=[], overlap=0, socketio_address="localhost:8001"):
         Thread.__init__(self)
-        global TIDZAM_JACK_PORTS
-        global SOURCES
 
-        print("======= JACK CLIENT =======")
-        self.debug = debug
-        TIDZAM_JACK_PORTS = port_names
+        App.ok(0, "Jack client initialized")
+        self.jack_ports_toload = port_names
         self.lock   = threading.Lock()
+
+        self.socketIO = None
+        self.socketio_address = App.socketIOanalyzerAdress
 
         self.mustReload = False
         self.mapping    = []
-        SOURCES    = []
+        self.sources    = []
 
         self.samplerate = -1
         self.blocksize = -1
@@ -41,8 +43,7 @@ class TidzamJack(Thread):
         self.init_client()
 
     def init_client(self):
-        if self.debug > 0:
-            print("JACK Connector: Tidzam Jack client initialization.")
+        App.log(1, "Tidzam Jack client initialization.")
         self.client = jack.Client("analyzer")
         self.client.set_samplerate_callback(self.callback_samplerate)
         self.client.set_blocksize_callback(self.callback_blocksize)
@@ -54,21 +55,31 @@ class TidzamJack(Thread):
         self.client.set_xrun_callback(self.callback_xrun)
         self.channels_state = {}
 
+    def init_socketIO(self):
+        tmp = self.socketio_address.split(":")
+        self.socketIO = SocketIO(tmp[0], int(tmp[1]))
+        self.socketIO.on('JackSource', self.update_sources)
+        threading.Thread(target=self._run_socketIO).start()
+        App.ok(0, "Connected to " + self.socketio_address +"")
+
+    def _run_socketIO(self):
+        while not self.stopFlag.wait(0.1):
+            self.socketIO.wait(1)
+
+    def update_sources(self, sources):
+        self.sources = sources
+
     def load_stream(self):
-        global TIDZAM_JACK_PORTS
-        global SOURCES
         try:
              # Wait that all jack ports are properly disconnected
-            if self.debug > 0:
-                print("JACK Connector: reset the Jack client.")
+            App.log(1, "Reset the Jack client.")
             self.client.deactivate()
             self.client.close()
             time.sleep(2)
             self.init_client()
             self.mustReload = False
 
-            if self.debug > 0:
-                print("JACK Connector: stream initialization tentative.")
+            App.log(1, "Stream initialization tentative.")
 
             # Clean all connections and buffers
             self.ports          = []
@@ -79,12 +90,11 @@ class TidzamJack(Thread):
             self.channels_state = {}
             self.client.inports.clear()
 
-            if self.debug > 0:
-                print("JACK Connector: list of automatic port connections:")
-                print(TIDZAM_JACK_PORTS)
+            App.log(1, "List of automatic port connections:")
+            App.log(1, self.jack_ports_toload)
 
             # Load the port patterns to connect
-            for port in TIDZAM_JACK_PORTS:
+            for port in self.jack_ports_toload:
                 pattern_already_loaded = False
                 for p in self.ports:
                     if port in p.name:
@@ -99,15 +109,13 @@ class TidzamJack(Thread):
                 self.ring_buffer.append(jack.RingBuffer(self.buffer_jack))
 
             # Activate TidZam ports and connecto MPV
-            if self.debug > 0:
-                print("JACK Connector: Tidzam client activation: " +str(len(self.ports))+" ports")
+            App.log(1, "Tidzam client activation: " +str(len(self.ports))+" ports")
             self.client.activate()
 
             for i in range(0, len(self.ports)):
                 # Connect Tidzam
                 if "input" not in self.ports[i].name:
-                    if self.debug > 1:
-                        print("JACK Connector: Connection " + self.ports[i].name + " -> " + self.channels[i].name)
+                    App.log(2, "Connection " + self.ports[i].name + " -> " + self.channels[i].name)
                     self.client.connect(self.ports[i], self.channels[i])
 
                     # Store the stream mapping
@@ -116,28 +124,25 @@ class TidzamJack(Thread):
                     # If there is no starting time defined for this stream, we create one
                     tmp = self.ports[i].name.split(":")[0]
                     found = False
-                    for source in SOURCES:
+                    for source in self.sources:
                         if source["name"] in tmp:
                             found = True
                     if found is False:
-                        SOURCES.append({"name":tmp,"starting_time":time.strftime("%Y-%m-%d-%H-%M-%S")})
+                        self.sources.append({"name":tmp,"starting_time":time.strftime("%Y-%m-%d-%H-%M-%S")})
 
-            if self.debug > 0:
-                print("JACK Connector: audio stream mapping: ")
-                print(self.mapping)
+            App.log(2, "Audio stream mapping: ")
+            App.log(2, self.mapping)
 
             # Wait that all jack ports are connected
             time.sleep(2)
 
         except Exception as e:
-            if self.debug > 0:
-                print("JACK Connector: Loading stream exception: " + str(e))
-                self.mustReload = True
+            App.error(0, "Loading stream exception: " + str(e))
+            #self.mustReload = True
 
     def portsAllReady(self):
         for p in self.channels_state:
             if self.channels_state[p] is False:
-                #print(p)
                 return False
         if len(self.channels_state) == 0:
             return False
@@ -150,9 +155,11 @@ class TidzamJack(Thread):
         return False
 
     def run(self):
-        global SOURCES
         run = False
         while not self.stopFlag.wait(0.01):
+            if self.socketIO is None:
+                self.init_socketIO()
+
             with self.lock:
                 if self.portsAllReady() and self.mustReload is False:
                     try:
@@ -178,11 +185,9 @@ class TidzamJack(Thread):
 
                                 if i == 0:
                                     if int(len(self.channels_data[i])/self.buffer_size) > 1:
-                                        print("JACK Connector: -----------------------------------")
-                                        print("JACK Connector: ** WARNING ** JACK Connector: buffer queue is " + str(int(len(self.channels_data[i])/self.buffer_size)) + " samples" )
+                                        App.warning(0, "Buffer queue is " + str(int(len(self.channels_data[i])/self.buffer_size)) + " samples" )
                                     if int(len(self.channels_data[i])/self.buffer_size) > 3:
-                                        print("JACK Connector: -----------------------------------")
-                                        print("JACK Connector: ** ERROR ** JACK Connector: buffer overflow, delay > 3 samples, clean it" )
+                                        App.warning(0, "Buffer overflow, delay > 3 samples, clean it" )
                                         self.channels_data = []
                                         break
 
@@ -201,19 +206,18 @@ class TidzamJack(Thread):
                             for obj in self.callable_objects:
                                 obj.execute(Sxxs, fss, ts, [np.transpose(datas), self.samplerate],
                                             overlap=self.overlap,
-                                            sources=SOURCES,
+                                            sources=self.sources,
                                             mapping=self.mapping)
                     except Exception as e:
-                        print("JACK Connector: buffer loading..." + str(e))
+                        App.log(2, "Buffer loading..." + str(e))
 
                 # If there there is no port ready => nothing to wait
                 elif self.portStarting() is False or self.mustReload is True:
                     self.load_stream()
 
                 else:
-                    if self.debug > 0:
-                        print("JACK Connector: waiting port registration.")
-                        time.sleep(1)
+                    App.log(0, "waiting port registration.")
+                    time.sleep(1)
 
     def stop(self):
         self.client.deactivate()
@@ -221,44 +225,37 @@ class TidzamJack(Thread):
         self.stopFlag.set()
 
     def callback_client_registration(self, name, registered):
-        global TIDZAM_JACK_PORTS
-        if self.debug > 1:
-            print("JACK Connector: client connector change " + name + "(" + str(registered) + ")")
-        for port in TIDZAM_JACK_PORTS:
+        App.log(2, "Client connector change " + name + "(" + str(registered) + ")")
+        for port in self.jack_ports_toload:
             if port in name and "-out_" not in name:
                 self.mustReload = True
                 break
 
     def callback_port_registration(self, port, registered):
-        if self.debug > 1:
-            print("JACK Connector: port registration " + port.name + "(" + str(registered) + ")")
+        App.log(2, "Port registration " + port.name + "(" + str(registered) + ")")
 
     def callback_port_connection(self,port_in, port_out, state):
         if state is True:
-            if self.debug > 1:
-                print("JACK Connector: This link is created: " + port_in.name + " -> " + port_out.name)
+            App.log(2, "This link is created: " + port_in.name + " -> " + port_out.name)
             if "analyzer" in port_in.name:
                 self.channels_state[port_in.name] = state
         else:
-            if self.debug > 1:
-                print("JACK Connector: This link is broke: " + port_in.name + " -> " + port_out.name)
+            App.log(2, "This link is broke: " + port_in.name + " -> " + port_out.name)
             if "analyzer" in port_in.name:
                     self.mustReload = True
 
     def callback_xrun(self, delay):
-        if self.debug > 0:
-            print("JACK Connector: xrun " + str(delay))
+        App.log(1, "xrun " + str(delay))
 
     def callback_quit(self,status, reason):
         with self.lock:
-            if self.debug > 0:
-                print("JACK Connector: process in zombi mode... Restart !\n" + str(status) )
+            App.warning(1, "Jack client in zombi mode... Restart !\n" + str(status) )
             time.sleep(1)
             self.init_client()
 
     def callback_samplerate(self, samplerate):
         self.samplerate = samplerate
-        print("JACK Connector: Sample rate at " + str(samplerate))
+        App.log(0, "Sample rate at " + str(samplerate))
 
     def callback_blocksize(self, blocksize):
         self.blocksize = blocksize
@@ -268,4 +265,4 @@ class TidzamJack(Thread):
             for i in range(len(self.channels)):
                 self.ring_buffer[i].write(self.channels[i].get_array())
         except:
-            print("JACK Connector: Error loading RT ring buffer")
+            App.error(0, "Error loading RT ring buffer")

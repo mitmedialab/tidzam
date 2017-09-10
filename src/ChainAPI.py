@@ -1,16 +1,16 @@
 import threading
 
 import chainclient as chainclient
+from App import App
 
 class ChainAPI(threading.Thread):
-    def __init__(self,debug=0):
+    def __init__(self):
         threading.Thread.__init__(self)
         self.stopFlag = threading.Event()
 
         self.site       = None
         self.site_url   = None
         self.auth       = None
-        self.debug      = debug
         self.buffer = []
         self.start()
 
@@ -19,8 +19,9 @@ class ChainAPI(threading.Thread):
         self.auth     = auth
         try:
             self.site = chainclient.get(self.site_url)
+            App.ok(0, "Connected to " + self.site_url)
         except chainclient.ChainException:
-            print("Unable to connect to site "+self.site_url)
+            App.error(0,"Unable to connect to site "+self.site_url)
 
     def push(self, device, sensor, time):
         devices_coll = self.site.rels['ch:devices']
@@ -32,8 +33,7 @@ class ChainAPI(threading.Thread):
                 break
         # If the device doesn t exist, we create it
         if found is False:
-            if self.debug > 0:
-                print("** TidZam ChainAPI ** Create new device: " + str(device))
+            App.log(1,"Create new device: " + str(device))
             dev = devices_coll.create(
                 {'name': device},
                 auth=self.auth)
@@ -45,8 +45,7 @@ class ChainAPI(threading.Thread):
                 break
         # If the sensor doesn't exist, we create it
         if found is False:
-            if self.debug > 0:
-                print("** TidZam ChainAPI ** Create new sensor: " + sensor + " on "+str(device))
+            App.log(1, "Create new sensor: " + sensor + " on "+str(device))
             sens_r = dev.rels['ch:sensors'].create(
                 {"sensor-type": "scalar", "metric": sensor, "unit": "boolean"},
                 auth=self.auth)
@@ -62,12 +61,12 @@ class ChainAPI(threading.Thread):
                     self.push(o[0], o[1], o[2])
                     self.buffer.remove(o)
                 except chainclient.ChainException as e:
-                    print("** TidZam ChainAPI ** Error "+ str(e))
+                    App.error(0, str(e))
 
                 except:
-                    print("** TidZam ChainAPI ** Error pushing on "+str(o[0])+" "+str(o[1]))
-            if len(self.buffer) > 10:
-                print("** TidZam ChainAPI ** Queue size "+str(len(self.buffer)))
+                    App.error(0, "Error pushing on "+str(o[0])+" "+str(o[1]))
+            if len(self.buffer) > 50:
+                App.warning(0,"Queue size "+str(len(self.buffer)))
 
     def execute(self, results, label_dic):
         for channel in results:

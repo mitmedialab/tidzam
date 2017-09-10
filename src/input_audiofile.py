@@ -5,6 +5,8 @@ import os, glob
 
 import TidzamDatabase as database
 
+from App import App
+
 class TidzamAudiofile(Thread):
     def __init__(self, streams, callable_objects=[], overlap=0, channel=None):
         Thread.__init__(self)
@@ -56,5 +58,5 @@ class TidzamAudiofile(Thread):
                         obj.execute(Sxxs, fss, ts, [data, f.samplerate], overlap=self.overlap,stream=None, mapping=None)
 
                     f.seek(int(-sample_size*self.overlap), whence=sf.SEEK_CUR)
-        print("End of stream ...")
+        App.log(0, "End of stream ...")
         os._exit(0)

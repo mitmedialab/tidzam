@@ -19,14 +19,16 @@ import atexit
 import time
 
 import optparse
+
+from App import App
+
 class Stream():
-    def __init__(self, id, samplerate=44100, buffer_jack_size=3, debug=1):
+    def __init__(self, id, samplerate=44100, buffer_jack_size=3):
         self.samplerate         = samplerate
         self.buffer_jack_size   = buffer_jack_size
         self.ring_buffer        = jack.RingBuffer(samplerate*buffer_jack_size)
         self.id                 = id
         self.portname           = None
-        self.debug              = debug
 
 
     def add_data(self,data):
@@ -35,8 +37,7 @@ class Stream():
         data = data / 32768
         data = data.tobytes()
         self.ring_buffer.write(data)
-        if self.debug > 2:
-            print("** TidzamStreamManager ** connection " +self.id + " Jack Ring Buffer usage: " + str(self.ring_buffer.read_space*100/(self.ring_buffer.size)) + "%")
+        App.log(3, "Connection " +self.id + " Jack Ring Buffer usage: " + str(self.ring_buffer.read_space*100/(self.ring_buffer.size)) + "%")
 
         if self.ring_buffer.write_space == 0:
             self.ring_buffer.reset()
@@ -66,14 +67,13 @@ class Source():
             self.url = self.path_database
 
 class TidzamStreamManager(threading.Thread):
-    def __init__(self, available_ports=10, samplerate=44100, buffer_jack_size=50, debug=0, streamer_max=100):
+    def __init__(self, available_ports=10, samplerate=44100, buffer_jack_size=50, streamer_max=100):
         threading.Thread.__init__(self)
 
         self.available_ports    = available_ports
         self.available_ports    = available_ports
         self.samplerate         = samplerate
         self.buffer_jack_size   = buffer_jack_size
-        self.debug              = debug
 
         self.streams            = []
         self.sources            = []
@@ -82,14 +82,9 @@ class TidzamStreamManager(threading.Thread):
         self.FNULL              = open(os.devnull, 'w')
 
         self.portstoconnect      = []
-        self.stopFlag               = threading.Event()
-
-        self.sio_tidzam = socketio.AsyncRedisManager('redis://')
+        self.stopFlag            = threading.Event()
 
         atexit.register(self.exit)
-
-        if self.debug > 0:
-            print("** TidzamStreamManager **  Tidzam Jack client initialization.")
 
         self.client = jack.Client("tidzam-livestreams")
         self.client.set_samplerate_callback(self.callback_samplerate)
@@ -104,14 +99,14 @@ class TidzamStreamManager(threading.Thread):
             self.client.outports.register('out_{0}'.format(i))
         self.client.activate()
         self.start()
+        App.ok(0, "Tidzam Jack client initialized.")
 
     def run(self):
         while not self.stopFlag.wait(0.1):
             # Check if all sources are loaded
             for source in self.sources:
                 if source.process.poll() is not None:
-                    if self.debug > 0:
-                        print("** TidzamStreamManager **  the source "+source.name+" has been terminated.")
+                    App.log(1, "The source "+source.name+" has been terminated.")
                     if source.is_permanent:
                         source.process = None
                         self.load_source(source)
@@ -121,8 +116,7 @@ class TidzamStreamManager(threading.Thread):
 
             for pro in self.streamer_process:
                 if pro[0].poll() is not None:
-                    if self.debug > 1:
-                        print("** TidzamStreamManager **  the streamer "+pro[1]+" has been terminated.")
+                    App.log(2, "The streamer "+pro[1]+" has been terminated.")
                     self.streamer_process.remove(pro)
                     name = pro[1].split(":")[0]
                     for source in self.sources:
@@ -134,12 +128,10 @@ class TidzamStreamManager(threading.Thread):
                 try:
                     port_in = self.client.get_port_by_name(connection[0])
                     port_ou = self.client.get_port_by_name(connection[1])
-                    if self.debug > 1:
-                        print("** TidzamStreamManager **  port connection " + port_in.name + " -> " + port_ou.name)
+                    App.log(2, "Port connection " + port_in.name + " -> " + port_ou.name)
                     self.client.connect(port_in, port_ou)
                 except:
-                    if self.debug > 1:
-                        print("** TidzamStreamManager **  The streamer is not ready")
+                    App.log(2, "The streamer is not ready")
                 self.portstoconnect.remove(connection)
 
     def exit(self):
@@ -155,21 +147,19 @@ class TidzamStreamManager(threading.Thread):
     # Live Stream Interface for capturing Web microphones
     ############
     def add_stream(self, id):
-        if self.debug > 0:
-            print("** TidzamStreamManager ** new live stream " + str(id))
+        App.log(1, "New live stream " + str(id))
 
         if len(self.streams) < self.available_ports:
-            self.streams.append(Stream(id, self.samplerate, self.buffer_jack_size, self.debug))
+            self.streams.append(Stream(id, self.samplerate, self.buffer_jack_size))
         else:
-            print("** TidzamStreamManager ** unable to allocate a new live stream (already full).")
+            App.warning(0, "Unable to allocate a new live stream (already full).")
 
 
     def del_stream(self, id):
         found = False
         for s in self.streams:
             if s.id == id:
-                if self.debug > 0:
-                    print("** TidzamStreamManager ** delete live stream " + str(id))
+                App.log(1, "Delete live stream " + str(id))
                 self.streams.remove(s)
 
     def add_data(self, id, data):
@@ -210,8 +200,7 @@ class TidzamStreamManager(threading.Thread):
                 break
 
         if found:
-            if self.debug > 0:
-                print("** TidzamStreamManager ** remove source stream " + str(source.name))
+            App.log(1, "Remove source stream " + str(source.name))
             if source.process is not None:
                 subprocess.Popen.kill(source.process)
             self.sources.remove(source)
@@ -264,8 +253,7 @@ class TidzamStreamManager(threading.Thread):
 
         self.sources.append(source)
 
-        if self.debug > 0:
-            print("** Socket IO ** New source is loading: " + source.name + " ("+str(source.url)+") at " + str(source.seek))
+        App.log(1, "New source is loading: " + source.name + " ("+str(source.url)+") at " + str(source.seek))
         return source
 
     def load_source_local_database(self, source):
@@ -276,8 +264,7 @@ class TidzamStreamManager(threading.Thread):
             source.url              = source.default_stream
             source.starting_time    = None
             source.seek             = 0
-            if self.debug > 0:
-                print('** Socket IO ** Real Time stream: ' + str(source.url))
+            App.log(1, "Real Time stream: " + str(source.url))
 
         # Looking for the file and compute seek position
         else:
@@ -310,13 +297,12 @@ class TidzamStreamManager(threading.Thread):
     # JACK Callbacks
     ############
     def callback_client_registration(self, name, registered):
-        if self.debug > 1:
-            print("** TidzamStreamManager ** new client connector detected " + name + "(" + str(registered) + ")")
+        App.log(2, "New client connector detected " + name + "(" + str(registered) + ")")
 
     def port_create_streamer(self, portname):
         cmd = ["./icecast/icecast_stream.sh", portname.replace(":","-")]
         if len(self.streamer_process) >= self.streamer_max:
-            print("** TidzamStreamManager ** maximum number of streamer already allocated ("+str(len(self.streamer_process))+")")
+            App.warning(0, "Maximum number of streamer already allocated ("+str(len(self.streamer_process))+")")
             return
         self.streamer_process.append([subprocess.Popen(cmd,
                 shell=False,
@@ -349,8 +335,7 @@ class TidzamStreamManager(threading.Thread):
         return None
 
     def callback_port_registration(self, port, registered):
-        if self.debug > 1:
-            print("** TidzamStreamManager ** port registration status " + port.name + "(" + str(registered) + ")")
+        App.log(2, "Port registration status " + port.name + "(" + str(registered) + ")")
 
         if registered is True:
             # If there is a new stream producer (create a streamer)
@@ -378,25 +363,20 @@ class TidzamStreamManager(threading.Thread):
 
     def callback_port_connection(self,port_in, port_out, state):
         if state is True:
-            if self.debug > 1:
-                print("** TidzamStreamManager ** This link is created: " + port_in.name + " -> " + port_out.name + " " + str(state))
+            App.log(2, "This link is created: " + port_in.name + " -> " + port_out.name + " " + str(state))
         else:
-            if self.debug > 1:
-                print("** TidzamStreamManager ** This link has been destroyed: " + port_in.name + " -> " + port_out.name + " " + str(state))
+            App.log(2, "This link has been destroyed: " + port_in.name + " -> " + port_out.name + " " + str(state))
             if "analyzer" not in port_out.name:
                 self.port_connect_streamer(port_out)
 
     def callback_quit(self,status, reason):
-        if self.debug > 0:
-            print("** TidzamStreamManager ** process in zombi mode... Restart !\n" + str(status) )
+        App.warning(1, "Process in zombi mode... Restart !\n" + str(status) )
 
     def callback_samplerate(self, samplerate):
-        if self.debug > 0:
-            print("** TidzamStreamManager ** Sample rate at " + str(samplerate))
+        App.log(1, "Sample rate at " + str(samplerate))
 
     def callback_blocksize(self, blocksize):
-        if self.debug > 0:
-            print("** TidzamStreamManager ** blocksize " + str(blocksize))
+        App.log(1, "Blocksize " + str(blocksize))
         self.blocksize = blocksize
 
     def callback_rt(self,frame):
@@ -408,8 +388,7 @@ class TidzamStreamManager(threading.Thread):
                 ports[id].get_array()[:] = bufr
 
             except Exception as e:
-                if self.debug > 1:
-                    print("** TidzamStreamManager ** Error loading RT ring buffer " + s.id + "("+str(e)+")")
+                App.warning(2, "Error loading RT ring buffer " + s.id + "("+str(e)+")")
                 ports[id].get_array()[:].fill(0)
                 if len(bufr) == 0:
                     self.del_stream(s.id)
@@ -445,6 +424,8 @@ if __name__ == '__main__':
         help="Set debug level (Default: 0).")
 
     (opts, args) = parser.parse_args()
+    App.verbose = opts.DEBUG
+
     sio = socketio.AsyncServer(
             ping_timeout=21,
             ping_interval=10)
@@ -454,8 +435,7 @@ if __name__ == '__main__':
     jack_service = TidzamStreamManager(
                 available_ports=opts.live_port,
                 samplerate=opts.samplerate,
-                buffer_jack_size=opts.buffer_size,
-                debug=opts.DEBUG)
+                buffer_jack_size=opts.buffer_size)
 
     # Load initial configuration
     try:
@@ -479,16 +459,15 @@ if __name__ == '__main__':
             if jfile.get("default_stream"):
                 jack_service.default_stream = jfile["default_stream"]
     except:
-        print("** TidzamStreamManager ** no valid source file.")
+        App.warning(0, "No valid source configuration file.")
 
 
     tidzam_address = opts.tidzam_address.split(":")
-    sio_tidzam = SocketIO(tidzam_address[0], tidzam_address[1])
+    sio_analyzer = SocketIO(tidzam_address[0], tidzam_address[1])
 
     @sio.on('connect', namespace='/')
     def connect(sid, environ):
-        if opts.DEBUG > 0:
-            print("** TidzamStreamManager ** client connected ", sid)
+        App.log(1, "Client connected " + str(sid) )
 
     @sio.on('audio', namespace='/')
     async def audio(sid, data):
@@ -496,8 +475,7 @@ if __name__ == '__main__':
 
     @sio.on('disconnect', namespace='/')
     def disconnect(sid):
-        if opts.DEBUG > 0:
-            print("** TidzamStreamManager ** client disconnected ", sid)
+        App.log(1, "Client disconnected "+ str(sid) )
         jack_service.del_stream(sid)
 
         # Delete the stream that has been created by this web user
@@ -564,7 +542,7 @@ if __name__ == '__main__':
                 rsp = []
                 for source in jack_service.sources:
                     rsp.append({"name":source.name,"starting_time":source.starting_time})
-                sio_tidzam.emit('sys', {"sys":{"sources":rsp}} )
+                sio_analyzer.emit('JackSource', rsp)
 
             elif obj["sys"].get("unloadsource"):
                 jack_service.unload_source(obj["sys"]["unloadsource"]["name"])
@@ -604,8 +582,8 @@ if __name__ == '__main__':
                 await sio.emit('sys', {"sys":{"database":rsp}})
 
             else:
-                print("** TidzamStreamManager ** umknow socket.io command: " +str(data)+ " ("+str(sid)+")")
+                App.warning(0, "Unknow socket.io command: " +str(data)+ " ("+str(sid)+")")
         except Exception as e:
-            print("** TidzamStreamManager ** umknow socket.io command: " +str(data)+ " ("+str(sid)+") " + str(e))
+            App.log(0, "Unknow socket.io command: " +str(data)+ " ("+str(sid)+") " + str(e))
 
     web.run_app(app, port=opts.port)

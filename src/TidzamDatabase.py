@@ -19,6 +19,8 @@ from scipy import signal
 import soundfile as sf
 import sounddevice as sd
 
+from App import App
+
 def get_spectrogram(data, samplerate, channel=0,  show=False):
     plt.ion()
     fs, t, Sxx = signal.spectrogram(data, samplerate, nfft=1024, noverlap=128)
@@ -133,7 +135,7 @@ class Dataset:
 
         # Extract file for training and testing
         if self.split == None:
-            print("**Tidzam data ** You must specify the attribute --split for the proportion of testing sample")
+            App.log(0, "You must specify the attribute --split for the proportion of testing sample")
             return
 
         self.files_training = {}
@@ -144,7 +146,7 @@ class Dataset:
             np.random.shuffle(idx)
             self.files_training[cl] = files_cl[ idx[:int(len(idx)*self.split)] ]
             self.files_testing[cl]  = files_cl[ idx[int(len(idx)*self.split):] ]
-            print("**Tidzam data ** training / testing datasets for " + cl + ": " + str(len(self.files_training[cl])) + " / " +str(len(self.files_testing[cl]))+" samples" )
+            App.log(0, "training / testing datasets for " + cl + ": " + str(len(self.files_training[cl])) + " / " +str(len(self.files_testing[cl]))+" samples" )
 
         # Start the workers
         for i in range(self.thread_count_training):
@@ -166,13 +168,13 @@ class Dataset:
     def next_batch_onfly(self, batch_size=128, testing=False):
         if testing is False:
             if self.queue_training.qsize() == 0:
-                print("**Tidzam data ** Next batch size on fly is waiting (queue empty).")
+                App.log(0, "Next batch size on fly is waiting (queue empty).")
             while self.queue_training.empty():
                 pass
             return self.queue_training.get()
         else:
             if self.queue_testing.qsize() == 0:
-                print("**Tidzam data ** Next batch size on fly is waiting (queue empty).")
+                App.log(0, "Next batch size on fly is waiting (queue empty).")
             while self.queue_testing.empty():
                 pass
             return self.queue_testing.get()
@@ -192,7 +194,6 @@ class Dataset:
                 idx = idx[:count]
                 for id in idx:
                     try:
-                        #print(files_cl[id])
                         raw, time, freq = play_spectrogram_from_stream(files_cl[id])
                         raw             = np.nan_to_num(raw)
                         raw             = np.reshape(raw, [1, raw.shape[0]*raw.shape[1]])
@@ -206,7 +207,7 @@ class Dataset:
                             labels = label
 
                     except Exception as e :
-                        print("Bad file" + str(e))
+                        App.log(0, "Bad file" + str(e))
 
             idx = np.arange(data.shape[0])
             np.random.shuffle(idx)
@@ -221,9 +222,9 @@ class Dataset:
     def load_file(self, file):
         self.cur_batch = 0
         self.name = file
-        print("\n===============")
-        print("Load " + self.name)
-        print("===============")
+        App.log(0, "\n===============")
+        App.log(0, "Load " + self.name)
+        App.log(0, "===============")
         try:
             self.fileID = self.files_count = self.nb_files()
             # Try to load metadata information
@@ -241,7 +242,7 @@ class Dataset:
                 self.count_samples      = self.nb_samples()
                 self.nb_features_count  = self.get_nb_features()
                 self.count_by_classe    = self.get_sample_count_by_classe()
-                print("No metadata information found.")
+                App.log(0, "No metadata information found.")
 
             # Load the last dataset chunk
             f = np.load(self.name+"-"+str(self.fileID)+".npz")
@@ -250,16 +251,16 @@ class Dataset:
             self.labels_dic = list(np.load(self.name+"_labels_dic.npy"))
 
             # Print dataset information
-            print(str(self.count_samples) +" samples of " +
+            App.log(0, str(self.count_samples) +" samples of " +
                     str(self.nb_features_count ) + " features in " +
                     str(len(self.get_classes()) ) + " classes.")
 
-            print(self.get_classes())
-            print("Samples distribution:")
-            print(self.count_by_classe)
+            App.log(0, self.get_classes())
+            App.log(0, "Samples distribution:")
+            App.log(0, self.count_by_classe)
 
         except Exception as ex:
-             print("File not found: " + file + str(ex))
+             App.log(0, "File not found: " + file + str(ex))
              self.data = []
              self.labels_dic = []
              self.labels = []
@@ -279,10 +280,10 @@ class Dataset:
                 )
             np.save(name + "_labels_dic", self.labels_dic)
         except:
-            print("Unable to save the dataset (write permission ?)")
+            App.log(0, "Unable to save the dataset (write permission ?)")
 
     def save_meta(self):
-        print("\nGenerate metadata information.")
+        App.log(0, "\nGenerate metadata information.")
         self.files_count        = self.nb_files()
         self.count_samples      = self.nb_samples()
         self.nb_features_count  = self.get_nb_features()
@@ -320,13 +321,13 @@ class Dataset:
                 self.labels = labels
             self.save(name)
         except:
-            print("error during saving.")
+            App.log(0, "error during saving.")
 
     def rename(self,name):
         for file in glob.glob(self.name+"-*.npz"):
             a = file.split("/")
             a = a[len(a)-1].split("-")[1]
-            print(file + " -> " + name + "-" + a)
+            App.log(0, file + " -> " + name + "-" + a)
             os.rename(file, name + "-" + a)
         self.name = name
         np.save(name + "_labels_dic", self.labels_dic)
@@ -364,18 +365,18 @@ class Dataset:
                 self.labels = np.zeros((0,1))
 
     def load_from_wav_folder(self, folder, asOneclasse=None):
-        print("\nLoading from folder " + folder)
+        App.log(0, "\nLoading from folder " + folder)
         try:
             self.labels_dic = list(np.load(self.name + "_labels_dic.npy"))
         except:
             self.labels_dic = []
 
         for f in glob.glob(folder+"/*.wav"):
-            print(f)
+            App.log(0, f)
             try:
                 raw, time, freq = play_spectrogram_from_stream(f)
             except:
-                print("Bad file")
+                App.log(0, "Bad file")
             raw  = np.reshape(raw, [1, raw.shape[0]*raw.shape[1]])
 
             if asOneclasse is None:
@@ -421,7 +422,7 @@ class Dataset:
 
         for i in range(0, dataY.shape[0]):
             if np.array_equiv(id,dataY[i,:]) is True or classe is False:
-                print(dataY[i,:])
+                App.log(0, dataY[i,:])
                 im = dataX[i,:].reshape((self.dataw, self.datah))
                 plt.ion()
                 plt.imshow(im, interpolation='none')
@@ -432,9 +433,9 @@ class Dataset:
                     plt.pause(0.5)
 
     def balance_classe(self):
-        print("\nClasse balancing.")
+        App.log(0, "\nClasse balancing.")
         for cl in range(self.labels.shape[1]):
-            print(self.labels_dic[cl])
+            App.log(0, self.labels_dic[cl])
             nb_cl = self.get_sample_count_by_classe()
             nb_new = int(np.max(nb_cl) - nb_cl[cl])
 
@@ -502,7 +503,7 @@ class Dataset:
         return np.array(res)
 
     def randomize(self):
-        print("\nRandomization")
+        App.log(0, "\nRandomization")
 
         tmp_name = self.name.split("/")
         tmp_name = tmp_name[len(tmp_name)-1]
@@ -514,7 +515,7 @@ class Dataset:
         random.shuffle(b)
 
         for file1 in a:
-            print(file1)
+            App.log(0, file1)
             idx = np.arange(len(b))
             np.random.shuffle(idx)
             for i in idx[:int(np.maximum(len(idx)*0.5,1))]:
@@ -579,13 +580,13 @@ class Dataset:
 
 
     def merge(self,dataset_name, asOneClasse=None):
-        print("\nMerging with " + dataset_name)
+        App.log(0, "\nMerging with " + dataset_name)
         id = 0
         if asOneClasse is not None:
             try:
                 pos = self.labels_dic.index(asOneClasse)
             except:
-                print("New classe " + asOneClasse)
+                App.log(0, "New classe " + asOneClasse)
                 try:
                     pos = self.labels.shape[1]
                 except:
@@ -594,7 +595,7 @@ class Dataset:
             try:
                 labels_dic_to_merge = np.load(dataset_name+"_labels_dic.npy")
             except:
-                print("Dataset " + dataset_name + " not found")
+                App.log(0, "Dataset " + dataset_name + " not found")
 
 
         for id, file in enumerate(sorted_nicely(glob.glob(dataset_name+"-*.npz"))):
@@ -607,7 +608,7 @@ class Dataset:
             except:
                 self.data = data
 
-            print(self.labels_dic)
+            App.log(0, self.labels_dic)
             if asOneClasse is not None:
                 try:
                     # IS A NEW CLASSE
@@ -638,7 +639,7 @@ class Dataset:
 
                     # If classe not found, it is a new classe which must be added to the dataset
                     except:
-                        print("Create " + name)
+                        App.log(0, "Create " + name)
                         self.create_classe(name)
                         pos = self.labels.shape[1] - 1
 
@@ -660,7 +661,7 @@ class Dataset:
         tmp_name = tmp_name.split("-")[0]
 
         # Split each file into two files
-        print("Dataset splitting.")
+        App.log(0, "Dataset splitting.")
         for i in range(0, self.fileID + 1):
             file = np.load(self.name + "-" + str(i) + ".npz")
             labels  = file["labels"]
@@ -695,7 +696,7 @@ class Dataset:
                 n = name
             else:
                 n = self.name
-            print("Dataset refactoring " + n)
+            App.log(0, "Dataset refactoring " + n)
             id = 0
             self.labels = np.zeros((0, self.labels.shape[1]))
             self.data = np.zeros((0, self.data.shape[1]))
@@ -723,7 +724,7 @@ class Dataset:
             countl = countl + tmp["labels"].shape[0]
 
         if count != countl:
-            print("ERROR Database inconsistent (" + str(count) + " != " + str(countl) +")")
+            App.log(0, "ERROR Database inconsistent (" + str(count) + " != " + str(countl) +")")
             sys.exit(-1)
         return int(count)
 
@@ -779,7 +780,7 @@ class Dataset:
         tmp_name = tmp_name.split("-")[0]
 
         if batch_size > self.max_file_size:
-            print("Batchsize must be lower than the dataset file size ("+str(self.max_file_size)+").")
+            App.log(0, "Batchsize must be lower than the dataset file size ("+str(self.max_file_size)+").")
             batch_size = self.max_file_size
 
         idfile  = (int(self.cur_batch / self.max_file_size)) % self.files_count
@@ -805,7 +806,7 @@ class Dataset:
             data    = np.concatenate( (data, d[ :batch_size - (self.max_file_size - pos_file), :] ), axis=0)
             labels  = np.concatenate( (labels, l[ :batch_size - (self.max_file_size - pos_file), :] ), axis=0)
 
-        print("#{0} Batch({5}) {1}/{2}: {3} samples of {4} features".format(
+        App.log(0, "#{0} Batch({5}) {1}/{2}: {3} samples of {4} features".format(
                 int(self.cur_batch / self.count_samples),
                 int( (self.cur_batch % self.count_samples) / batch_size ),
                 int(self.count_samples / batch_size),
@@ -890,8 +891,8 @@ if __name__ == "__main__":
         dataset.save_meta()
 
     if options.nb_files:
-        print("Number of files: ")
-        print(dataset.nb_files())
+        App.log(0, "Number of files: ")
+        App.log(0, dataset.nb_files())
 
     if options.info:
-        print("Data format: (" + str(dataset.dataw)+","+str(dataset.datah)+")")
+        App.log(0, "Data format: (" + str(dataset.dataw)+","+str(dataset.datah)+")")

@@ -3,7 +3,14 @@
 export LD_LIBRARY_PATH=/opt/cuda/lib64/
 set +e
 
-LOGS="logs"
+PATH_TIDZAM=/opt/tidzam/
+
+# Hack because python ...
+CURRENT_PATH=`pwd`
+cd $PATH_TIDZAM
+
+LOGS=$PATH_TIDZAM/logs/
+
 
 PID_FILE=/tmp/tidzam-pid
 RAM_LIMIT=10
@@ -37,7 +44,7 @@ if [ "$ACTION" == "start" ]; then
     sleep 1
 
     echo "TidZam Stream Loader starting "
-    nohup python3 -u -W ignore src/TidzamStreamManager.py \
+    nohup python3 -u -W ignore $PATH_TIDZAM/src/TidzamStreamManager.py \
         --debug=$DEBUG \
         --sources=tidzam.conf \
         2>&1 > $LOGS/tidzam-stream-manager.log.txt &
@@ -45,8 +52,8 @@ if [ "$ACTION" == "start" ]; then
     sleep 1
 
     echo "TidZam Analyzer starting "
-    nohup python3 -u -W ignore src/TidzamAnalyzer.py \
-          --nn=builds/prod/  \
+    nohup python3 -u -W ignore $PATH_TIDZAM/src/TidzamAnalyzer.py \
+          --nn=classifiers/  \
           --overlap=0.25 \
           --debug=$DEBUG \
           --jack=tidzam-,impoundment,herring \
@@ -85,3 +92,5 @@ elif [ "$ACTION" == "check" ]; then
 else
   echo "tidzam (start | stop | check | restart)"
 fi
+
+#cd $CURRENT_PATH

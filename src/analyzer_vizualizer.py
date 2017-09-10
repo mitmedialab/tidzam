@@ -7,6 +7,8 @@ from matplotlib import pyplot as plt
 import matplotlib.animation as animation
 from threading import Thread
 
+from App import App
+
 class TidzamVizualizer (Thread):
     def __init__(self, channels_to_print=[]):
         Thread.__init__(self)
@@ -64,9 +66,9 @@ class TidzamVizualizer (Thread):
                 Sxx = np.reshape(sample, [self.data_size[0],self.data_size[1]] )
                 self.ims[i].set_array(Sxx.ravel())
             self.fig.canvas.draw()  # redraw the canvas
-            print('Spectrogram Updated')
+            App.log(0, 'Spectrogram Updated')
         except :
-            print('Waiting data to print...')
+            App.log(0, 'Waiting data to print...')
 
         if self.stopFlag is False:
             self.win.after(100, self.animate)

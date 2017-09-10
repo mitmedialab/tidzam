@@ -6,7 +6,7 @@ import asyncio
 from time import sleep
 
 import input_jack as input_jack
-import connector_SampleExtractor as extractor
+from App import App
 
 import numpy as np
 mgr = socketio.AsyncRedisManager('redis://')
@@ -36,17 +36,14 @@ class TidzamSocketIO(socketio.AsyncNamespace):
         self.label_dic      = None
         self.sources        = []
 
-        self.debug          = 1
-
     def start(self, port=80):
         web.run_app(app, port=port)
 
     def on_connect(self, sid, environ):
-        print("** Socket IO ** connect ", sid)
+        App.log(1,"Client connection " + str(sid) )
 
     def on_disconnect(self, sid):
-        print("** Socket IO ** disconnect ", sid)
-        #self.livestreams.del_stream(sid)
+        App.log(1, "Client disconnection " + str(sid) )
 
     def create_socketClient(self):
         self.external_sio = socketio.AsyncRedisManager('redis://', write_only=True)
@@ -63,9 +60,9 @@ class TidzamSocketIO(socketio.AsyncNamespace):
         if self.external_sio is None:
             self.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.loop)
-            print('** Socket IO ** Create Redis client socket ')
             self.create_socketClient()
-            print("======= TidZam RUNNING =======")
+            App.log(1,"Redis client socket started")
+            App.ok(0, "System ready.")
 
         if self.label_dic is None:
             self.label_dic = label_dic
@@ -100,32 +97,28 @@ class TidzamSocketIO(socketio.AsyncNamespace):
             self.loop.run_until_complete(self.external_sio.emit(resp["chan"].replace(":","-"), resp) )
         sleep(0.1)
 
+    # TODO: SocketIO-client does nt support rooms for now, so broadcast to everybody ...
+    async def on_SampleExtractionRules(self, sid, data):
+            await sio.emit('SampleExtractionRules', data)
+
+    # TODO: SocketIO-client does nt support rooms for now, so broadcast to everybody ...
+    # Sources list received from the TidzamStreamManeger
+    async def on_JackSource(self, sid, data):
+            await sio.emit('JackSource', data)
+
     async def on_sys(self, sid, data):
         try:
             obj = json.loads(data)
         except:
             obj = data
 
-        # Classifier list requested by the clients
-        if obj["sys"].get("classifier"):
-            await sio.emit('sys',self.build_label_dic())
+        try:
+            # Classifier list requested by the clients
+            if obj["sys"].get("classifier"):
+                await sio.emit('sys',self.build_label_dic())
 
-        if obj["sys"].get("extraction_rules") is not None:
-            if obj["sys"].get("extraction_rules") == "":
-                print(extractor.EXTRACTION_RULES)
-                await sio.emit('sys', {'sys':{'extraction_rules':extractor.EXTRACTION_RULES }} )
-            else:
-                if self.debug > 0:
-                    print("** Socket IO ** New extraction rules received :")
-                    print(obj["sys"].get("extraction_rules"))
-                extractor.EXTRACTION_RULES = obj["sys"].get("extraction_rules")
-
-        # Sources list received from the TidzamStreamManeger
-        if obj["sys"].get("sources"):
-            input_jack.SOURCES = obj["sys"]["sources"]
-
-    def on_data(self, sid, data):
-        print("** Socket IO ** data event : " + data)
+        except:
+            App.warning(0,"Unable to process request " + str(data))
 
 
 cors.add(app.router.add_static('/static', 'static'), {

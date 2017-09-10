@@ -18,6 +18,8 @@ import json
 
 import vizualisation as vizu
 
+from App import App
+
 config = tf.ConfigProto (allow_soft_placement=True)
 
 class Classifier:
@@ -51,9 +53,9 @@ class Classifier:
             if ckpt and ckpt.model_checkpoint_path:
                 saver = tf.train.Saver(max_to_keep=2)
                 saver.restore(self.sess, ckpt.model_checkpoint_path)
-                print("Network loaded: " + folder)
+                App.ok(0, "Classifier loaded: " + folder)
             else:
-                print("Not Neural Network found in " + checkpoint_dir)
+                App.error(0,"No Neural Network found in " + checkpoint_dir)
                 quit()
 
             # Add the final softmax decision function
@@ -80,8 +82,7 @@ class Analyzer(threading.Thread):
         self.sio_redis = redis.StrictRedis().pubsub()
         self.sio_redis.subscribe("socketio")
 
-        print("======== TENSOR FLOW ========")
-        print("TensorFlow "+ tf.__version__)
+        App.log(1, "TensorFlow "+ tf.__version__)
         self.load()
         self.start()
 
@@ -94,7 +95,7 @@ class Analyzer(threading.Thread):
                 self.classifiers.append(Classifier(f))
 
         if len(self.classifiers) < 1:
-            print("No classifier found in: " + self.nn_folder)
+            App.error(0,"No classifier found in: " + self.nn_folder)
             quit()
 
     # Loop to receive socket io msg from redis pubsub
@@ -112,7 +113,7 @@ class Analyzer(threading.Thread):
                                 if obj["sys"].get("source"):
                                     self.count_run = 0
                 except Exception as e:
-                    print("** Analyzer ** Error on redis message" + str(e) + "------\n"+data)
+                    App.error(0, "Redis message" + str(e) + "------\n"+str(data))
 
     # Function called by the streamer to predic its current sample
     def execute(self, Sxxs, fs, t, sound_obj, overlap=0, sources=None, mapping=None):
@@ -199,8 +200,7 @@ class Analyzer(threading.Thread):
             channel["time"] = source["time"]
             results.append(channel)
 
-            if self.debug > 2:
-                print(source["time"] + "\tchannel: " + channel["mapping"][0] + '\t' + str(detections[i]))
+            App.log(2, source["time"] + "\tchannel: " + channel["mapping"][0] + '\t' + str(detections[i]))
 
         # CALL THE CONSUMERS
         for obj in self.callable_objects:

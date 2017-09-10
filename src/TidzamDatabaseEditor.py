@@ -5,6 +5,8 @@ import sounddevice as sd
 
 import TidzamDatabase as database
 
+from App import App
+
 class Editor:
     def __init__(self,dataset=None):
         self.count_run = -1
@@ -20,68 +22,68 @@ class Editor:
         self.init = True
 
     def menu(self):
-        print("===============")
-        print("Classes\n---------------")
+        App.log(0, "===============")
+        App.log(0, "Classes\n---------------")
         for i in range(0, len(self.dataset.labels_dic)):
-            print(str(i) + " : " + str(self.dataset.labels_dic[i]) )
-        print("Actions:\n---------------")
-        print("* (o): Open a dataset.")
-        print("* (l): Load a folder of WAV files.")
-        print("* (S): Save the dataset (metadata generation).")
-        print("* (m): Merge with an other dataset.")
-        print("* (s): Split into two dataset.")
-        print("-------------------")
-        print("* (n): Create a new classe")
-        print("* (i): Information on dataset")
-        print("* (b): Balance classes")
-        print("* (r): Randomize the dataset")
-        print("-------------------")
-        print("* (enter): next sample")
-        print("* (q): quit")
+            App.log(0, str(i) + " : " + str(self.dataset.labels_dic[i]) )
+        App.log(0, "Actions:\n---------------")
+        App.log(0, "* (o): Open a dataset.")
+        App.log(0, "* (l): Load a folder of WAV files.")
+        App.log(0, "* (S): Save the dataset (metadata generation).")
+        App.log(0, "* (m): Merge with an other dataset.")
+        App.log(0, "* (s): Split into two dataset.")
+        App.log(0, "-------------------")
+        App.log(0, "* (n): Create a new classe")
+        App.log(0, "* (i): Information on dataset")
+        App.log(0, "* (b): Balance classes")
+        App.log(0, "* (r): Randomize the dataset")
+        App.log(0, "-------------------")
+        App.log(0, "* (enter): next sample")
+        App.log(0, "* (q): quit")
         a = input()
 
         if a == 'o':
-            print("Dataset:")
+            App.log(0, "Dataset:")
             dataset_path = input()
             self.load_dataset(dataset_path)
 
         elif a == 'S':
-            print("Metadata generation.")
+            App.log(0, "Metadata generation.")
             self.dataset.save_meta()
 
         elif a == 's':
-            print("Proportion:")
+            App.log(0, "Proportion:")
             p = float(input())
             self.dataset.split_dataset(p=p)
 
         elif a == 'l':
-            print("Folder:")
+            App.log(0, "Folder:")
             folder = input()
-            print("Import as single classe ? [y/N]")
+            App.log(0, "Import as single classe ? [y/N]")
             single = input()
             if single == 'y':
-                print("Class name:")
+                App.log(0, "Class name:")
                 single = input()
             else:
                 single = None
             if True:
                 self.dataset.load_from_wav_folder(folder,asOneclasse=single)
             #except:
-            #    print("Impossible to load " + folder +"\n")
+            #    App.log(0, "Impossible to load " + folder +"\n")
 
         elif a == 'n':
-            print('New classe name: ')
+            App.log(0, 'New classe name: ')
             name = input()
             self.dataset.create_classe(name)
 
         elif a == 'm':
-            print("Merge with dataset:")
+            App.log(0, "Merge with dataset:")
             name = input()
             #dataset = database.Dataset(name)
-            print("As a single classe ? (y/N)")
+            App.log(0, "As a single classe ? (y/N)")
             a = input()
             if a == 'y':
-                print("Mother classe name:")
+                App.log(0, "Mother classe name:")
                 classe = input()
                 self.dataset.merge(name, asOneClasse=classe)
             else:
@@ -94,23 +96,23 @@ class Editor:
             pass
 
         elif a == 'r':
-            print("Randomization")
+            App.log(0, "Randomization")
             #try:
             if True:
                 self.dataset.randomize()
             #except:
-            #    print("No data.")
+            #    App.log(0, "No data.")
         elif a == 'i':
-            print('Informations:\n--------------')
+            App.log(0, 'Informations:\n--------------')
             try:
-                print(str(self.dataset.count_samples()) +" samples of " +
+                App.log(0, str(self.dataset.count_samples()) +" samples of " +
                     str(self.dataset.get_nb_features() ) + " features in " +
                     str(len(self.dataset.get_classes()) ) + " classes.")
-                print(self.dataset.get_classes())
-                print("Samples distribution:")
-                print(self.dataset.get_sample_count_by_classe())
+                App.log(0, self.dataset.get_classes())
+                App.log(0, "Samples distribution:")
+                App.log(0, self.dataset.get_sample_count_by_classe())
             except:
-                print('No data.')
+                App.log(0, 'No data.')
 
         elif a == 'q':
             quit()
@@ -144,11 +146,11 @@ class Editor:
 
                     while True:
                         fs, t, Sxx = database.get_spectrogram(data_chan, f.samplerate, i,  show=show)
-                        print("\n===============")
-                        print("Channel: " + str(i) + "\n---------------")
-                        print("Timestamp: " + time + "\n---------------")
-                        print("Actions:")
-                        print("* (g): go to")
+                        App.log(0, "\n===============")
+                        App.log(0, "Channel: " + str(i) + "\n---------------")
+                        App.log(0, "Timestamp: " + time + "\n---------------")
+                        App.log(0, "Actions:")
+                        App.log(0, "* (g): go to")
 
                         if show is True:
                             sd.play(data_chan, 48000)
@@ -158,7 +160,7 @@ class Editor:
                             break
 
                         elif a == 'g':
-                            print('Timestamp destination: (hh:mm:s:ms)')
+                            App.log(0, 'Timestamp destination: (hh:mm:s:ms)')
                             d = input()
                             d = d.split(':')
                             self.count_run = (int(d[0])*3600 + int(d[1])*60 + int(d[2]) + (int(d[3])*2))*2
@@ -190,7 +192,7 @@ class Editor:
                                         c = np.zeros((1, len(self.dataset.labels_dic)))
                                         c[0][int(a)] = 1
                                         self.dataset.labels = np.append(self.dataset.labels, c, axis=0)
-                                    print(str(self.dataset.labels.shape[0]) + " samples of " + str(self.dataset.labels.shape[1]) + " classes")
+                                    App.log(0, str(self.dataset.labels.shape[0]) + " samples of " + str(self.dataset.labels.shape[1]) + " classes")
                                     break
                             except:
                                 pass
@@ -223,7 +225,7 @@ if __name__ == "__main__":
     # Open a dataset and plot all example of a classe
     if options.play:
         if options.open is None:
-            print("You must specify a dataset to open.")
+            App.log(0, "You must specify a dataset to open.")
         else:
             data = database.Dataset(options.open,data_size=(150,186))
             data.print_sample(np.abs(data.data), data.labels, options.playID, print_all=True)

@@ -8,8 +8,8 @@ import math
 import os
 
 import vizualisation as vizu
-
 import TidzamDatabase as database
+from App import App
 
 if __name__ == "__main__":
 
@@ -17,7 +17,7 @@ if __name__ == "__main__":
     import tensorflow as tf
 
 
-    print("TensorFlow "+ tf.__version__)
+    App.log(0, "TensorFlow "+ tf.__version__)
 
     ###################################
     ### Console Parameters
@@ -98,13 +98,13 @@ if __name__ == "__main__":
                                         task_index=opts.task_index)
 
     if opts.job_type == "ps":
-        print("Parameter server " + ps[opts.task_index]+ " started.")
+        App.log(0, "Parameter server " + ps[opts.task_index]+ " started.")
         server.join()
     elif opts.job_type != "worker":
-        print("Bad argument in job name [ps | worker]")
+        App.log(0, "Bad argument in job name [ps | worker]")
         sys.exit(0)
 
-    print("Worker " + workers[opts.task_index]+ " started")
+    App.log(0, "Worker " + workers[opts.task_index]+ " started")
 
     gpu_options = tf.GPUOptions(
     #    per_process_gpu_memory_fraction=0.25
@@ -125,7 +125,7 @@ if __name__ == "__main__":
     dataset      = database.Dataset(opts.dataset_train)
     if opts.dataset_test:
         dataset_test = database.Dataset(opts.dataset_test)
-    print("\nSample size: " + str(dataset.dataw) + 'x' + str(dataset.datah))
+    App.log(0, "Sample size: " + str(dataset.dataw) + 'x' + str(dataset.datah))
 
     ###################################
     # Between-graph replication
@@ -141,7 +141,7 @@ if __name__ == "__main__":
         ###################################
         # Build graphs
         ###################################
-        print("Loading DNN model from:  " + opts.dnn)
+        App.log(0, "Loading DNN model from:  " + opts.dnn)
         sys.path.append('./')
         exec("import "+os.path.dirname(opts.dnn)+"."+os.path.basename(opts.dnn).replace(".py","")+" as model")
         net = eval("model.DNN([dataset.dataw, dataset.datah], dataset.get_nb_classes())")
@@ -162,7 +162,7 @@ if __name__ == "__main__":
             projector.visualize_embeddings(writer_test, proj)
             projector.visualize_embeddings(writer_train, proj)
 
-        print("Generate summaries graph.")
+        App.log(0, "Generate summaries graph.")
         merged = tf.summary.merge_all()
 
         with tf.name_scope('Trainer'):
@@ -173,13 +173,13 @@ if __name__ == "__main__":
         # Start the session
         ###################################
         if opts.task_index != 0:
-            print("Waiting for the master worker.")
+            App.log(0, "Waiting for the master worker.")
         with tf.train.MonitoredTrainingSession(master=server.target,
                                                is_chief=(opts.task_index == 0),
                                                checkpoint_dir=opts.out+"/model/",
                                                hooks=hooks,
                                                config=config) as sess:
-                print("Training is starting.")
+                App.ok(0, "Training is starting.")
                 writer_train.add_graph(sess.graph)
                 writer_test.add_graph(sess.graph)
 
@@ -187,7 +187,7 @@ if __name__ == "__main__":
                 np.save(opts.out + "/labels_dic.npy", dataset.labels_dic)
 
                 while not sess.should_stop():
-                    print("---")
+                    App.log(0, "---")
                     start_time = time.time()
 
                     ################### TRAINING
@@ -239,7 +239,7 @@ if __name__ == "__main__":
                     else:
                         accuracy_test = cost_test = 0
 
-                    print( "\033[1;37m Step {0} - \033[0m {1:.2f} sec  | train -\033[32m acc {2:.3f}\033[0m cost {3:.3f} | test -\033[32m acc {4:.3f}\033[0m cost {5:.3f} |".format(
+                    App.log(0,  "\033[1;37m Step {0} - \033[0m {1:.2f} sec  | train -\033[32m acc {2:.3f}\033[0m cost {3:.3f} | test -\033[32m acc {4:.3f}\033[0m cost {5:.3f} |".format(
                                     step,
                                     time.time() - start_time,
                                     accuracy_train,

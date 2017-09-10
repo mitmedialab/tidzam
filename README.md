@@ -16,7 +16,7 @@ tidzam install
 ### Dependencies
 Tidzam has been implemented on Python 3.x and uses the following external components:
 * [**JACK server**](#JACK-Server) is a low latency audio mixer server which routes the audio streams between the different components of the system. It is managed by the [TidzamStreamManager](#TidzamStreamManager) which loads the incoming audio sources, configure them and monitor the JACK server. Manual client configurations can be operated without conflict with the [TidzamStreamManager](#TidzamStreamManager).
-* [**Icecast server**](#Icecast-Server) pushs the audio streams processed by the system to a Web interface in order to allow the clients to listen all the streams independently. This functionnality is required when the incoming audio sources contains a lot of channels (like in OPUS encoding) which cannot be played with a classical audio player. Each channel of the audio input sources is splited into an independant mono channel. 
+* [**Icecast server**](#Icecast-Server) pushs the audio streams processed by the system to a Web interface in order to allow the clients to listen all the streams independently. This functionnality is required when the incoming audio sources contains a lot of channels (like in OPUS encoding) which cannot be played with a classical audio player. Each channel of the audio input sources is splited into an independant mono channel.
 * **MPV and FFMPEG** are used to load the incoming audio sources in JACK server and to push them to the Icecast server.
 * **Tensorflow** is the deeplearning framework on which is implemented Tidzam. It is recommended to install its GPU-enabled version for real-time processing and for CPU load / memory saving.
 * **Python Package Dependencies:**
@@ -25,6 +25,7 @@ python3
 python-scipy
 python-matplotlib
 python-socketio
+socketIO_client
 sounddevice
 json
 jack-mixer
@@ -63,7 +64,7 @@ Options:
                         source streams (default: None).
   --debug=DEBUG         Set debug level (Default: 0).
 ```
-An initial JSON config file can be provided to the manager (--sources options) in order to automatically load some sources at the starting. In such case, they are automatically defined such as permanent sources which means that if the streaming is disconnected, the system will automatically try to reload them periodically. 
+An initial JSON config file can be provided to the manager (--sources options) in order to automatically load some sources at the starting. In such case, they are automatically defined such as permanent sources which means that if the streaming is disconnected, the system will automatically try to reload them periodically.
 
 ##### JSON config file
 ```
@@ -86,13 +87,13 @@ An initial JSON config file can be provided to the manager (--sources options) i
 ```
 
 ### JACK Server
-The JACK Server can handle a lot of different clients which can increase drastically the CPU load til saturating the system ressources. Several parameters should be adapted according to the number of streams that Tidzam is supposed to handle according to the available ressources of the server. 
+The JACK Server can handle a lot of different clients which can increase drastically the CPU load til saturating the system ressources. Several parameters should be adapted according to the number of streams that Tidzam is supposed to handle according to the available ressources of the server.
 
-* **--port-max** defines the maximum number of clients that the JACK servers will authorize. It is the safety lock in Tidzam to protect the system load. This parameter bounds Tidzam such as if the maximum number of clients is reached, the TidzamStreamManager will not be able to load new sources. An audio source in Tidzam consums in the worth case and by source: (3 x #NumberOfSources x #LoadedChannels). The 
+* **--port-max** defines the maximum number of clients that the JACK servers will authorize. It is the safety lock in Tidzam to protect the system load. This parameter bounds Tidzam such as if the maximum number of clients is reached, the TidzamStreamManager will not be able to load new sources. An audio source in Tidzam consums in the worth case and by source: (3 x #NumberOfSources x #LoadedChannels). The
 
-* **-r** desactivates the real-time mode (if the OS doesn't support it) or if the system load cannot handle it. 
+* **-r** desactivates the real-time mode (if the OS doesn't support it) or if the system load cannot handle it.
 
-* **-t** defines the timeout to kick out a jack client. When a client is disconnected, the TidzamStreamManager will automatically try to reload it. If the client is disconnected because it is too slow to response to JACK server due to the system load, then its restarting will produce the disconnection of another one and them trigger a cascade of failures. In order to avoid such situation, the timeout should be enough large to avoid disconnection due to system load or the number of client MUST be reduced with the --port-max option. 
+* **-t** defines the timeout to kick out a jack client. When a client is disconnected, the TidzamStreamManager will automatically try to reload it. If the client is disconnected because it is too slow to response to JACK server due to the system load, then its restarting will produce the disconnection of another one and them trigger a cascade of failures. In order to avoid such situation, the timeout should be enough large to avoid disconnection due to system load or the number of client MUST be reduced with the --port-max option.
 
 * **-ddumpy** defines a dumpy audio driver for JACK server in order to not lock the hardware sound device.
 
@@ -143,7 +144,7 @@ A source can be loaded from a remote URL, from a local file or from a [LiveStrea
 ##### Get the List of Source Databases:
 *Request on "sys" event:*
 ```
-{'sys':{'database':''}} 
+{'sys':{'database':''}}
 ```
 *Response on "sys" event:*
 ```
@@ -173,11 +174,11 @@ A source can be loaded from a remote URL, from a local file or from a [LiveStrea
 #### Live Stream Management
 
 ##### New Live Stream
-A LiveStream is automatically created and connected to the Icecast server and TidzamAnalyzer when its data is received on socket.io event *"audio"* from a client. 
+A LiveStream is automatically created and connected to the Icecast server and TidzamAnalyzer when its data is received on socket.io event *"audio"* from a client.
 The audio stream MUST be in PCM16bits format. The system will generate a unique portname identifier based on the socket.io SID of the client which can be request by:
 Getting the created portname:
 
-** Request on "sys":** 
+** Request on "sys":**
 ```
 {
    'sys':{
@@ -185,7 +186,7 @@ Getting the created portname:
    }
 }
 ```
-** Response on "sys":** 
+** Response on "sys":**
 ```
 {
   'sys':{
@@ -194,7 +195,7 @@ Getting the created portname:
 }
 ```
 ##### Close a live stream
-** Request on "sys":** 
+** Request on "sys":**
 ```
 {
    'sys':{
@@ -267,26 +268,31 @@ The socket emits on the event 'sys' with the following data at each sample analy
  ```
 
 ##### Extraction rules
-###### Request
+###### Getting extraction rules
+*Request on event 'SampleExtractionRules'*
 ```
-{'sys':{'extraction_rules':''}}
+{'get':'rules'}
 ```
-###### Response
+###### Setting extraction rules
+*Request on event 'SampleExtractionRules'*
 ```
-  {
-    'sys':{
-      'extraction_rules':{
-        "source1":{
-          "rate":"auto | float"
-          },
-        "source2":{
-          "rate":"auto | float"
-          }, [...]
-        }
-     }
-   }
+{
+  'set':'rules',
+  'rules:'{
+    "source1":{
+      "rate":"auto | float"
+      },
+    "source2":{
+      "rate":"auto | float"
+      }, [...]
+    }
+}
 ```
-
+###### Getting Extracted Sample Information
+*Request on event 'SampleExtractionRules'*
+```
+{'get':'database_info'}
+```
 
 # Tidzam Training
 The TidzamTrain process has a cluster-based implementation of *Asynchronous Between-graph Replication* which allows the training to be executed in parallel on several GPUs distributed on several machines. A Parameter Server (ps) is responsible to aggregate and share the weights between the different distributed workers. If TidzamTrain is executed without explicit cluster configuration (see *--workers*, *--ps*, *--task-index* and *--job*), only local GPUs will be used. The training and testing datasets can be provided by two approaches:
@@ -383,7 +389,7 @@ Options:
 
 ## Neural Network vizualisation
 TidzamTrainer generates periodically (see *--stats-step*) some summaries for tensorboard :
-* Accurancy, costs, recall, precision and confusion matrix 
+* Accurancy, costs, recall, precision and confusion matrix
 * GraphDef with memory usage and computation distribution over the devices
 * Weight histograms, distributions and feature maps
 * Embeddings for 3D visualization of output classes distance.
@@ -391,5 +397,3 @@ TidzamTrainer generates periodically (see *--stats-step*) some summaries for ten
 ``
 tensorboard --logdir=checkpoints
 ``
-
-

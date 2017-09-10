@@ -6,6 +6,7 @@ import os
 
 import tensorflow as tf
 from tensorflow.contrib.tensorboard.plugins import projector
+from App import App
 
 class Embedding:
     def __init__(self, name, input, ouput, dropout, projector, nb_embeddings, checkpoint_dir):
@@ -27,12 +28,12 @@ class Embedding:
                         self.embedding_var.name.replace('/','-')+'.tsv'
 
     def evaluate(self, batch_x, batch_y, session, dic=None):
-        print("* Generation of #" +str(batch_x.shape[0])+ " embeddings for " + self.embedding_var.name)
+        App.log(0, "* Generation of #" +str(batch_x.shape[0])+ " embeddings for " + self.embedding_var.name)
         try:
                 session.run( [self.assign.op], feed_dict={self.input: batch_x, self.dropout: 1.0})
                 self.build_metadatafile(batch_y, dic=dic, out_file=self.checkpoint_dir+'/metadata-'+self.embedding_var.name.replace('/','-')+'.tsv')
         except:
-                print("Embeddings computation error")
+                App.log(0, "Embeddings computation error")
 
     def build_metadatafile(self, Y, dic=None, out_file='database/metadata.tsv'):
         # Clean previous embedding for this place
@@ -53,7 +54,7 @@ class Summaries:
         self.net        = net
         self.sunnaries_op = []
 
-        print("Build summaries")
+        App.log(0, "Build summaries")
         correct_prediction = tf.equal(tf.argmax(self.net.labels, 1), tf.argmax(self.net.out, 1))
         self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
@@ -91,7 +92,7 @@ class Summaries:
     def build_kernel_filters_summaries(self,conv_layers):
             try:
                 for conv in conv_layers :
-                    print('* Load filter kernel printer for ' + conv.name)
+                    App.log(0, '* Load filter kernel printer for ' + conv.name)
                     kernel_size  = conv.get_shape()[0].__int__()
                     nb_kernel    = conv.get_shape()[3].__int__()
                     img_size     = int(math.ceil(math.sqrt(nb_kernel)))
@@ -116,5 +117,5 @@ class Summaries:
                     tf.summary.image("Visualize_kernels of " + str(conv.name), img,
                         max_outputs=nb_kernel)
             except Exception as ex:
-                print("No kernel map generated.")
-                print(ex)
+                App.log(0, "No kernel map generated.")
+                App.log(0, ex)

@@ -2,6 +2,7 @@ import optparse
 import datetime
 
 import analyzer as Analyzer
+from App import App
 
 if __name__ == "__main__":
     usage = 'TidzamAnalyzer.py --nn=build/test [--stream=stream.wav | --jack=jack-output] [OPTIONS]'
@@ -55,8 +56,8 @@ if __name__ == "__main__":
 
     (opts, args) = parser.parse_args()
 
-    print("===========================")
-    print(str(datetime.datetime.now()) )
+    App.verbose          = opts.DEBUG
+    App.socketIOanalyzerAdress = "localhost:" + str(opts.port)
 
     if (opts.stream or opts.jack) and opts.nn:
         callable_objects = []
@@ -74,43 +75,41 @@ if __name__ == "__main__":
             else:
                 wav_folder = opts.out
 
-            import connector_SampleExtractor as SampleExtractor
+            import SampleExtractor as SampleExtractor
             # , 'birds', 'cricket', 'nothing', 'rain','wind'
             list_to_extract = opts.extract.split(",")
-            extractor = SampleExtractor.SampleExtractor(list_to_extract,
+            extraction_rules = {}
+
+            extractor = SampleExtractor.SampleExtractor(
+                    extraction_rules=extraction_rules,
                     extraction_dest=wav_folder,
-                    channels=opts.extract_channels.split(","),
-                    dd=opts.dd,
-                    debug=opts.DEBUG)
+                    dd=opts.dd)
             callable_objects.append(extractor)
 
         ### Socket.IO Output Connector
-        import connector_socketio as connector_socketio
-        socket = connector_socketio.create_socket("/")
+        import SocketIOServer as socketio
+        socket = socketio.create_socket("/")
         callable_objects.append(socket)
 
         ### Chain API Output Connector
         if opts.chainAPI is not None:
-            import connector_ChainAPI as ChainAPI
+            import ChainAPI as ChainAPI
             from requests.auth import HTTPBasicAuth
-            ch = ChainAPI.ChainAPI(opts.DEBUG)
+            ch = ChainAPI.ChainAPI()
             try:
                 tmp = opts.chainAPI.split(":")
                 user = tmp[0]
                 tmp = tmp[1].split("@")
                 pwd = tmp[0]
                 url = "http://"+tmp[1]
-                print("======== CHAIN API ========")
-                print("Site: " + url)
-                print("user: " + user)
                 ch.connect(url, auth=HTTPBasicAuth(user,pwd))
                 callable_objects.append(ch)
             except:
-                print("Error in parsing chainAPI URL: " + opts.chainAPI)
+                App.error(0, "Error in parsing chainAPI URL: " + opts.chainAPI)
                 quit()
 
         ### Load ANALYZER
-        analyzer = Analyzer.Analyzer(opts.nn, callable_objects=callable_objects, debug=opts.DEBUG)
+        analyzer = Analyzer.Analyzer(opts.nn, callable_objects=callable_objects)
 
         callable_objects = []
         callable_objects.append(analyzer)
@@ -129,13 +128,10 @@ if __name__ == "__main__":
 
         elif opts.jack is not None:
             import input_jack as cj
-            connector = cj.TidzamJack(opts.jack.split(","), callable_objects=callable_objects, debug=opts.DEBUG, overlap=opts.overlap)
+            connector = cj.TidzamJack(opts.jack.split(","), callable_objects=callable_objects, overlap=opts.overlap)
 
         connector.start()
-        #time.sleep(2)
-        #date_in_future = (datetime.today() + timedelta(1)).strftime("%Y-%m-%d-%H-%M-%S")
-        #socket.load_source(date_in_future)
         socket.start(opts.port)
 
     else:
-        print(parser.usage)
+        App.log(0, parser.usage)
