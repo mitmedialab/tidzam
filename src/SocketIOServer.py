@@ -1,7 +1,6 @@
 import socketio
 from aiohttp import web
 import aiohttp_cors
-import json
 import asyncio
 from time import sleep
 
@@ -12,8 +11,8 @@ import numpy as np
 mgr = socketio.AsyncRedisManager('redis://')
 sio = socketio.AsyncServer(
             client_manager=mgr,
-            ping_timeout=7,
-            ping_interval=3,
+            ping_timeout=120,
+            ping_interval=10,
             cors_credentials='tidmarsh.media.mit.edu')
 app = web.Application()
 
@@ -95,7 +94,7 @@ class TidzamSocketIO(socketio.AsyncNamespace):
         # Send the result of each independent livestream
         for resp in resp_livestream:
             self.loop.run_until_complete(self.external_sio.emit(resp["chan"].replace(":","-"), resp) )
-        sleep(0.1)
+        #sleep(0.1)
 
     # TODO: SocketIO-client does nt support rooms for now, so broadcast to everybody ...
     async def on_SampleExtractionRules(self, sid, data):
@@ -106,19 +105,14 @@ class TidzamSocketIO(socketio.AsyncNamespace):
     async def on_JackSource(self, sid, data):
             await sio.emit('JackSource', data)
 
-    async def on_sys(self, sid, data):
-        try:
-            obj = json.loads(data)
-        except:
-            obj = data
-
+    async def on_sys(self, sid, obj):
         try:
             # Classifier list requested by the clients
             if obj["sys"].get("classifier"):
                 await sio.emit('sys',self.build_label_dic())
 
         except:
-            App.warning(0,"Unable to process request " + str(data))
+            App.warning(0,"Unable to process request " + str(obj))
 
 
 cors.add(app.router.add_static('/static', 'static'), {

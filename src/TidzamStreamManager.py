@@ -14,11 +14,12 @@ import aiohttp_cors
 
 import glob
 import datetime
-import json
 import atexit
 import time
+import json
 
 import optparse
+import traceback
 
 from App import App
 
@@ -200,9 +201,11 @@ class TidzamStreamManager(threading.Thread):
                 break
 
         if found:
-            App.log(1, "Remove source stream " + str(source.name))
             if source.process is not None:
+                App.log(1, "Remove source stream " + str(source.name) + " PID: " + str(source.process.pid))
                 subprocess.Popen.kill(source.process)
+            else:
+                App.log(1, "No process associated with " + str(source.name))
             self.sources.remove(source)
             return source
         return None
@@ -211,26 +214,25 @@ class TidzamStreamManager(threading.Thread):
         self.wait_jack_client(source.name)
 
         # If request an additionnal stream from a permanent stream
-        source_old = None
+        source_old = self.unload_source(source.name)
+        source_ready = False
         if source.name is not source.database:
             for s in self.sources:
                 if s.database == source.database:
                     source.path_database  = s.path_database
                     source.nb_channels    = s.nb_channels
                     source.default_stream = s.default_stream
+                    source_ready          = True
                     break
         # Else we stop the current stream to reload it with new parameters
-        else:
-            source_old = self.unload_source(source.name)
+        if source_ready is False:
             if source_old is not None:
+                source.database       = source_old.database
                 source.path_database  = source_old.path_database
                 source.default_stream = source_old.default_stream
                 source.nb_channels    = source_old.nb_channels
                 source.is_permanent   = source_old.is_permanent
-
-        # If there is a starting time, look up in the database
-        if source.starting_time:
-            source = self.load_source_local_database(source)
+                source_ready          = True
 
         if source.url is None:
             source.url = source.default_stream
@@ -238,6 +240,16 @@ class TidzamStreamManager(threading.Thread):
         if source.name == None:
             source.name = str(round(time.time()))
 
+        # If there is a starting time, look up in the database
+        if source.starting_time:
+            if source_ready is True:
+                source = self.load_source_local_database(source)
+            else:
+                App.log(1, "Unable to load source " + source.name + " (wrong database name)")
+                return
+
+        if source is None:
+            return None
 
         logfile = open(os.devnull, 'w')
         if source.format == "ogg":
@@ -268,29 +280,32 @@ class TidzamStreamManager(threading.Thread):
 
         # Looking for the file and compute seek position
         else:
-            desired_date = source.path_database + "/"+source.database+"-" + source.starting_time
-            files = sorted(glob.glob(source.path_database + "/*.opus")+glob.glob(source.path_database + "/*.ogg"))
-            stream_url = None
-            for f in files:
-                if "opus" in f:
-                    ext = ".opus"
-                elif "ogg" in f:
-                    ext = ".ogg"
-                if f > desired_date + ext:
-                    break
-                stream_url = f
+            try:
+                desired_date = source.path_database + "/"+source.database+"-" + source.starting_time
+                files = sorted(glob.glob(source.path_database + "/*.opus")+glob.glob(source.path_database + "/*.ogg"))
+                stream_url = None
+                for f in files:
+                    if "opus" in f:
+                        ext = ".opus"
+                    elif "ogg" in f:
+                        ext = ".ogg"
+                    if f > desired_date + ext:
+                        break
+                    stream_url = f
 
-            if stream_url is not None:
-                datetime_file = datetime.datetime.strptime(stream_url, source.path_database + '/'+source.database+'-%Y-%m-%d-%H-%M-%S' + ext)
-                source.url           = stream_url
-                source.seek          = (datetime_asked-datetime_file).total_seconds()
+                if stream_url is not None:
+                    datetime_file = datetime.datetime.strptime(stream_url, source.path_database + '/'+source.database+'-%Y-%m-%d-%H-%M-%S' + ext)
+                    source.url           = stream_url
+                    source.seek          = (datetime_asked-datetime_file).total_seconds()
 
-            # Boudary: if the date is too old, load first file
-            else :
-                source.url              = files[0]
-                source.starting_time    = datetime.datetime.strptime(files[0], source.path_database + '/'+source.database+'-%Y-%m-%d-%H-%M-%S'+ext).strftime('%Y-%m-%d-%H-%M-%S')
-                source.seek             = 0
-
+                # Boudary: if the date is too old, load first file
+                else :
+                    source.url              = files[0]
+                    source.starting_time    = datetime.datetime.strptime(files[0], source.path_database + '/'+source.database+'-%Y-%m-%d-%H-%M-%S'+ext).strftime('%Y-%m-%d-%H-%M-%S')
+                    source.seek             = 0
+            except:
+                App.log(1, "Unable to load local database (unknown): " + str(desired_date))
+                return None
         return source
 
     ############
@@ -490,100 +505,104 @@ if __name__ == '__main__':
                 jack_service.unload_source(stream.name)
 
     @sio.on('sys', namespace='/')
-    async def sys(sid, data):
+    async def sys(sid, obj):
         try:
-            obj = json.loads(data)
+            if obj.get("sys"):
+                # A source is connected to the tidzam analyzer
+                if obj["sys"].get("loadsource"):
+                    if obj["sys"]["loadsource"].get("date"):
+                        date = obj["sys"]["loadsource"]["date"];
+                    else:
+                        date = None
 
-            # A source is connected to the tidzam analyzer
-            if obj["sys"].get("loadsource"):
-                if obj["sys"]["loadsource"].get("date"):
-                    date = obj["sys"]["loadsource"]["date"];
+                    if obj["sys"]["loadsource"].get("url"):
+                        url = obj["sys"]["loadsource"]["url"];
+                    else:
+                        url = None
+
+                    if obj["sys"]["loadsource"].get("database"):
+                        database = obj["sys"]["loadsource"]["database"]
+                    else:
+                        database = None
+
+                    if obj["sys"]["loadsource"].get("channels") is not None:
+                        channels = obj["sys"]["loadsource"]["channels"].split(",")
+                    else:
+                        channels = None
+
+                    if obj["sys"]["loadsource"].get("is_permanent") is not None:
+                        is_permanent = int(obj["sys"]["loadsource"]["is_permanent"])
+                    else:
+                        is_permanent = False
+
+                    if obj["sys"]["loadsource"].get("format") is not None:
+                        format = obj["sys"]["loadsource"]["format"]
+                    else:
+                        format = "ogg"
+                    if format != "ogg" and format != "copy":
+                        format = "ogg"
+
+                    source = jack_service.load_source(Source(
+                            name=obj["sys"]["loadsource"]["name"],
+                            url=url,
+                            channels=channels,
+                            database=database,
+                            is_permanent=is_permanent,
+                            format=format,
+                            starting_time=date ))
+
+                    if source is None:
+                        return
+
+                    source.sid = sid
+                    # Send the new stream configuration to tidzam analyzer process and clients TODO
+                    rsp = []
+                    for source in jack_service.sources:
+                        rsp.append({"name":source.name,"starting_time":source.starting_time})
+                    sio_analyzer.emit('JackSource', rsp)
+
+                elif obj["sys"].get("unloadsource"):
+                    jack_service.unload_source(obj["sys"]["unloadsource"]["name"])
+
+                # A live stream is a socket io interface connected to the tidzam analyzer
+                elif obj["sys"].get("add_livestream"):
+                    for s in jack_service.streams:
+                        if s.id == sid:
+                            await sio.emit('sys',
+                                    data={'portname': s.portname},
+                                    room=sid)
+
+                elif obj["sys"].get("del_livestream"):
+                    jack_service.del_stream(sid)
+
+                # Request the list of available recordings in database TODO : Ugly
+                elif obj["sys"].get("database") == "":
+                    rsp = {}
+                    for source in jack_service.sources:
+                        if source.is_permanent:
+                            rsp[source.name] = {}
+                            rsp[source.name]["nb_channels"] = source.nb_channels
+                            rsp[source.name]["database"] = []
+                            if source.path_database:
+                                files = sorted(glob.glob(source.path_database + "/*.opus")+glob.glob(source.path_database + "/*.ogg"))
+                                for fo in files:
+                                    f = fo.split("/")
+                                    f = f[len(f)-1].replace(".opus", "").replace(".ogg", "").replace(source.database+"-","")
+                                    f = f.split("-")
+                                    start = datetime.datetime(int(f[0]),int(f[1]),int(f[2]),int(f[3]),int(f[4]),int(f[5]))
+                                    nb_seconds = int(int(os.stat(fo).st_size)*0.000013041)
+                                    end = start + datetime.timedelta(seconds=nb_seconds)
+                                    rsp[source.name]["database"].append([
+                                            start.strftime('%Y-%m-%d-%H-%M-%S'),
+                                            end.strftime('%Y-%m-%d-%H-%M-%S')
+                                            ])
+                    await sio.emit('sys', {"sys":{"database":rsp}})
                 else:
-                    date = None
-
-                if obj["sys"]["loadsource"].get("url"):
-                    url = obj["sys"]["loadsource"]["url"];
-                else:
-                    url = None
-
-                if obj["sys"]["loadsource"].get("database"):
-                    database = obj["sys"]["loadsource"]["database"]
-                else:
-                    database = None
-
-                if obj["sys"]["loadsource"].get("channels") is not None:
-                    channels = obj["sys"]["loadsource"]["channels"].split(",")
-                else:
-                    channels = None
-
-                if obj["sys"]["loadsource"].get("is_permanent") is not None:
-                    is_permanent = int(obj["sys"]["loadsource"]["is_permanent"])
-                else:
-                    is_permanent = False
-
-                if obj["sys"]["loadsource"].get("format") is not None:
-                    format = obj["sys"]["loadsource"]["format"]
-                else:
-                    format = "ogg"
-                if format != "ogg" and format != "copy":
-                    format = "ogg"
-
-                source = jack_service.load_source(Source(
-                        name=obj["sys"]["loadsource"]["name"],
-                        url=url,
-                        channels=channels,
-                        database=database,
-                        is_permanent=is_permanent,
-                        format=format,
-                        starting_time=date ))
-                source.sid = sid
-
-                # Send the new stream configuration to tidzam analyzer process and clients TODO
-                rsp = []
-                for source in jack_service.sources:
-                    rsp.append({"name":source.name,"starting_time":source.starting_time})
-                sio_analyzer.emit('JackSource', rsp)
-
-            elif obj["sys"].get("unloadsource"):
-                jack_service.unload_source(obj["sys"]["unloadsource"]["name"])
-
-            # A live stream is a socket io interface connected to the tidzam analyzer
-            elif obj["sys"].get("add_livestream"):
-                for s in jack_service.streams:
-                    if s.id == sid:
-                        await sio.emit('sys',
-                                data={'portname': s.portname},
-                                room=sid)
-
-            elif obj["sys"].get("del_livestream"):
-                jack_service.del_stream(sid)
-
-            # Request the list of available recordings in database TODO : Ugly
-            elif obj["sys"].get("database") == "":
-                rsp = {}
-                for source in jack_service.sources:
-                    if source.is_permanent:
-                        rsp[source.name] = {}
-                        rsp[source.name]["nb_channels"] = source.nb_channels
-                        rsp[source.name]["database"] = []
-                        if source.path_database:
-                            files = sorted(glob.glob(source.path_database + "/*.opus")+glob.glob(source.path_database + "/*.ogg"))
-                            for fo in files:
-                                f = fo.split("/")
-                                f = f[len(f)-1].replace(".opus", "").replace(".ogg", "").replace(source.database+"-","")
-                                f = f.split("-")
-                                start = datetime.datetime(int(f[0]),int(f[1]),int(f[2]),int(f[3]),int(f[4]),int(f[5]))
-                                nb_seconds = int(int(os.stat(fo).st_size)*0.000013041)
-                                end = start + datetime.timedelta(seconds=nb_seconds)
-                                rsp[source.name]["database"].append([
-                                        start.strftime('%Y-%m-%d-%H-%M-%S'),
-                                        end.strftime('%Y-%m-%d-%H-%M-%S')
-                                        ])
-                await sio.emit('sys', {"sys":{"database":rsp}})
-
+                    App.warning(0, "Unknow socket.io command: " +str(obj)+ " ("+str(sid)+")")
             else:
-                App.warning(0, "Unknow socket.io command: " +str(data)+ " ("+str(sid)+")")
+                App.warning(0, "Unknow socket.io command: " +str(obj)+ " ("+str(sid)+")")
         except Exception as e:
-            App.log(0, "Unknow socket.io command: " +str(data)+ " ("+str(sid)+") " + str(e))
+            App.log(0, "Unknow socket.io command: " +str(obj)+ " ("+str(sid)+") " + str(e))
+            traceback.print_exc()
 
     web.run_app(app, port=opts.port)

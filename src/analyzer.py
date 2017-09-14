@@ -103,17 +103,13 @@ class Analyzer(threading.Thread):
         while not self.stopFlag.wait(0.1):
             msg = self.sio_redis.get_message()
             if msg:
-                try:
-                    if msg['type']=="message":
-                        data = str(pickle.loads(msg["data"])["data"]).replace("'",'"')
-                        obj = json.loads(data)
-                        if type(obj) is not list:
-                            if obj.get('sys'):
-                                # If the source is change, we reset the counter
-                                if obj["sys"].get("source"):
-                                    self.count_run = 0
-                except Exception as e:
-                    App.error(0, "Redis message" + str(e) + "------\n"+str(data))
+                 try:
+                     if msg['type']=="message":
+                         data = pickle.loads(msg["data"])
+                         if data.get('method')=="emit" and data.get('event') == "JackSource":
+                             self.count_run = 0
+                 except Exception as e:
+                     App.error(0, "Redis message" + str(e) + "------\n" + str(data))
 
     # Function called by the streamer to predic its current sample
     def execute(self, Sxxs, fs, t, sound_obj, overlap=0, sources=None, mapping=None):
@@ -200,7 +196,7 @@ class Analyzer(threading.Thread):
             channel["time"] = source["time"]
             results.append(channel)
 
-            App.log(2, source["time"] + "\tchannel: " + channel["mapping"][0] + '\t' + str(detections[i]))
+            App.log(3, source["time"] + "\tchannel: " + channel["mapping"][0] + '\t' + str(detections[i]))
 
         # CALL THE CONSUMERS
         for obj in self.callable_objects:
