@@ -10,6 +10,7 @@ import TidzamDatabase as database
 from socketIO_client import SocketIO
 from App import App
 
+import traceback
 
 def sorted_nicely( l ):
     """ Sort the given iterable in the way that humans expect."""
@@ -209,7 +210,8 @@ class TidzamJack(Thread):
                                             sources=self.sources,
                                             mapping=self.mapping)
                     except Exception as e:
-                        App.log(2, "Buffer loading..." + str(e))
+                        App.error(0, "Buffer loading..." + str(e))
+                        traceback.print_exc()
 
                 # If there there is no port ready => nothing to wait
                 elif self.portStarting() is False or self.mustReload is True:
