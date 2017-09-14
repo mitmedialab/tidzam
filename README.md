@@ -4,6 +4,7 @@ Tidzam is an ambient sound analysis system for outdoor environment. It is a comp
 
 This system uses deeplearning technology in order to learn its classification tasks. A Human Computer Interface API provides tools to build a training database from the targeted sonic environment. A new task of classification could be boostraped by external audio recordings in order to create poor classifiers which will be refined by the addition of audio samples that the system automatically extracts from the environment. Therefore the system improves its accurancy after several generations of its iterative learning process.
 
+[![Watch the video](http://downloads.duhart-clement.fr/tidzam-video.png)](https://drive.google.com/open?id=0B8SF3H2DYN3DVjJHQ1dDLTl4TXc)
 
 # Get Started
 Tidzam is composed of several independent processes which can require important ressources in terms of CPU, GPU and memory according to the classification tasks complexity and the number of processed audio streams. Its different processes are multi-threaded and can be deployed on a cluster-based architectures.
@@ -241,8 +242,9 @@ Options:
   --debug=DEBUG         Set debug level (Default: 0).
 ```
 ### Socket.IO Interface
-The socket emits on the event 'sys' with the following data at each sample analyze.
-*Response on event 'sys'*
+
+##### Getting output prediction
+*Subscription on event 'sys'*
 ```
 [
   {
