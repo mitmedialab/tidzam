@@ -83,7 +83,7 @@ function DetectionMap(){
         if (graph.name != channel){
           graph_div = document.getElementById("graph")
           graph = new Chart(graph_div, channel, null)
-          socket.emit('sys', JSON.stringify( {sys:{classifier: {list:''}}} ));
+          socket.emit('sys', {sys:{classifier: {list:''}}} );
         }
         graph.updateHistory(msg[i].analysis)
       }
