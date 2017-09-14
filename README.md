@@ -4,6 +4,7 @@ Tidzam is an ambient sound analysis system for outdoor environment. It is a comp
 
 This system uses deeplearning technology in order to learn its classification tasks. A Human Computer Interface API provides tools to build a training database from the targeted sonic environment. A new task of classification could be boostraped by external audio recordings in order to create poor classifiers which will be refined by the addition of audio samples that the system automatically extracts from the environment. Therefore the system improves its accurancy after several generations of its iterative learning process.
 
+
 # Get Started
 Tidzam is composed of several independent processes which can require important ressources in terms of CPU, GPU and memory according to the classification tasks complexity and the number of processed audio streams. Its different processes are multi-threaded and can be deployed on a cluster-based architectures.
 
@@ -25,6 +26,7 @@ python3
 python-scipy
 python-matplotlib
 python-socketio
+python-engineio
 socketIO_client
 sounddevice
 json
@@ -135,8 +137,8 @@ A source can be loaded from a remote URL, from a local file or from a [LiveStrea
 ```
 {
   'sys':{
-    'loadsource':{
-      'name':'mynewsource'
+    'unloadsource':{
+      'name':'mysourcename'
     }
   }
 }
@@ -178,7 +180,7 @@ A LiveStream is automatically created and connected to the Icecast server and Ti
 The audio stream MUST be in PCM16bits format. The system will generate a unique portname identifier based on the socket.io SID of the client which can be request by:
 Getting the created portname:
 
-** Request on "sys":**
+*Request on event 'sys'*
 ```
 {
    'sys':{
@@ -186,7 +188,7 @@ Getting the created portname:
    }
 }
 ```
-** Response on "sys":**
+*Response on event 'sys'*
 ```
 {
   'sys':{
@@ -195,7 +197,7 @@ Getting the created portname:
 }
 ```
 ##### Close a live stream
-** Request on "sys":**
+*Request on event 'sys'*
 ```
 {
    'sys':{
@@ -240,6 +242,7 @@ Options:
 ```
 ### Socket.IO Interface
 The socket emits on the event 'sys' with the following data at each sample analyze.
+*Response on event 'sys'*
 ```
 [
   {
@@ -256,7 +259,7 @@ The socket emits on the event 'sys' with the following data at each sample analy
 ]
 ```
 ##### Classifier list
-###### Request
+*Request on event 'sys'*
 ```
  {
    'sys':{
@@ -274,20 +277,40 @@ The socket emits on the event 'sys' with the following data at each sample analy
 {'get':'rules'}
 ```
 ###### Setting extraction rules
+Extraction rules define when a sample must be extracted. Its extraction is determined according to the parameter *rate* which defines its extraction probability when an element of *classes* is detected. If *rate* is set to *auto*, its extraction probability depends of the sample distribution in the database. The *length* parameter defines the audio file length in seconds (default 0.5 second), the detected sample will be localized in the middle of the audio file.
 *Request on event 'SampleExtractionRules'*
 ```
 {
   'set':'rules',
   'rules:'{
     "source1":{
+      "classes":"classe1,classe2"
       "rate":"auto | float"
+      "length":10
       },
     "source2":{
+      "classes":"birds"
       "rate":"auto | float"
       }, [...]
     }
 }
 ```
+###### Getting Number of Extracted Samples
+*Request on event 'SampleExtractionRules'*
+```
+{'get':'extracted_count'}
+```
+
+*Response on event 'SampleExtractionRules'*
+```
+{
+    'extracted_count':{
+      "source1":#nb_samples,
+      "source2":18, [...]
+    }
+}
+```
+
 ###### Getting Extracted Sample Information
 *Request on event 'SampleExtractionRules'*
 ```
