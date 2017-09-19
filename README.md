@@ -279,7 +279,7 @@ Options:
 {'get':'rules'}
 ```
 ###### Setting extraction rules
-Extraction rules define when a sample must be extracted. Its extraction is determined according to the parameter *rate* which defines its extraction probability when an element of *classes* is detected. If *rate* is set to *auto*, its extraction probability depends of the sample distribution in the database. The *length* parameter defines the audio file length in seconds (default 0.5 second), the detected sample will be localized in the middle of the audio file.
+Extraction rules define when a sample must be extracted. Its extraction is determined according to the parameter *rate* which defines its extraction probability when an element of *classes* is detected. If *rate* is set to *auto*, its extraction probability depends of the sample distribution in the database. The *length* parameter defines the audio file length in seconds (default 0.5 second), the detected sample will be localized in the middle of the audio file. *object_filter* parameter applies a filter which doesn't extract samples in which the spectrogram energy is located on the sample border. It tries to extract centered sound object.
 *Request on event 'SampleExtractionRules'*
 ```
 {
@@ -288,7 +288,8 @@ Extraction rules define when a sample must be extracted. Its extraction is deter
     "source1":{
       "classes":"classe1,classe2"
       "rate":"auto | float"
-      "length":10
+      "length":10,
+      "object_filter":[True | False]
       },
     "source2":{
       "classes":"birds"
