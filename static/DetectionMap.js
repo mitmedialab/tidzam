@@ -40,7 +40,7 @@ function DetectionMap(){
         marker = new google.maps.Marker({
           position: {lat: this.streams[i].geoLocation.latitude, lng: this.streams[i].geoLocation.longitude},
           icon:{
-            url: "static/img/unknow.png",
+            url: "static/img/unknown.png",
             scaledSize: new google.maps.Size(10)
           }
         })

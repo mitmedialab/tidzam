@@ -598,11 +598,11 @@ if __name__ == '__main__':
                                             ])
                     await sio.emit('sys', {"sys":{"database":rsp}})
                 else:
-                    App.warning(0, "Unknow socket.io command: " +str(obj)+ " ("+str(sid)+")")
+                    App.warning(0, "Unknown socket.io command: " +str(obj)+ " ("+str(sid)+")")
             else:
-                App.warning(0, "Unknow socket.io command: " +str(obj)+ " ("+str(sid)+")")
+                App.warning(0, "Unknown socket.io command: " +str(obj)+ " ("+str(sid)+")")
         except Exception as e:
-            App.log(0, "Unknow socket.io command: " +str(obj)+ " ("+str(sid)+") " + str(e))
+            App.log(0, "Unknown socket.io command: " +str(obj)+ " ("+str(sid)+") " + str(e))
             traceback.print_exc()
 
     web.run_app(app, port=opts.port)

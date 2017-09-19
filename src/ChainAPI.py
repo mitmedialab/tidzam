@@ -71,5 +71,5 @@ class ChainAPI(threading.Thread):
     def execute(self, results, label_dic):
         for channel in results:
             for detection in channel["detections"]:
-                if 'unknow' not in detection and 'no_signal' not in detection:
-                    self.buffer.append([channel["mapping"][0], detection, channel["time"]])
+                if 'unknown' not in detection and 'no_signal' not in detection:
+                    self.buffer.append([channel["mapping"][0].replace("tidzam-",""), detection, channel["time"]])

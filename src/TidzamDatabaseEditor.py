@@ -10,7 +10,6 @@ from App import App
 class Editor:
     def __init__(self,dataset=None):
         self.count_run = -1
-        self.sample_size = 24000
         self.dataset = database.Dataset()
         self.init = False
 
@@ -130,7 +129,7 @@ class Editor:
     def run_stream(self, stream, show=False):
         with sf.SoundFile(stream, 'r') as f:
             while f.tell() < len(f):
-                data = f.read(self.sample_size)
+                data = f.read(int(f.samplerate/2))
                 self.count_run = self.count_run + 1
 
                 time = str(int( (self.count_run * 0.5) / 3600) ) + ":" + \
@@ -164,7 +163,7 @@ class Editor:
                             d = input()
                             d = d.split(':')
                             self.count_run = (int(d[0])*3600 + int(d[1])*60 + int(d[2]) + (int(d[3])*2))*2
-                            f.seek(self.count_run * self.sample_size)
+                            f.seek(self.count_run * int(f.samplerate/2))
                             self.count_run = self.count_run - 1
                             i = f.channels + 1
                             break

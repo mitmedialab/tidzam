@@ -7,6 +7,7 @@ import copy
 import glob
 import collections
 import math
+import scipy.misc
 
 from socketIO_client import SocketIO
 from App import App
@@ -112,18 +113,43 @@ class SampleExtractor(threading.Thread):
                 for i, classe in enumerate(self.label_dic):
                     App.log(1, " \t" + classe + ": " + str(self.dynamic_distribution[i]) )
 
+    def extraction__object_filter(self, sample, threshold=0.1, window=0.25):
+        fft      = np.reshape(sample["fft"]["data"],sample["fft"]["size"])
+        fft[fft > threshold] = 1
+        fft[fft <= threshold] = 0
 
-    def evaluate_extraction_rules(self, channel, results):
+        if App.verbose >= 2:
+            scipy.misc.imsave('ObjectFilter-output.jpg', fft)
+
+        metric   = np.sum(fft[:,:int((window/2)*sample["fft"]["size"][0])])
+        metric   += np.sum(fft[:,int((1-(window/2))*sample["fft"]["size"][0]):])
+        metric   /= np.sum(fft)
+
+        if metric < window:
+            App.log(2, "Extract sample on " + sample["channel"] + " ("+str(metric)+" < " +str(window)+ ")")
+            return True
+
+        return False
+
+    def evaluate_extraction_rules(self, sample):
+        results = sample["detections"]
+        channel = sample["channel"]
         channel = channel.replace(":","-")
+
         if channel in self.extraction_rules:
-            if self.extraction_rules[channel]["classes"]:
+            if self.extraction_rules[channel].get("classes"):
                 for cl in self.extraction_rules[channel]["classes"].split(","):
                     if cl in results:
-                        if self.extraction_rules[channel]["rate"] is None:
+
+                        if self.extraction_rules[channel].get("object_filter"):
+                            if self.extraction__object_filter(sample) is False:
+                                continue
+
+                        if self.extraction_rules[channel].get("rate") is None:
                             self.extraction_rules[channel]["rate"] = 0
 
                         if self.extraction_rules[channel]["rate"] == "auto":
-                            if cl == "unknow":
+                            if cl == "unknown":
                                 return True
 
                             if len(self.dynamic_distribution) > 0:
@@ -177,7 +203,7 @@ class SampleExtractor(threading.Thread):
                     audio_file = [item for sublist in audio_file for item in sublist]
 
                     # Store the audio file
-                    sf.write (self.extraction_dest + '/unchecked/+' + \
+                    sf.write (self.extraction_dest + '/unchecked/' + \
                                                 str(sample["detections"]) + \
                                                 '(' + str(obj["channel"].replace("_","-")) + ')_' + \
                                                 obj["time"] +'.wav', \
@@ -209,13 +235,16 @@ class SampleExtractor(threading.Thread):
                             "recording_pos":0,
                             "count":0,
                             "samplerate":channel["samplerate"],
-                            "overlap":0.25
+                            "overlap":0.25,
+                            "channel":ch
                             }
 
                 self.queue_fifo[ ch ]["buffer"].append({
                                     "time": channel["time"],
                                     "detections": channel["detections"],
-                                    "audio": channel["audio"]
+                                    "audio": channel["audio"],
+                                    "fft": channel["fft"],
+                                    "channel":ch
                                     })
 
         for channel in self.queue_fifo:
@@ -231,7 +260,7 @@ class SampleExtractor(threading.Thread):
                 else:
                     sample = self.queue_fifo[channel]["buffer"][int(len(self.queue_fifo[channel]["buffer"])/2)]
                     try:
-                        if self.evaluate_extraction_rules(channel, sample["detections"]) is True:
+                        if self.evaluate_extraction_rules(sample) is True:
                             if self.extraction_rules[channel].get("length"):
                                 length = self.extraction_rules[channel].get("length")
                             else:

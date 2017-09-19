@@ -18,6 +18,7 @@ import atexit
 from scipy import signal
 import soundfile as sf
 import sounddevice as sd
+import traceback
 
 from App import App
 
@@ -40,19 +41,20 @@ def get_spectrogram(data, samplerate, channel=0,  show=False):
         sd.play(data, samplerate)
         time.sleep(0.5)
 
+    size = [Sxx.shape[0], Sxx.shape[1]]
     Sxx = np.reshape(Sxx, [1, Sxx.shape[0]*Sxx.shape[1]] )
-    return fs, t, Sxx
+    return fs, t, Sxx, size
 
 def play_spectrogram_from_stream(file, show=False, callable_objects = [], overlap = 0):
-
     with sf.SoundFile(file, 'r') as f:
         while f.tell() < len(f):
-            data = f.read(24000)
+            data = f.read(int(f.samplerate/2))
+
             for i in range(0,f.channels):
                 if f.channels > 1:
-                    fs, t, Sxx = get_spectrogram(data[:,i], f.samplerate, i,  show=show)
+                    fs, t, Sxx, size = get_spectrogram(data[:,i], f.samplerate, i,  show=show)
                 else:
-                    fs, t, Sxx = get_spectrogram(data, f.samplerate, i, show=show)
+                    fs, t, Sxx, size  = get_spectrogram(data, f.samplerate, i, show=show)
 
                 if i == 0:
                     Sxxs = Sxx
@@ -66,9 +68,9 @@ def play_spectrogram_from_stream(file, show=False, callable_objects = [], overla
             for obj in callable_objects:
                 obj.run(Sxxs, fss, ts, [data, f.samplerate], overlap=overlap)
 
-            f.seek(int(-24000*overlap), whence=sf.SEEK_CUR)
+            f.seek(int(-int(f.samplerate/2)*overlap), whence=sf.SEEK_CUR)
 
-        return Sxx, t, fs
+        return Sxx, t, fs, size
 
 def sorted_nicely( l ):
     """ Sort the given iterable in the way that humans expect."""
@@ -108,6 +110,7 @@ class Dataset:
         self.load(self.name)
 
     def exit(self):
+        App.log(0, " Exit.")
         for t in self.threads:
             t. terminate()
 
@@ -194,11 +197,11 @@ class Dataset:
                 idx = idx[:count]
                 for id in idx:
                     try:
-                        raw, time, freq = play_spectrogram_from_stream(files_cl[id])
-                        raw             = np.nan_to_num(raw)
-                        raw             = np.reshape(raw, [1, raw.shape[0]*raw.shape[1]])
-                        label           = np.zeros((1,len(self.labels_dic)))
-                        label[0,i]        = 1
+                        raw, time, freq, size   = play_spectrogram_from_stream(files_cl[id])
+                        raw                     = np.nan_to_num(raw)
+                        raw                     = np.reshape(raw, [1, raw.shape[0]*raw.shape[1]])
+                        label                   = np.zeros((1,len(self.labels_dic)))
+                        label[0,i]              = 1
                         try:
                             data = np.concatenate((data, raw), axis=0)
                             labels = np.concatenate((labels, label), axis=0)
@@ -208,6 +211,7 @@ class Dataset:
 
                     except Exception as e :
                         App.log(0, "Bad file" + str(e))
+                        traceback.print_exc()
 
             idx = np.arange(data.shape[0])
             np.random.shuffle(idx)
@@ -374,7 +378,9 @@ class Dataset:
         for f in glob.glob(folder+"/*.wav"):
             App.log(0, f)
             try:
-                raw, time, freq = play_spectrogram_from_stream(f)
+                raw, time, freq, size = play_spectrogram_from_stream(f)
+                self.dataw = size[0]
+                self.datah = size[1]
             except:
                 App.log(0, "Bad file")
             raw  = np.reshape(raw, [1, raw.shape[0]*raw.shape[1]])

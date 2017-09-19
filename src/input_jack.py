@@ -33,12 +33,12 @@ class TidzamJack(Thread):
         self.mapping    = []
         self.sources    = []
 
-        self.samplerate = -1
-        self.blocksize = -1
-        self.buffer_size = 24000
-        self.overlap = overlap
-        self.buffer_jack = self.buffer_size * 20
-        self.stopFlag = threading.Event()
+        self.samplerate     = -1
+        self.blocksize      = -1
+        self.buffer_size    = -1
+        self.overlap        = overlap
+        self.buffer_jack    = -1
+        self.stopFlag       = threading.Event()
 
         self.callable_objects = callable_objects
         self.init_client()
@@ -74,9 +74,13 @@ class TidzamJack(Thread):
         try:
              # Wait that all jack ports are properly disconnected
             App.log(1, "Reset the Jack client.")
+            self.client.inports.clear()
+            self.client.outports.clear()
+            time.sleep(1)
+
             self.client.deactivate()
             self.client.close()
-            time.sleep(2)
+            #
             self.init_client()
             self.mustReload = False
 
@@ -135,7 +139,7 @@ class TidzamJack(Thread):
             App.log(2, self.mapping)
 
             # Wait that all jack ports are connected
-            time.sleep(2)
+            time.sleep(0)
 
         except Exception as e:
             App.error(0, "Loading stream exception: " + str(e))
@@ -162,7 +166,7 @@ class TidzamJack(Thread):
                 self.init_socketIO()
 
             with self.lock:
-                if self.portsAllReady() and self.mustReload is False:
+                if self.portsAllReady() and self.mustReload is False and self.buffer_size > -1:
                     try:
                         for i in range(len(self.channels)):
                             data = self.ring_buffer[i].read(self.buffer_jack)
@@ -182,7 +186,7 @@ class TidzamJack(Thread):
                             if run is True:
                                 data = self.channels_data[i][0:self.buffer_size]
                                 self.channels_data[i] = self.channels_data[i][int(self.buffer_size*(1-self.overlap) ):len(self.channels_data[i])]
-                                fs, t, Sxx = database.get_spectrogram(data, self.samplerate)
+                                fs, t, Sxx, size = database.get_spectrogram(data, self.samplerate)
 
                                 if i == 0:
                                     if int(len(self.channels_data[i])/self.buffer_size) > 1:
@@ -204,11 +208,23 @@ class TidzamJack(Thread):
 
                         if run is True:
                             # Call all thread consumers
+                            inputs = {
+                                "ffts":{
+                                    "data":Sxxs,
+                                    "time_scale":ts,
+                                    "freq_scale":fss,
+                                    "size":size
+                                    },
+                                "samplerate":self.samplerate,
+                                "sources":self.sources,
+                                "audio":np.transpose(datas),
+                                "overlap":self.overlap,
+                                "mapping":self.mapping
+                                }
+
                             for obj in self.callable_objects:
-                                obj.execute(Sxxs, fss, ts, [np.transpose(datas), self.samplerate],
-                                            overlap=self.overlap,
-                                            sources=self.sources,
-                                            mapping=self.mapping)
+                                obj.execute(inputs)
+
                     except Exception as e:
                         App.error(0, "Buffer loading..." + str(e))
                         traceback.print_exc()
@@ -236,7 +252,7 @@ class TidzamJack(Thread):
     def callback_port_registration(self, port, registered):
         App.log(2, "Port registration " + port.name + "(" + str(registered) + ")")
 
-    def callback_port_connection(self,port_in, port_out, state):
+    def callback_port_connection(self, port_in, port_out, state):
         if state is True:
             App.log(2, "This link is created: " + port_in.name + " -> " + port_out.name)
             if "analyzer" in port_in.name:
@@ -256,7 +272,9 @@ class TidzamJack(Thread):
             self.init_client()
 
     def callback_samplerate(self, samplerate):
-        self.samplerate = samplerate
+        self.samplerate     = samplerate
+        self.buffer_size    = int(self.samplerate / 2)
+        self.buffer_jack    = 20 * self.buffer_size
         App.log(0, "Sample rate at " + str(samplerate))
 
     def callback_blocksize(self, blocksize):

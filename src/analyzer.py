@@ -112,26 +112,26 @@ class Analyzer(threading.Thread):
                      App.error(0, "Redis message" + str(e) + "------\n" + str(data))
 
     # Function called by the streamer to predic its current sample
-    def execute(self, Sxxs, fs, t, sound_obj, overlap=0, sources=None, mapping=None):
+    def execute(self, inputs):
         label_dic   = []
         res         = []
 
         # BOUNDARY THE VALUES
-        Sxxs =  np.nan_to_num(Sxxs)
+        inputs["ffts"]["data"] =  np.nan_to_num(inputs["ffts"]["data"])
 
-        # COMPUTE THE ABSOLUTE DATETIME FOR EACH SOURCES
+        # COMPUTE THE ABSOLUTE DATETIME FOR EACH SOURCE
         self.count_run = self.count_run + 1
-        hours   = int(self.count_run * 0.5 * (1-overlap) / 3600)
-        minutes = int((self.count_run * 0.5 * (1-overlap) % 3600)/60)
-        seconds = int(self.count_run * 0.5 * (1-overlap) % 3600 % 60)
-        milliseconds = int( ((self.count_run * 0.5 * (1-overlap) % 3600 % 60) * 1000) % 1000)
+        hours   = int(self.count_run * 0.5 * (1-inputs["overlap"]) / 3600)
+        minutes = int((self.count_run * 0.5 * (1-inputs["overlap"]) % 3600)/60)
+        seconds = int(self.count_run * 0.5 * (1-inputs["overlap"]) % 3600 % 60)
+        milliseconds = int( ((self.count_run * 0.5 * (1-inputs["overlap"]) % 3600 % 60) * 1000) % 1000)
         sample_time = timedelta(
             hours=hours,
             minutes=minutes,
             seconds=seconds,
             milliseconds=milliseconds)
 
-        for source in sources:
+        for source in inputs["sources"]:
             if source["starting_time"] is None:
                 source["starting_time"] = time.strftime("%Y-%m-%d-%H-%M-%S")
             date = datetime.strptime(source["starting_time"], "%Y-%m-%d-%H-%M-%S")
@@ -140,7 +140,7 @@ class Analyzer(threading.Thread):
         # COMPUTE THE DNN OUTPUTS
         for selector in self.classifiers:
             if selector.name == "selector":
-                res = selector.predict(Sxxs)
+                res = selector.predict(inputs["ffts"]["data"])
                 label_dic += list(selector.label_dic)
                 break
 
@@ -148,10 +148,10 @@ class Analyzer(threading.Thread):
             if nn.name != "selector":
                 label_dic += list(nn.label_dic)
                 weight_selector = res[:,np.where(selector.label_dic==nn.name)[0][0]]
-                res = np.concatenate( (res, np.transpose( np.transpose(nn.predict(Sxxs))  * weight_selector) ), axis=1 )
+                res = np.concatenate( (res, np.transpose( np.transpose(nn.predict(inputs["ffts"]["data"]))  * weight_selector) ), axis=1 )
 
         # AVERAGE WITH PREVIOUS OUTPUTS IF THERE IS AN OVERLAP
-        if overlap > 0:
+        if inputs["overlap"] > 0:
             if self.history is None or self.history.shape != res.shape:
                 self.history = np.copy(res)
             res = (res + self.history) / 2
@@ -171,26 +171,32 @@ class Analyzer(threading.Thread):
                     detections_classe.append(label_dic[a[len(a)-1]])
 
             else:
-                detections_classe.append("unknow")
+                detections_classe.append("unknown")
             detections.append(detections_classe)
 
-        # BUILD AND TRANSMIT RESULT
+        # BUILD AND TRANSMIT RESULT as an array of channel
         results = []
-        for i in range(0, Sxxs.shape[0]):
+        for i in range(0, inputs["ffts"]["data"].shape[0]):
             channel = {}
             channel["outputs"]      = res[i,:]
             channel["detections"]   = detections[i]
-            channel["samplerate"]   = sound_obj[1]
+            channel["samplerate"]   = inputs["samplerate"]
             try:
-                channel["audio"]        = sound_obj[0][:,i]
+                channel["audio"]    = inputs["audio"][:,i]
             except:
-                channel["audio"]        = sound_obj[0] # mono
+                channel["audio"]    = inputs["audio"] # mono
+            channel["fft"]          = {
+                "data":inputs["ffts"]["data"][i,:],
+                "time_scale":inputs["ffts"]["time_scale"],
+                "freq_scale":inputs["ffts"]["freq_scale"],
+                "size":inputs["ffts"]["size"]
+                }
 
-            for m in mapping:
+            for m in inputs["mapping"]:
                 if m[1] == "analyzer:input_"+str(i):
                     break
             channel["mapping"] = m
-            for source in sources:
+            for source in inputs["sources"]:
                 if source["name"] in m[0]:
                  break
             channel["time"] = source["time"]
