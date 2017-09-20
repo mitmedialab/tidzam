@@ -71,7 +71,7 @@ if [ "$ACTION" == "start" ]; then
     echo "[ok]"
     sleep 1
 
-    echo -n "        Analyzer starting "
+    echo -n "        Analyzer Engine   "
     nohup python3 -u -W ignore $PATH_TIDZAM/src/TidzamAnalyzer.py \
           --nn=classifiers/  \
           --overlap=0.25 \
