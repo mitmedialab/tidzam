@@ -107,9 +107,17 @@ class TidzamSocketIO(socketio.AsyncNamespace):
 
     async def on_sys(self, sid, obj):
         try:
+            if isinstance(obj, {}) is False:
+                await sio.emit("sys",
+                    {"error":"request must be a JSON.", "request-origin":obj},
+                    room=sid)
+                return
+
             # Classifier list requested by the clients
             if obj["sys"].get("classifier"):
-                await sio.emit('sys',self.build_label_dic())
+                await sio.emit('sys',
+                    self.build_label_dic(),
+                    room=sid)
 
         except:
             App.warning(0,"Unable to process request " + str(obj))

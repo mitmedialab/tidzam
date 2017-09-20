@@ -507,6 +507,12 @@ if __name__ == '__main__':
     @sio.on('sys', namespace='/')
     async def sys(sid, obj):
         try:
+            if isinstance(obj, {}) is False:
+                await sio.emit("sys",
+                    {"error":"request must be a JSON.", "request-origin":data},
+                    room=sid)
+                return
+
             if obj.get("sys"):
                 # A source is connected to the tidzam analyzer
                 if obj["sys"].get("loadsource"):

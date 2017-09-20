@@ -17,7 +17,7 @@ BACKUP_REMOTE=slash6475@duhart-clement.fr:~/
 PID_FILE=/tmp/tidzam-pid
 RAM_LIMIT=10
 PID=`cat $PID_FILE > /dev/null 2>&1`
-DEBUG=2
+DEBUG=1
 JACK_NAME=tidzam
 
 ACTION=$1
@@ -39,8 +39,8 @@ if [ "$ACTION" == "start" ]; then
   if [ -f $PID_FILE ]; then
     echo "TidZam is already running"
   else
-    echo "Booting "
-    echo -n "       Jack server       "
+    echo "Booting..."
+    echo -n "        Jack server       "
     nohup /usr/bin/jackd  \
         --port-max 2048 \
         -v \
@@ -52,18 +52,17 @@ if [ "$ACTION" == "start" ]; then
         > $LOGS/tidzam-jack.log.txt 2>&1  &
     echo $! > "$PID_FILE-jack"
     echo "[ok]"
-    #nohup /usr/bin/jackd -r -d alsa -r 44100 &
     sleep 1
 
-    echo -n "       Database Manager  "
-    nohup python3 -u -W  src/TidzamDatabaseManager.py \
+    echo -n "        Database Manager  "
+    nohup python3 -u -W ignore src/TidzamDatabaseManager.py \
         --database-folder=out-tidzam/  \
         > $LOGS/tidzam-database-manager.log.txt 2>&1 &
     echo $! > "$PID_FILE-database_manager"
     echo "[ok]"
     sleep 1
 
-    echo -n "       Stream Loader     "
+    echo -n "        Stream Loader     "
     nohup python3 -u -W ignore $PATH_TIDZAM/src/TidzamStreamManager.py \
         --debug=$DEBUG \
         --sources=tidzam.conf \
@@ -72,7 +71,7 @@ if [ "$ACTION" == "start" ]; then
     echo "[ok]"
     sleep 1
 
-    echo -n "       Analyzer starting "
+    echo -n "        Analyzer starting "
     nohup python3 -u -W ignore $PATH_TIDZAM/src/TidzamAnalyzer.py \
           --nn=classifiers/  \
           --overlap=0.25 \
@@ -89,16 +88,28 @@ if [ "$ACTION" == "start" ]; then
   fi
 
 elif [ "$ACTION" == "stop" ]; then
-  echo -n "TidZam"
+  echo "Stopping..."
+  echo -n "        Analyzer starting     "
   kill -9 `cat $PID_FILE`
-  kill -9 `cat $PID_FILE-jack`
+  rm $PID_FILE
+  echo "[ok]"
+  echo -n "        Stream Loader         "
   kill -9 `cat $PID_FILE-stream_loader`
-  #kill -9 `cat $PID_FILE-database_manager`
+  rm "$PID_FILE-stream_loader"
+  echo "[ok]"
+  echo -n "        Jack server           "
+  kill -9 `cat $PID_FILE-jack`
+  rm "$PID_FILE-jack"
+  echo "[ok]"
+  echo -n "        Database Manager      "
+  kill -9 `cat $PID_FILE-database_manager`
+  rm "$PID_FILE-database_manager"
+  echo "[ok]"
+  echo -n "        Cleaning ffmpeg / mpv "
   pkill mpv
   pkill ffmpeg
-  rm $PID_FILE
-  rm "$PID_FILE-jack"
-  echo " [  STOP  ]"
+  echo "[ok]"
+  echo "TidZam [  STOP  ]"
 
 elif [ "$ACTION" == "restart" ]; then
   $0 stop

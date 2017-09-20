@@ -48,6 +48,11 @@ class SampleExtractor(threading.Thread):
 
     def process_socketIO(self, req):
         # TODO: SocketIO-client does nt support rooms for now, so broadcast to everybody (emitter field use for filtering)...
+        if isinstance(req, {}) is False:
+            await self.socketIO.emit("sys",
+                {"error":"request must be a JSON.", "request-origin":req},
+                room=sid)
+            return
 
         if req.get("set") == 'rules':
             self.extraction_rules = req.get("rules")
