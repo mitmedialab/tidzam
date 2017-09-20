@@ -107,7 +107,7 @@ class TidzamSocketIO(socketio.AsyncNamespace):
 
     async def on_sys(self, sid, obj):
         try:
-            if isinstance(obj, {}) is False:
+            if isinstance(obj, dict) is False:
                 await sio.emit("sys",
                     {"error":"request must be a JSON.", "request-origin":obj},
                     room=sid)

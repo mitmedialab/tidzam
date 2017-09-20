@@ -48,9 +48,10 @@ class Source():
         self.name           = name
         self.url            = url
         self.nb_channels    = nb_channels
-        self.channels        = channels # By default all channels are loaded
-        self.database       = database
+        self.channels       = channels     # By default all channels are loaded
+        self.database       = database     # Database name
         self.starting_time  = starting_time
+        self.playing_next   = True
         self.seek           = 0
         self.process        = None
         self.format         = format
@@ -108,7 +109,7 @@ class TidzamStreamManager(threading.Thread):
             for source in self.sources:
                 if source.process.poll() is not None:
                     App.log(1, "The source "+source.name+" has been terminated.")
-                    if source.is_permanent:
+                    if source.is_permanent or source.playing_next:
                         source.process = None
                         self.load_source(source)
                     else:
@@ -268,7 +269,18 @@ class TidzamStreamManager(threading.Thread):
         App.log(1, "New source is loading: " + source.name + " ("+str(source.url)+") at " + str(source.seek))
         return source
 
+    def get_filename_extension(self, filename):
+        tmp = filename.split(".")
+        tmp = tmp[len(tmp) - 1]
+        return tmp
+
     def load_source_local_database(self, source):
+
+        # This call if for the next file of a previous source playing which terminated
+        if isinstance(source.playing_next, str):
+            source.starting_time = source.playing_next.split(source.path_database + "/"+source.database+'-')[1].split(".")[0]
+            source.playing_next  = True
+
         datetime_asked  = datetime.datetime.strptime(source.starting_time, '%Y-%m-%d-%H-%M-%S')
 
         # Boudary: if the date is in future, load onlime stream
@@ -281,30 +293,31 @@ class TidzamStreamManager(threading.Thread):
         # Looking for the file and compute seek position
         else:
             try:
-                desired_date = source.path_database + "/"+source.database+"-" + source.starting_time
                 files = sorted(glob.glob(source.path_database + "/*.opus")+glob.glob(source.path_database + "/*.ogg"))
-                stream_url = None
-                for f in files:
-                    if "opus" in f:
-                        ext = ".opus"
-                    elif "ogg" in f:
-                        ext = ".ogg"
-                    if f > desired_date + ext:
-                        break
-                    stream_url = f
+                audio_filename = None
 
-                if stream_url is not None:
-                    datetime_file = datetime.datetime.strptime(stream_url, source.path_database + '/'+source.database+'-%Y-%m-%d-%H-%M-%S' + ext)
-                    source.url           = stream_url
+                for i in range(0, len(files)):
+                    if files[i] > source.path_database + "/"+source.database+"-" + source.starting_time + "." + self.get_filename_extension(files[i]):
+                        break
+                    audio_filename = files[i]
+
+                    # If we should play next file after termination, we store it in the variable
+                    if source.playing_next is not False:
+                        source.playing_next       = files[i+1] if i+1 < len(files)-1 else False
+
+                if audio_filename is not None:
+                    datetime_file = datetime.datetime.strptime(audio_filename, source.path_database + '/'+source.database+'-%Y-%m-%d-%H-%M-%S' + "." + self.get_filename_extension(audio_filename))
+                    source.url           = audio_filename
                     source.seek          = (datetime_asked-datetime_file).total_seconds()
 
                 # Boudary: if the date is too old, load first file
                 else :
                     source.url              = files[0]
-                    source.starting_time    = datetime.datetime.strptime(files[0], source.path_database + '/'+source.database+'-%Y-%m-%d-%H-%M-%S'+ext).strftime('%Y-%m-%d-%H-%M-%S')
+                    source.starting_time    = datetime.datetime.strptime(files[0], source.path_database + '/'+source.database+'-%Y-%m-%d-%H-%M-%S'+self.get_filename_extension(files[0])).strftime('%Y-%m-%d-%H-%M-%S')
                     source.seek             = 0
             except:
-                App.log(1, "Unable to load local database (unknown): " + str(desired_date))
+                App.log(1, "Unable to load local database ("+source.database+"): " + str(source.starting_time))
+                traceback.print_exc()
                 return None
         return source
 
@@ -507,7 +520,7 @@ if __name__ == '__main__':
     @sio.on('sys', namespace='/')
     async def sys(sid, obj):
         try:
-            if isinstance(obj, {}) is False:
+            if isinstance(obj, dict) is False:
                 await sio.emit("sys",
                     {"error":"request must be a JSON.", "request-origin":data},
                     room=sid)
@@ -581,28 +594,28 @@ if __name__ == '__main__':
                 elif obj["sys"].get("del_livestream"):
                     jack_service.del_stream(sid)
 
-                # Request the list of available recordings in database TODO : Ugly
-                elif obj["sys"].get("database") == "":
-                    rsp = {}
-                    for source in jack_service.sources:
-                        if source.is_permanent:
-                            rsp[source.name] = {}
-                            rsp[source.name]["nb_channels"] = source.nb_channels
-                            rsp[source.name]["database"] = []
-                            if source.path_database:
-                                files = sorted(glob.glob(source.path_database + "/*.opus")+glob.glob(source.path_database + "/*.ogg"))
-                                for fo in files:
-                                    f = fo.split("/")
-                                    f = f[len(f)-1].replace(".opus", "").replace(".ogg", "").replace(source.database+"-","")
-                                    f = f.split("-")
-                                    start = datetime.datetime(int(f[0]),int(f[1]),int(f[2]),int(f[3]),int(f[4]),int(f[5]))
-                                    nb_seconds = int(int(os.stat(fo).st_size)*0.000013041)
-                                    end = start + datetime.timedelta(seconds=nb_seconds)
-                                    rsp[source.name]["database"].append([
-                                            start.strftime('%Y-%m-%d-%H-%M-%S'),
-                                            end.strftime('%Y-%m-%d-%H-%M-%S')
-                                            ])
-                    await sio.emit('sys', {"sys":{"database":rsp}})
+                    # Request the list of available recordings in database TODO : Ugly
+                elif obj["sys"].get("database") is not None:
+                        rsp = {}
+                        for source in jack_service.sources:
+                            if source.is_permanent:
+                                rsp[source.name] = {}
+                                rsp[source.name]["nb_channels"] = source.nb_channels
+                                rsp[source.name]["database"] = []
+                                if source.path_database:
+                                    files = sorted(glob.glob(source.path_database + "/*.opus")+glob.glob(source.path_database + "/*.ogg"))
+                                    for fo in files:
+                                        f = fo.split("/")
+                                        f = f[len(f)-1].replace(".opus", "").replace(".ogg", "").replace(source.database+"-","")
+                                        f = f.split("-")
+                                        start = datetime.datetime(int(f[0]),int(f[1]),int(f[2]),int(f[3]),int(f[4]),int(f[5]))
+                                        nb_seconds = int(int(os.stat(fo).st_size)*0.000013041)
+                                        end = start + datetime.timedelta(seconds=nb_seconds)
+                                        rsp[source.name]["database"].append([
+                                                start.strftime('%Y-%m-%d-%H-%M-%S'),
+                                                end.strftime('%Y-%m-%d-%H-%M-%S')
+                                                ])
+                        await sio.emit('sys', {"sys":{"database":rsp}})
                 else:
                     App.warning(0, "Unknown socket.io command: " +str(obj)+ " ("+str(sid)+")")
             else:

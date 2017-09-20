@@ -50,6 +50,7 @@ if [ "$ACTION" == "start" ]; then
         -r48000 \
         -p8192  \
         > $LOGS/tidzam-jack.log.txt 2>&1  &
+    #nohup /usr/bin/jackd -r -d alsa -r 44100 &
     echo $! > "$PID_FILE-jack"
     echo "[ok]"
     sleep 1
@@ -89,7 +90,7 @@ if [ "$ACTION" == "start" ]; then
 
 elif [ "$ACTION" == "stop" ]; then
   echo "Stopping..."
-  echo -n "        Analyzer starting     "
+  echo -n "        Analyzer Engine       "
   kill -9 `cat $PID_FILE`
   rm $PID_FILE
   echo "[ok]"
