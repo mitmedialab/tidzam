@@ -44,7 +44,7 @@ class Stream():
             self.ring_buffer.reset()
 
 class Source():
-    def __init__(self, name, url=None, channels=None, nb_channels=2, database=None, path_database=None, format="ogg", starting_time=None,is_permanent=False):
+    def __init__(self, name, url=None, channels=None, nb_channels=2, database=None, path_database=None, database_file_length=3600, format="ogg", starting_time=None,is_permanent=False):
         self.name           = name
         self.url            = url
         self.nb_channels    = nb_channels
@@ -59,8 +59,9 @@ class Source():
         self.sid            = -1
         self.is_permanent   = is_permanent
 
-        self.path_database  = path_database
-        self.default_stream = url
+        self.path_database          = path_database
+        self.database_file_length   = database_file_length
+        self.default_stream         = url
 
         if self.database is None:
             self.database = self.name
@@ -220,20 +221,22 @@ class TidzamStreamManager(threading.Thread):
         if source.name is not source.database:
             for s in self.sources:
                 if s.database == source.database:
-                    source.path_database  = s.path_database
-                    source.nb_channels    = s.nb_channels
-                    source.default_stream = s.default_stream
-                    source_ready          = True
+                    source.path_database        = s.path_database
+                    source.database_file_length = s.database_file_length
+                    source.nb_channels          = s.nb_channels
+                    source.default_stream       = s.default_stream
+                    source_ready                = True
                     break
         # Else we stop the current stream to reload it with new parameters
         if source_ready is False:
             if source_old is not None:
-                source.database       = source_old.database
-                source.path_database  = source_old.path_database
-                source.default_stream = source_old.default_stream
-                source.nb_channels    = source_old.nb_channels
-                source.is_permanent   = source_old.is_permanent
-                source_ready          = True
+                source.database                 = source_old.database
+                source.path_database            = source_old.path_database
+                source.database_file_length     = source_old.database_file_length
+                source.default_stream           = source_old.default_stream
+                source.nb_channels              = source_old.nb_channels
+                source.is_permanent             = source_old.is_permanent
+                source_ready                    = True
 
         if source.url is None:
             source.url = source.default_stream
@@ -276,9 +279,12 @@ class TidzamStreamManager(threading.Thread):
 
     def load_source_local_database(self, source):
 
+        if path_database[len(path_database)-1] != "/":
+            source.path_database += "/"
+
         # This call if for the next file of a previous source playing which terminated
         if isinstance(source.playing_next, str):
-            source.starting_time = source.playing_next.split(source.path_database + "/"+source.database+'-')[1].split(".")[0]
+            source.starting_time = source.playing_next.split(source.path_database + "/" + source.database+'-')[1].split(".")[0]
             source.playing_next  = True
 
         datetime_asked  = datetime.datetime.strptime(source.starting_time, '%Y-%m-%d-%H-%M-%S')
@@ -297,7 +303,7 @@ class TidzamStreamManager(threading.Thread):
                 audio_filename = None
 
                 for i in range(0, len(files)):
-                    if files[i] > source.path_database + "/"+source.database+"-" + source.starting_time + "." + self.get_filename_extension(files[i]):
+                    if files[i] > source.path_database + source.database+"-" + source.starting_time + "." + self.get_filename_extension(files[i]):
                         break
                     audio_filename = files[i]
 
@@ -306,15 +312,17 @@ class TidzamStreamManager(threading.Thread):
                         source.playing_next       = files[i+1] if i+1 < len(files)-1 else False
 
                 if audio_filename is not None:
-                    datetime_file = datetime.datetime.strptime(audio_filename, source.path_database + '/'+source.database+'-%Y-%m-%d-%H-%M-%S' + "." + self.get_filename_extension(audio_filename))
+                    datetime_file = datetime.datetime.strptime(audio_filename, source.path_database + source.database+'-%Y-%m-%d-%H-%M-%S.' + self.get_filename_extension(audio_filename))
                     source.url           = audio_filename
                     source.seek          = (datetime_asked-datetime_file).total_seconds()
 
-                # Boudary: if the date is too old, load first file
-                else :
-                    source.url              = files[0]
-                    source.starting_time    = datetime.datetime.strptime(files[0], source.path_database + '/'+source.database+'-%Y-%m-%d-%H-%M-%S'+self.get_filename_extension(files[0])).strftime('%Y-%m-%d-%H-%M-%S')
-                    source.seek             = 0
+                else:
+                    source.seek = -1
+
+                if source.seek < 0:
+                    App.log(1, "Unable to load local database ("+source.database+"): " + str(source.starting_time) + " audio file unavailable.")
+                    return None
+
             except:
                 App.log(1, "Unable to load local database ("+source.database+"): " + str(source.starting_time))
                 traceback.print_exc()
@@ -471,14 +479,18 @@ if __name__ == '__main__':
             jfile = json.load(data_file)
             if jfile.get("sources"):
                 for stream in jfile["sources"]:
-                    path_database = None
+                    path_database        = None
+                    database_file_length = 3600
                     if stream.get("path_database"):
                         path_database = stream.get("path_database")
+                    if stream.get("database_file_length"):
+                        database_file_length = stream.get("database_file_length")
                     jack_service.load_source( Source(
                         name=stream["name"],
                         url=stream["url"],
                         nb_channels=stream["nb_channels"],
                         path_database=path_database,
+                        database_file_length=database_file_length,
                         is_permanent=True ))
 
             if jfile.get("database"):
@@ -571,6 +583,9 @@ if __name__ == '__main__':
                             starting_time=date ))
 
                     if source is None:
+                        await sio.emit("sys",
+                            {"warning":"unable to load the source (audio file unavailable ?).", "request-origin":str(obj)},
+                            room=sid)
                         return
 
                     source.sid = sid
@@ -604,12 +619,12 @@ if __name__ == '__main__':
                                 rsp[source.name]["database"] = []
                                 if source.path_database:
                                     files = sorted(glob.glob(source.path_database + "/*.opus")+glob.glob(source.path_database + "/*.ogg"))
+                                    nb_seconds = source.database_file_length
                                     for fo in files:
                                         f = fo.split("/")
                                         f = f[len(f)-1].replace(".opus", "").replace(".ogg", "").replace(source.database+"-","")
                                         f = f.split("-")
                                         start = datetime.datetime(int(f[0]),int(f[1]),int(f[2]),int(f[3]),int(f[4]),int(f[5]))
-                                        nb_seconds = int(int(os.stat(fo).st_size)*0.000013041)
                                         end = start + datetime.timedelta(seconds=nb_seconds)
                                         rsp[source.name]["database"].append([
                                                 start.strftime('%Y-%m-%d-%H-%M-%S'),

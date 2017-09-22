@@ -15,8 +15,8 @@ BACKUP=$PATH_TIDZAM/database.tar.gz
 BACKUP_REMOTE=slash6475@duhart-clement.fr:~/
 
 PID_FILE=/tmp/tidzam-pid
-RAM_LIMIT=10
-PID=`cat $PID_FILE > /dev/null 2>&1`
+RAM_LIMIT=50
+PID=`cat $PID_FILE`
 DEBUG=1
 JACK_NAME=tidzam
 
@@ -25,15 +25,15 @@ ACTION=$1
 export CUDA_VISIBLE_DEVICES=1
 
 test_memory (){
-PID=$1
-MEM=`ps -emo %mem,pid | grep $PID`
-MEM=`echo $MEM | cut -d' ' -f1`
+   PID=$1
+   MEM=`ps -emo %mem,pid | grep $PID`
+   MEM=`echo $MEM | cut -d' ' -f1`
 
-if [[ `echo $MEM'>'$RAM_LIMIT | bc -l` == 1 ]]; then
-  return 1
-fi
-return 0
-}
+   if [[ `echo $MEM'>'$RAM_LIMIT | bc -l` == 1 ]]; then
+      return 1
+   fi
+   return 0
+   }
 
 if [ "$ACTION" == "start" ]; then
   if [ -f $PID_FILE ]; then
@@ -132,8 +132,13 @@ elif [ "$ACTION" == "backup" ]; then
   scp $BACKUP $BACKUP_REMOTE
   echo "Backup terminated"
 
+elif [ "$ACTION" == "database-process" ]; then
+  echo "TidZam process database"
+  python3 tidstream_split.py
+  echo "terminated"
+
 else
-  echo "tidzam (start | stop | check | restart)"
+  echo "tidzam (start | stop | check | restart | backup | database-process)"
 fi
 
 #cd $CURRENT_PATH
