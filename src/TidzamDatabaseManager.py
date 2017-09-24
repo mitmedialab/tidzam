@@ -116,23 +116,46 @@ class TidzamDatabaseManager(socketio.AsyncNamespace):
                 {"classes_list":sorted(classes)},
                 room=sid)
 
+        if data.get("delete") is not None:
+            try:
+                os.remove(self.database_folder + "/" + data["delete"]["path"])
+                await sio.emit("DatabaseManager",
+                    {"ok":"sample deleted " + data["delete"]["path"], "request-origin":data},
+                    room=sid)
+            except OSError:
+                await sio.emit("DatabaseManager",
+                    {"error":"unable to delete " + data["extract"]["path"], "request-origin":data},
+                    room=sid)
+
         if data.get("extract") is not None:
             if data["extract"].get("path") is None or data["extract"].get("time") is None or data["extract"].get("classe") is None:
                 await sio.emit("DatabaseManager",
                     {"error":"an argument is missing (path, time, classe)", "request-origin":data},
                     room=sid)
                 return
+            length = float(data["extract"].get("length")) if data["extract"].get("length") is not None else 0.5
 
             print(data.get("extract"))
             dest_name = data["extract"]["path"].split("]")[1]
-            dest_name = "unchecked/[' " + data["extract"]["classe"] + "']" + dest_name
+
+            tmp = data["extract"]["classe"].split("-")
+            dst_path = self.database_folder
+            for i in range(0,len(tmp)):
+                 dst_path = os.path.join(dst_path ,"-".join(tmp[:i+1]) )
+            dst_path += "(DatabaseManager)/"
+
+            if os.path.isdir(dst_path) is False:
+                print("hello")
+                os.makedirs(dst_path)
+
+            dest_name = dst_path + "['" + data["extract"]["classe"] + "']" + dest_name
             print(dest_name)
             with sf.SoundFile(self.database_folder + "/" + data["extract"]["path"], 'r') as fin:
-                with sf.SoundFile(self.database_folder + "/" + dest_name, 'w',
+                with sf.SoundFile(dest_name, 'w',
                             samplerate=fin.samplerate,
                             channels=1) as fout:
                     fin.seek( int(data["extract"]["time"] * fin.samplerate) )
-                    data = fin.read(int(fin.samplerate * 0.5))
+                    data = fin.read(int(fin.samplerate * length))
                     print(len(data))
                     fout.write(data)
 
