@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Tid Zam</title>
+  <link rel="icon" href="img/tidzam.png">
+
+  <link rel="stylesheet" href="//code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+
+  <script src="//code.jquery.com/jquery-1.10.2.js"></script>
+  <script src="//code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+  <script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
+  <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+
+  <script async defer
+       src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCt3oSqM5gPmb76_t67pXoP0nqCl6k_BrQ ">
+  </script>
+
+
+  <script type="text/javascript" src="tidzam/LiveStream.js"> </script>
+  <script type="text/javascript" src="tidzam/chainAPI.js"> </script>
+  <script type="text/javascript" src="tidzam/classifier_chart.js"> </script>
+  <script type="text/javascript" src="tidzam/DatabaseManager.js"></script>
+
+  <link rel="stylesheet" type="text/css" href="tidzam.css">
+
+  <script>
+  google.load('visualization', '1.1', {'packages':['line','corechart']});
+  function menu_loader(div_id, page){
+    main = $( "#" + div_id)
+    switch(page){
+      default: menu_loader('main',0);
+      case 0:  $.ajax("map.html").done(function(data){main.html(data)});        break;
+      case 1:  $.ajax("statistics.html").done(function(data){main.html(data)}); break;
+      case 2:  $.ajax("listen.html").done(function(data){main.html(data)});     break;
+      case 3:  $.ajax("livestream.html").done(function(data){main.html(data)}); break;
+      case 4:  $.ajax("extractor.html").done(function(data){main.html(data)});  break;
+      case 5:  $.ajax("database.html").done(function(data){main.html(data) });  break;
+      case 6:  window.open("/tensorboard/");                                    break;
+      case 7:  $.ajax("sources.html").done(function(data){main.html(data)});    break;
+      case 8:  window.open("/logs/");                                           break;
+      case 9:  window.open("/classifiers/");                                    break;
+      }
+    }
+
+  function menu_animation() {
+    menu = $( "#menu" );
+    if (menu.position().left <= 0) pos = "+=151px";
+    else pos = "-=151px";
+    menu.animate({ "left": pos }, "slow" );
+    }
+
+  $( document ).ready(function() {
+    $( "#menu_btn" ).click(menu_animation);
+    menu_loader('main',0);
+    });
+  </script>
+</head>
+<body>
+<div id="menu">
+  <!--<img src="img/tidzam.png" id="menu_tidzam">-->
+  <input type="image" src="img/tidzam.png" id="menu_btn">
+  <div class="menu_list">
+    <div class="menu_list_container">
+    <span onclick="menu_loader('main',0);menu_animation();" class="color_user"><a href="#">Tidmarsh Map</a></span>
+    <span onclick="menu_loader('main',1);menu_animation();" class="color_user"><a href="#">Statistics</a></span>
+    <span onclick="menu_loader('main',2);menu_animation();" class="color_user"><a href="#">Database Player</a></span>
+    <span onclick="menu_loader('main',3);menu_animation();" class="color_user"><a href="#">Live Detection</a></span>
+    <hr>
+    <span onclick="menu_loader('main',4);menu_animation();" class="color_expert"><a href="#">Sample Extractor</a></span>
+    <span onclick="menu_loader('main',5);menu_animation();" class="color_expert"><a href="#">Database Editor</a></span>
+    <span onclick="menu_loader('main',6);menu_animation();" class="color_admin"><a href="#">Tensorboard</a></span>
+    <hr>
+    <span onclick="menu_loader('main',7);menu_animation();" class="color_admin"><a href="#">Source Control</a></span>
+    <span onclick="menu_loader('main',8);menu_animation();" class="color_admin"><a href="#">Logs</a></span>
+    <span onclick="menu_loader('main',9);menu_animation();" class="color_admin"><a href="#">Classifiers</a></span>
+    <hr>
+    </div>
+  </div>
+</div>
+<div id="main"></div>
+</body>
+</html>

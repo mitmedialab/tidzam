@@ -1,0 +1,137 @@
+<audio controls id="audio_player">
+  <source src="" type="audio/wav">
+</audio>
+<span id="audio_text">No audio live channel</span>
+<div id="map"></div>
+<div id="time_text"></div>
+<script>
+function DetectionMap(divID){
+  me = this
+  this.channel = channel = null
+  this.graph   = graph   = {name:null}
+  this.current_time = current_time = ""
+  chain = new ChainAPI()
+
+  me.statistic_conf = {}
+  me.col_name = "";
+
+  const livestream_io = io("//tidzam.media.mit.edu/",
+        { path: '/livestream/socket.io'});
+
+  const socket = io("//tidzam.media.mit.edu/",
+      { path: '/socket.io' ,
+       forceNew:true});
+
+  /*************************************/
+  /*            MAP CREATION           */
+  /*************************************/
+  var location = {lat: 41.901, lng: -70.571101};
+  var map = null;
+  var markers = Array()
+    map = new google.maps.Map(document.getElementById(divID), {
+      center: location,
+      zoom: 16,
+      mapTypeId: google.maps.MapTypeId.SATELLITE
+    });
+
+  // Show the position of the device (update each second)
+  var posIcon = new google.maps.Circle({
+    strokeColor: 'blue',
+    strokeOpacity: 0.8,
+    strokeWeight: 2,
+    fillColor: 'blue',
+    fillOpacity: 0.8,
+    map: map,
+    radius: 30
+    });
+    function update_position(){
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function(position) {
+          var pos = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+            };
+          map.setCenter(pos)
+          posIcon.setCenter(pos);
+          }, function() {});
+        }
+        setTimeout(update_position, 1000);
+      }
+
+  update_position();
+
+    /*************************************/
+    /*     TIDZAM OUTPUT VISUALIZATION   */
+    /*************************************/
+
+    var infowindow = new google.maps.InfoWindow();
+    this.chainAPI = new ChainAPI()
+    this.streams  = this.chainAPI.getStreamsInfo();
+    console.log(this.streams)
+    for (var i=0; i<this.streams.length; i++){
+      try {
+        marker = new google.maps.Marker({
+          position: {lat: this.streams[i].geoLocation.latitude, lng: this.streams[i].geoLocation.longitude},
+          icon:{
+            url: "img/unknown.png",
+            scaledSize: new google.maps.Size(10)
+          }
+        })
+        marker.name = this.streams[i].name
+        marker.setMap(map);
+        markers.push(marker);
+
+        google.maps.event.addListener(marker, 'click', function() {
+          channel = this.name
+          stream = 'http://tidzam.media.mit.edu:8000/'+this.name.replace(":","-")+'.ogg'
+          $( '#audio_player'  ).attr('src', stream);
+          $( '#audio_player'  ).load();
+          $( '#audio_player' ).trigger('play');
+          $( "#audio_text" ).html("Playing " + this.name);
+          infowindow.open(map, this);
+          graph   = {name:null}
+          content = '<div id="graph" style="padding:1px"></div>'
+          content += "<center>GPS coord: (" + this.getPosition().lat() + ", " + this.getPosition().lng() + ')</center>';
+          infowindow.setContent(content)
+        });
+      }
+      catch(err){
+        console.log("Unable to load marker for " + this.streams[i].name)
+      }
+    }
+
+  socket.on('sys', function(msg){
+    for (var i=0; i < msg.length; i ++){
+      if (i == 0) $( "#time_text" ).html(msg[i].analysis.time.replace("T", " "));
+
+      // Update all Marker icons
+      for(var j=0; j < markers.length; j++)
+      if (markers[j].name == msg[i].chan){
+        markers[j].setIcon({
+          url: "img/"+ msg[i].analysis.result[msg[i].analysis.result.length-1] +".png" ,
+          scaledSize: new google.maps.Size(50, 31)
+        });
+      }
+
+      // Update graph of the selected one
+      if (channel == msg[i].chan){
+        if (graph.name != channel){
+          graph_div = document.getElementById("graph")
+          graph = new Chart(graph_div, channel, null)
+          socket.emit('sys',  {sys:{classifier: {list:''}}} );
+        }
+        graph.updateHistory(msg[i].analysis)
+      }
+    }
+    // Update the list of classifier when received
+    if (msg.sys)
+    if (msg.sys.classifier)
+    if (msg.sys.classifier.list)
+    graph.classifier_list = msg.sys.classifier.list;
+  });
+}
+
+$( document ).ready(function() {
+  DetectionMap("map");
+});
+</script>
