@@ -1,6 +1,6 @@
 #!/bin/bash
-
-export LD_LIBRARY_PATH=/opt/cuda/lib64/
+export CUDA_HOME=/usr/local/cuda/
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64/
 set +e
 
 PATH_TIDZAM=/opt/tidzam/
@@ -23,6 +23,31 @@ JACK_NAME=tidzam
 ACTION=$1
 
 export CUDA_VISIBLE_DEVICES=1
+
+install(){
+  echo "TidZam Installation"
+  echo -n "==================="
+
+  echo "System Package Installation"
+  echo "==========================="
+  apt-get install libportaudio2 python3-tk python3-pip python3-dev redis-server jackd2 icecast2 mpv ffmpeg unzip ices2
+
+  read -p "Do you want to install TensorFlow GPU ? (CUDA must be installed) [y/N]" yn
+  case $yn in
+    [Yy]* ) pip3 install tensorflow-gpu;;
+    * ) pip3 install tensorflow ;;
+  esac
+
+  echo "Python Package Installation"
+  echo "==========================="
+  pip3 install aiohttp aiohttp-cors aioredis asyncio hiredis httplib2 JACK-Client matplotlib numpy python-engineio chainclient python-socketio redis requests scipy socketIO-client sounddevice SoundFile websocket-client
+
+  echo "TidZam Configuration"
+  echo "===================="
+  cp icecast/icecast.xml /etc/icecast2
+
+  echo "Installation terminated."
+}
 
 test_memory (){
    PID=$1
@@ -74,7 +99,7 @@ if [ "$ACTION" == "start" ]; then
 
     echo -n "        Analyzer Engine   "
     nohup python3 -u -W ignore $PATH_TIDZAM/src/TidzamAnalyzer.py \
-          --nn=classifiers/  \
+          --nn=builds/prod/  \
           --overlap=0.25 \
           --debug=$DEBUG \
           --jack=tidzam-,impoundment,herring \
@@ -117,6 +142,9 @@ elif [ "$ACTION" == "restart" ]; then
   sleep 3
   $0 start
 
+elif [ "$ACTION" == "install" ]; then
+  install
+
 # Check RAM usage, if exceed the limit than restart (in case of memory leak)
 elif [ "$ACTION" == "check" ]; then
   test_memory $PID
@@ -138,7 +166,7 @@ elif [ "$ACTION" == "database-process" ]; then
   echo "terminated"
 
 else
-  echo "tidzam (start | stop | check | restart | backup | database-process)"
+  echo "tidzam (start | stop | check | restart | install | backup | database-process)"
 fi
 
 #cd $CURRENT_PATH
