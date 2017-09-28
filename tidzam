@@ -24,6 +24,57 @@ ACTION=$1
 
 export CUDA_VISIBLE_DEVICES=1
 
+install_cuda(){
+  echo "CUDA Installation"
+  wget https://developer.nvidia.com/compute/cuda/9.0/Prod/local_installers/cuda-repo-ubuntu1704-9-0-local_9.0.176-1_amd64-deb
+  dpkg -i cuda-repo-ubuntu1704-9-0-local_9.0.176-1_amd64.deb
+  apt-key add /var/cuda-repo-<version>/7fa2af80.pub
+  apt-get update
+  apt-get install cuda
+  echo "Please download and install cudaCNN v0.6 Runtime library:"
+  echo "https://developer.nvidia.com/rdp/cudnn-download"
+  read -p "Is it done ? [y/N]" yn
+  case $yn in
+    [Yy]* ) ;;
+    * ) exit;;
+  esac
+  apt-get install libcupti-dev
+  pip3 install tensorflow-gpu
+}
+
+install(){
+  echo "TidZam Installation"
+  echo -n "==================="
+
+  echo "System Package Installation"
+  echo "==========================="
+  apt-get install python3-pip python3-dev redis-server jackd2 icecast2 mpv ffmpeg unzip ices2
+
+  read -p "Do you want to install CUDA ? [y/N]" yn
+  case $yn in
+    [Yy]* ) install_cuda;;
+    * ) pip3 install tensorflow ;;
+  esac
+
+  echo "Python Package Installation"
+  echo "==========================="
+  pip3 install aiohttp aiohttp-cors aioredis asyncio hiredis httplib2 JACK-Client matplotlib numpy python-engineio chainclient python-socketio redis requests scipy socketIO-client sounddevice SoundFile websocket-client
+
+  echo "TidZam Download"
+  echo "==============="
+  wget https://github.com/mitmedialab/tidzam/archive/master.zip
+  unzip tidzam-master
+  mv tidzam-master/* .
+  rmdir tidzam-master
+
+  echo "TidZam Configuration"
+  echo "===================="
+  mv icecast/icecast.xml /etc/icecast2
+  
+
+  echo "Installation terminated."
+}
+
 test_memory (){
    PID=$1
    MEM=`ps -emo %mem,pid | grep $PID`
@@ -117,6 +168,9 @@ elif [ "$ACTION" == "restart" ]; then
   sleep 3
   $0 start
 
+elif [ "$ACTION" == "install" ]; then
+  install
+
 # Check RAM usage, if exceed the limit than restart (in case of memory leak)
 elif [ "$ACTION" == "check" ]; then
   test_memory $PID
@@ -138,7 +192,7 @@ elif [ "$ACTION" == "database-process" ]; then
   echo "terminated"
 
 else
-  echo "tidzam (start | stop | check | restart | backup | database-process)"
+  echo "tidzam (start | stop | check | restart | install | backup | database-process)"
 fi
 
 #cd $CURRENT_PATH
