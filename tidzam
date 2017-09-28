@@ -1,5 +1,5 @@
 #!/bin/bash
-
+#export CUDA_HOME=/usr/local/cuda/
 export LD_LIBRARY_PATH=/opt/cuda/lib64/
 set +e
 
@@ -10,8 +10,8 @@ CURRENT_PATH=`pwd`
 cd $PATH_TIDZAM
 
 LOGS=$PATH_TIDZAM/logs/
-DATABASE=/opt/tidzam/out-tidzam/
-BACKUP=$PATH_TIDZAM/database.tar.gz
+DATABASE=/opt/tidzam/
+BACKUP=/mnt/tidzam-raid/backup-tidzam.tar.gz
 BACKUP_REMOTE=slash6475@duhart-clement.fr:~/
 
 PID_FILE=/tmp/tidzam-pid
@@ -24,35 +24,17 @@ ACTION=$1
 
 export CUDA_VISIBLE_DEVICES=1
 
-install_cuda(){
-  echo "CUDA Installation"
-  wget https://developer.nvidia.com/compute/cuda/9.0/Prod/local_installers/cuda-repo-ubuntu1704-9-0-local_9.0.176-1_amd64-deb
-  dpkg -i cuda-repo-ubuntu1704-9-0-local_9.0.176-1_amd64.deb
-  apt-key add /var/cuda-repo-<version>/7fa2af80.pub
-  apt-get update
-  apt-get install cuda
-  echo "Please download and install cudaCNN v0.6 Runtime library:"
-  echo "https://developer.nvidia.com/rdp/cudnn-download"
-  read -p "Is it done ? [y/N]" yn
-  case $yn in
-    [Yy]* ) ;;
-    * ) exit;;
-  esac
-  apt-get install libcupti-dev
-  pip3 install tensorflow-gpu
-}
-
 install(){
   echo "TidZam Installation"
   echo -n "==================="
 
   echo "System Package Installation"
   echo "==========================="
-  apt-get install python3-pip python3-dev redis-server jackd2 icecast2 mpv ffmpeg unzip ices2
+  apt-get install libportaudio2 python3-tk python3-pip python3-dev redis-server jackd2 icecast2 mpv ffmpeg unzip ices2
 
-  read -p "Do you want to install CUDA ? [y/N]" yn
+  read -p "Do you want to install TensorFlow GPU ? (CUDA must be installed) [y/N]" yn
   case $yn in
-    [Yy]* ) install_cuda;;
+    [Yy]* ) pip3 install tensorflow-gpu;;
     * ) pip3 install tensorflow ;;
   esac
 
@@ -60,17 +42,9 @@ install(){
   echo "==========================="
   pip3 install aiohttp aiohttp-cors aioredis asyncio hiredis httplib2 JACK-Client matplotlib numpy python-engineio chainclient python-socketio redis requests scipy socketIO-client sounddevice SoundFile websocket-client
 
-  echo "TidZam Download"
-  echo "==============="
-  wget https://github.com/mitmedialab/tidzam/archive/master.zip
-  unzip tidzam-master
-  mv tidzam-master/* .
-  rmdir tidzam-master
-
   echo "TidZam Configuration"
   echo "===================="
-  mv icecast/icecast.xml /etc/icecast2
-  
+  cp icecast/icecast.xml /etc/icecast2
 
   echo "Installation terminated."
 }
@@ -195,4 +169,4 @@ else
   echo "tidzam (start | stop | check | restart | install | backup | database-process)"
 fi
 
-#cd $CURRENT_PATH
+cd $CURRENT_PATH
