@@ -534,7 +534,7 @@ if __name__ == '__main__':
         try:
             if isinstance(obj, dict) is False:
                 await sio.emit("sys",
-                    {"error":"request must be a JSON.", "request-origin":data},
+                    {"error":"request must be a JSON.", "request-origin":obj},
                     room=sid)
                 return
 

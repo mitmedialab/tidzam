@@ -10,7 +10,7 @@ CURRENT_PATH=`pwd`
 cd $PATH_TIDZAM
 
 LOGS=$PATH_TIDZAM/logs/
-DATABASE=/opt/tidzam/
+DATABASE=/opt/tidzam/out-tidzam/
 BACKUP=/mnt/tidzam-raid/backup-tidzam.tar.gz
 BACKUP_REMOTE=slash6475@duhart-clement.fr:~/
 
@@ -82,7 +82,7 @@ if [ "$ACTION" == "start" ]; then
 
     echo -n "        Database Manager  "
     nohup python3 -u -W ignore src/TidzamDatabaseManager.py \
-        --database-folder=out-tidzam/  \
+        --database-folder=$DATABASE  \
         > $LOGS/tidzam-database-manager.log.txt 2>&1 &
     echo $! > "$PID_FILE-database_manager"
     echo "[ok]"
@@ -99,7 +99,7 @@ if [ "$ACTION" == "start" ]; then
 
     echo -n "        Analyzer Engine   "
     nohup python3 -u -W ignore $PATH_TIDZAM/src/TidzamAnalyzer.py \
-          --nn=classifiers/  \
+          --nn=builds/prod/  \
           --overlap=0.25 \
           --debug=$DEBUG \
           --jack=tidzam-,impoundment,herring \

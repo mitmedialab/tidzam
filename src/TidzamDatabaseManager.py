@@ -124,8 +124,9 @@ class TidzamDatabaseManager(socketio.AsyncNamespace):
                 return
 
             print(data.get("extract"))
-            dest_name = data["extract"]["path"].split("]")[1]
-            dest_name = "unchecked/[' " + data["extract"]["classe"] + "']" + dest_name
+            end_file = data["extract"]["path"].split("]")[1]
+            dest_name = data["extract"]["classe"].split(".")[0] if len(data["extract"]["classe"].split(".")) > 1 else ""
+            dest_name += data["extract"]["classe"] + "/['" + data["extract"]["classe"] + "']" + end_file
             print(dest_name)
             with sf.SoundFile(self.database_folder + "/" + data["extract"]["path"], 'r') as fin:
                 with sf.SoundFile(self.database_folder + "/" + dest_name, 'w',
