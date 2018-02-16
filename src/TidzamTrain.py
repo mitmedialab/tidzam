@@ -115,7 +115,7 @@ if __name__ == "__main__":
             intra_op_parallelism_threads=4,
             inter_op_parallelism_threads=4,
             gpu_options=gpu_options,
-    #        log_device_placement=True,
+#            log_device_placement=True,
             allow_soft_placement=True
             )
 
@@ -135,7 +135,7 @@ if __name__ == "__main__":
         worker_device="/job:worker/task:%d" % opts.task_index,
         cluster=cluster)):
 
-        global_step = tf.contrib.framework.get_or_create_global_step()
+        global_step  = tf.train.get_or_create_global_step()
         writer_train = tf.summary.FileWriter(opts.out+"/model/train/")
         writer_test  = tf.summary.FileWriter(opts.out+"/model/test/")
 

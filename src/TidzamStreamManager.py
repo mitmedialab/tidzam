@@ -284,7 +284,7 @@ class TidzamStreamManager(threading.Thread):
 
         # This call if for the next file of a previous source playing which terminated
         if isinstance(source.playing_next, str):
-            source.starting_time = source.playing_next.split(source.path_database + "/" + source.database+'-')[1].split(".")[0]
+            source.starting_time = source.playing_next.split(source.path_database + source.database+'-')[1].split(".")[0]
             source.playing_next  = True
 
         datetime_asked  = datetime.datetime.strptime(source.starting_time, '%Y-%m-%d-%H-%M-%S')
@@ -444,7 +444,7 @@ if __name__ == '__main__':
         help="Set the sample rate (default: 44100).")
 
     parser.add_option("--port-available", action="store", type="int", dest="live_port", default=2,
-        help="Number of available ports for live connections (default: 10).")
+        help="Number of available ports for live connections (default: 2).")
 
     parser.add_option("--port", action="store", type="int", dest="port", default=1234,
         help="Socket.IO Web port (default: 8080).")
