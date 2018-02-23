@@ -55,7 +55,7 @@ class DNN:
                 self.out, W, b = tl.fc(drop2, n_classes)
 
         with tf.name_scope('Cost'):
-            self.cost  = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
+            self.cost  = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(
                 labels=self.labels,
                 logits=self.out) )
 

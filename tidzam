@@ -1,5 +1,5 @@
 #!/bin/bash
-
+#export CUDA_HOME=/usr/local/cuda/
 export LD_LIBRARY_PATH=/opt/cuda/lib64/
 set +e
 
@@ -11,7 +11,7 @@ cd $PATH_TIDZAM
 
 LOGS=$PATH_TIDZAM/logs/
 DATABASE=/opt/tidzam/out-tidzam/
-BACKUP=$PATH_TIDZAM/database.tar.gz
+BACKUP=/mnt/tidzam-raid/backup-tidzam.tar.gz
 BACKUP_REMOTE=slash6475@duhart-clement.fr:~/
 
 PID_FILE=/tmp/tidzam-pid
@@ -22,7 +22,32 @@ JACK_NAME=tidzam
 
 ACTION=$1
 
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=0
+
+install(){
+  echo "TidZam Installation"
+  echo -n "==================="
+
+  echo "System Package Installation"
+  echo "==========================="
+  apt-get install libportaudio2 python3-tk python3-pip python3-dev redis-server jackd2 icecast2 mpv ffmpeg unzip ices2
+
+  read -p "Do you want to install TensorFlow GPU ? (CUDA must be installed) [y/N]" yn
+  case $yn in
+    [Yy]* ) pip3 install tensorflow-gpu;;
+    * ) pip3 install tensorflow ;;
+  esac
+
+  echo "Python Package Installation"
+  echo "==========================="
+  pip3 install aiohttp aiohttp-cors aioredis asyncio hiredis httplib2 JACK-Client matplotlib numpy python-engineio chainclient python-socketio redis requests scipy socketIO-client sounddevice SoundFile websocket-client
+
+  echo "TidZam Configuration"
+  echo "===================="
+  cp icecast/icecast.xml /etc/icecast2
+
+  echo "Installation terminated."
+}
 
 test_memory (){
    PID=$1
@@ -57,7 +82,7 @@ if [ "$ACTION" == "start" ]; then
 
     echo -n "        Database Manager  "
     nohup python3 -u -W ignore src/TidzamDatabaseManager.py \
-        --database-folder=out-tidzam/  \
+        --database-folder=$DATABASE  \
         > $LOGS/tidzam-database-manager.log.txt 2>&1 &
     echo $! > "$PID_FILE-database_manager"
     echo "[ok]"
@@ -66,6 +91,7 @@ if [ "$ACTION" == "start" ]; then
     echo -n "        Stream Loader     "
     nohup python3 -u -W ignore $PATH_TIDZAM/src/TidzamStreamManager.py \
         --debug=$DEBUG \
+        --port-available=2 \
         --sources=tidzam.conf \
         > $LOGS/tidzam-stream-manager.log.txt 2>&1  &
     echo $! > "$PID_FILE-stream_loader"
@@ -74,10 +100,10 @@ if [ "$ACTION" == "start" ]; then
 
     echo -n "        Analyzer Engine   "
     nohup python3 -u -W ignore $PATH_TIDZAM/src/TidzamAnalyzer.py \
-          --nn=classifiers/  \
+          --nn=builds/prod/  \
           --overlap=0.25 \
           --debug=$DEBUG \
-          --jack=tidzam-,impoundment,herring \
+          --jack=tidzam-,impoundment,cam- \
           --port=8001 \
           --out=$DATABASE \
           --chainAPI=slash:toto@chain-api.media.mit.edu/sites/18 \
@@ -117,6 +143,9 @@ elif [ "$ACTION" == "restart" ]; then
   sleep 3
   $0 start
 
+elif [ "$ACTION" == "install" ]; then
+  install
+
 # Check RAM usage, if exceed the limit than restart (in case of memory leak)
 elif [ "$ACTION" == "check" ]; then
   test_memory $PID
@@ -138,7 +167,7 @@ elif [ "$ACTION" == "database-process" ]; then
   echo "terminated"
 
 else
-  echo "tidzam (start | stop | check | restart | backup | database-process)"
+  echo "tidzam (start | stop | check | restart | install | backup | database-process)"
 fi
 
-#cd $CURRENT_PATH
+cd $CURRENT_PATH

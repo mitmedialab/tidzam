@@ -136,6 +136,7 @@ class TidzamDatabaseManager(socketio.AsyncNamespace):
             length = float(data["extract"].get("length")) if data["extract"].get("length") is not None else 0.5
 
             print(data.get("extract"))
+
             dest_name = data["extract"]["path"].split("]")[1]
 
             tmp = data["extract"]["classe"].split("-")
@@ -149,6 +150,7 @@ class TidzamDatabaseManager(socketio.AsyncNamespace):
                 os.makedirs(dst_path)
 
             dest_name = dst_path + "['" + data["extract"]["classe"] + "']" + dest_name
+
             print(dest_name)
             with sf.SoundFile(self.database_folder + "/" + data["extract"]["path"], 'r') as fin:
                 with sf.SoundFile(dest_name, 'w',

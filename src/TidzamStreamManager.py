@@ -279,12 +279,12 @@ class TidzamStreamManager(threading.Thread):
 
     def load_source_local_database(self, source):
 
-        if path_database[len(path_database)-1] != "/":
+        if source.path_database[len(source.path_database)-1] != "/":
             source.path_database += "/"
 
         # This call if for the next file of a previous source playing which terminated
         if isinstance(source.playing_next, str):
-            source.starting_time = source.playing_next.split(source.path_database + "/" + source.database+'-')[1].split(".")[0]
+            source.starting_time = source.playing_next.split(source.path_database + source.database+'-')[1].split(".")[0]
             source.playing_next  = True
 
         datetime_asked  = datetime.datetime.strptime(source.starting_time, '%Y-%m-%d-%H-%M-%S')
@@ -444,7 +444,7 @@ if __name__ == '__main__':
         help="Set the sample rate (default: 44100).")
 
     parser.add_option("--port-available", action="store", type="int", dest="live_port", default=2,
-        help="Number of available ports for live connections (default: 10).")
+        help="Number of available ports for live connections (default: 2).")
 
     parser.add_option("--port", action="store", type="int", dest="port", default=1234,
         help="Socket.IO Web port (default: 8080).")
@@ -534,7 +534,7 @@ if __name__ == '__main__':
         try:
             if isinstance(obj, dict) is False:
                 await sio.emit("sys",
-                    {"error":"request must be a JSON.", "request-origin":data},
+                    {"error":"request must be a JSON.", "request-origin":obj},
                     room=sid)
                 return
 
@@ -624,7 +624,7 @@ if __name__ == '__main__':
                                         f = fo.split("/")
                                         f = f[len(f)-1].replace(".opus", "").replace(".ogg", "").replace(source.database+"-","")
                                         f = f.split("-")
-                                        start = datetime.datetime(int(f[0]),int(f[1]),int(f[2]),int(f[3]),int(f[4]),int(f[5]))
+                                        start = datetime.datetime(int(f[len(f)-6]),int(f[len(f)-5]),int(f[len(f)-4]),int(f[len(f)-3]),int(f[len(f)-2]),int(f[len(f)-1]))
                                         end = start + datetime.timedelta(seconds=nb_seconds)
                                         rsp[source.name]["database"].append([
                                                 start.strftime('%Y-%m-%d-%H-%M-%S'),

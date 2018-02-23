@@ -1,0 +1,66 @@
+
+<style>
+body{
+
+}
+
+#div_manager_table{
+  border-style:solid;
+  border-color:black;
+  border-width:1px;
+  width:50%;
+}
+
+#div_manager_table td{
+  border-style:solid;
+  border-color:black;
+  border-width:1px;
+}
+
+  .database_fft_img{
+    border-style:solid;
+    border-color:black;
+    border-width:1px;
+  }
+
+  .database_title{
+
+  }
+
+  .database_audio_div{
+    background-color: green;
+    border-style:solid;
+    border-color:green;
+    opacity:0.5;
+    border-width:1px;
+    width:186px;
+    height:170px;
+    position:absolute;
+    top:0px;
+    z-index:100;
+  }
+
+  .container{
+    position: relative;
+    overflow:hidden;
+    width:700px;
+    height:170px;
+  }
+
+  audio {
+  width:700px;
+  }
+
+  </style>
+
+
+  <script>
+
+(function(){
+manager = new DatabaseManager("div_manager","//tidzam.media.mit.edu/database/");
+})();
+</script>
+  <center>
+<div id="div_manager"></div>
+
+  </center>
