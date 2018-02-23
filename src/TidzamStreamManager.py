@@ -253,6 +253,7 @@ class TidzamStreamManager(threading.Thread):
                 return
 
         if source is None:
+            self.sources.append(source)
             return None
 
         logfile = open(os.devnull, 'w')
@@ -321,12 +322,12 @@ class TidzamStreamManager(threading.Thread):
 
                 if source.seek < 0:
                     App.log(1, "Unable to load local database ("+source.database+"): " + str(source.starting_time) + " audio file unavailable.")
-                    return None
+                    return source
 
             except:
                 App.log(1, "Unable to load local database ("+source.database+"): " + str(source.starting_time))
                 traceback.print_exc()
-                return None
+                return source
         return source
 
     ############
