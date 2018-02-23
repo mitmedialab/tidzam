@@ -22,7 +22,7 @@ JACK_NAME=tidzam
 
 ACTION=$1
 
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=0
 
 install(){
   echo "TidZam Installation"
@@ -91,6 +91,7 @@ if [ "$ACTION" == "start" ]; then
     echo -n "        Stream Loader     "
     nohup python3 -u -W ignore $PATH_TIDZAM/src/TidzamStreamManager.py \
         --debug=$DEBUG \
+        --port-available=2 \
         --sources=tidzam.conf \
         > $LOGS/tidzam-stream-manager.log.txt 2>&1  &
     echo $! > "$PID_FILE-stream_loader"
@@ -102,7 +103,7 @@ if [ "$ACTION" == "start" ]; then
           --nn=builds/prod/  \
           --overlap=0.25 \
           --debug=$DEBUG \
-          --jack=tidzam-,impoundment,herring \
+          --jack=tidzam-,impoundment,cam- \
           --port=8001 \
           --out=$DATABASE \
           --chainAPI=slash:toto@chain-api.media.mit.edu/sites/18 \

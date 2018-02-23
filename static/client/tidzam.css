@@ -180,6 +180,14 @@ html, body{
 
 /* extractor page */
 
+.tr_selected{
+  background-color:#b3d9ff;
+}
+
+.tr_extracted{
+  background-color:#99ff99;
+}
+
 
 /* Listen page */
 

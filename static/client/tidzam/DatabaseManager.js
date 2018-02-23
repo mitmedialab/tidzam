@@ -3,17 +3,73 @@
 function DatabaseManager(div_manager, tidzam_url){
   const socket_io = io("//tidzam.media.mit.edu/",
         { path: '/database/socket.io', 'forceNew':true});
-  manager = this
-  sample_count = 0
-  this.classe  = "unchecked"
-  this.limit   = 5
-  this.start    = 0
+  manager           = this
+  this.classe       = "unchecked"
+  this.limit        = 5
+  this.start        = 0
+  sample_count      = 0
+  selector_position = 0
 
-  table_header  = '<input type="button" id="btn_prev" value="Previous">'
+  //---------------------------- KEYBOARD INTERFACE
+  $.getScript( "lib/keymaster/keymaster.js", function( data, textStatus, jqxhr ) {
+    console.log( "keymaster librairy loaded." );
+
+    function selector_next(){
+      $('#'+selector_position).removeClass("tr_selected")
+      found = false
+      $('#div_manager_table tbody').children('tr').each(function(i) {
+        if (i == 0)                        first = this.id
+        if (selector_position == -1)       selector_position = this.id
+        else if (selector_position == this.id) {
+          selector_position = -1
+          found = true
+          }
+          console.log(this.id)
+        });
+     if (!found) selector_position = first
+     $('#'+selector_position).addClass("tr_selected")
+   }
+    key('down',selector_next);
+
+    key('up', function(){
+      $('#'+selector_position).removeClass("tr_selected")
+      prev = 0
+      $('#div_manager_table tbody').children('tr').each(function(i) {
+        if (selector_position == this.id) {
+          if (i == 0) selector_position = this.id
+          else        selector_position = prev;
+        }
+        else                              prev = this.id
+      });
+      $('#'+selector_position).addClass("tr_selected")
+    });
+
+    key('space', function(){
+      $("#database_audio_"+selector_position).trigger("play");
+    });
+
+    key('e', function(){
+      $("#database_btn_extract_"+selector_position).trigger("click");
+      $('#'+selector_position).addClass("tr_extracted")
+    });
+
+    key('d', function(){
+      $("#database_btn_done_"+selector_position).trigger("click");
+      selector_position = -1
+      selector_next();
+    });
+
+    //$("#database_btn_done_"+sample_count)
+
+  });
+    //---------------------------- END KEYBOARD INTERFACE
+
+  table_header = '<input type="button" id="btn_prev" value="Previous">'
   table_header += '<input type="button" id="btn_random" value="Random">'
   table_header += '<input type="button" id="btn_next" value="Next">'
   table_header += '<select id="select_classe"><option>unchecked</option></select>'
-  table_header += '<select id="select_limit"><option>1</option><option selected>5</option><option>20</option></select>'
+  table_header += '<select id="select_limit"><option>1</option><option selected>5</option><option>20</option></select><br>'
+  table_header += 'Controls: "<"up\>\<down\> Selection \<space\> Play \<e\> Extract \<d\> Delete'
   table_header += '<table id="div_manager_table" cellspacing="0" cellpadding="0"><tbody>';
   table_header += '</tbody></table>'
   $("#div_manager").html(table_header);
@@ -67,6 +123,8 @@ function DatabaseManager(div_manager, tidzam_url){
     if (obj.samples_list){
       for (var i=0; i < obj.samples_list.length; i++)
         manager.add_sample(obj.samples_list[i]);
+
+      $('#'+selector_position).addClass("tr_selected")
       socket_io.emit("DatabaseManager",{"classes_list":{}});
     }
 
@@ -124,7 +182,7 @@ function DatabaseManager(div_manager, tidzam_url){
     else date = date[date.length-1].split(".")[0]
 
 
-    sample_html = '<tr class="tr_'+sample_count+'"><td><div id="database_img_'+sample_count+'" class="container"><div class="database_audio_div" id="database_audio_div_'+sample_count+'" ></div></div>';
+    sample_html = '<tr class="tr_'+sample_count+'" id="'+sample_count+'"><td><div id="database_img_'+sample_count+'" class="container"><div class="database_audio_div" id="database_audio_div_'+sample_count+'" ></div></div>';
     sample_html += '<audio controls id="database_audio_'+sample_count+'"><source src="'+tidzam_url+"database/"+sample.path+'" type="audio/ogg"></audio></td>';
     sample_html += '<td style="width:100%;">';
     sample_html += 'Classe: <span class="database_title" id="database_title_'+sample_count+'">'+prediction+'</span><br>';
@@ -135,7 +193,7 @@ function DatabaseManager(div_manager, tidzam_url){
     if (path[path.length-2] == "unchecked"){
       sample_html += '<select class="database_select_classe_extract" id="database_select_classe_extract_'+sample_count+'"></select><br>';
       sample_html += '<input type="button" id="database_btn_extract_'+sample_count+'" value="extract">';
-      sample_html += '<input type="button" id="database_btn_done_'+sample_count+'" value="done">';
+      sample_html += '<input type="button" id="database_btn_done_'+sample_count+'" value="Delete">';
     }
     sample_html += '</td></tr>';
     $("#div_manager_table tbody").append(sample_html);
