@@ -100,12 +100,7 @@ class TidzamJack(Thread):
 
             # Load the port patterns to connect
             for port in self.jack_ports_toload:
-                pattern_already_loaded = False
-                for p in self.ports:
-                    if port in p.name:
-                        pattern_already_loaded = True
-                if pattern_already_loaded is False:
-                    self.ports = self.ports + self.client.get_ports(port, is_output=True)
+                self.ports = self.ports + self.client.get_ports(port, is_output=True)
             sorted_nicely(self.ports)
 
             # Register TidZam inputs for each MPV ports

@@ -279,7 +279,7 @@ class TidzamStreamManager(threading.Thread):
 
     def load_source_local_database(self, source):
 
-        if path_database[len(path_database)-1] != "/":
+        if source.path_database[len(source.path_database)-1] != "/":
             source.path_database += "/"
 
         # This call if for the next file of a previous source playing which terminated
@@ -624,7 +624,7 @@ if __name__ == '__main__':
                                         f = fo.split("/")
                                         f = f[len(f)-1].replace(".opus", "").replace(".ogg", "").replace(source.database+"-","")
                                         f = f.split("-")
-                                        start = datetime.datetime(int(f[0]),int(f[1]),int(f[2]),int(f[3]),int(f[4]),int(f[5]))
+                                        start = datetime.datetime(int(f[len(f)-6]),int(f[len(f)-5]),int(f[len(f)-4]),int(f[len(f)-3]),int(f[len(f)-2]),int(f[len(f)-1]))
                                         end = start + datetime.timedelta(seconds=nb_seconds)
                                         rsp[source.name]["database"].append([
                                                 start.strftime('%Y-%m-%d-%H-%M-%S'),
