@@ -20,7 +20,13 @@ import vizualisation as vizu
 
 from App import App
 
-config = tf.ConfigProto (allow_soft_placement=True)
+gpu_options = tf.GPUOptions(
+    per_process_gpu_memory_fraction=0.25,
+    allow_growth=True
+    )
+
+config = tf.ConfigProto (allow_soft_placement=True,gpu_options=gpu_options)
+
 
 class Classifier:
     def __init__(self,folder):

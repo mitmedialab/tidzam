@@ -226,6 +226,7 @@ class TidzamJack(Thread):
 
                 # If there there is no port ready => nothing to wait
                 elif self.portStarting() is False or self.mustReload is True:
+                    App.log(0,"ICI " + str(self.mustReload) + " " + str(self.portStarting()))
                     self.load_stream()
 
                 else:
@@ -250,7 +251,7 @@ class TidzamJack(Thread):
     def callback_port_connection(self, port_in, port_out, state):
         if state is True:
             App.log(2, "This link is created: " + port_in.name + " -> " + port_out.name)
-            if "analyzer" in port_in.name:
+            if "analyzer" in port_out.name:
                 self.channels_state[port_in.name] = state
         else:
             App.log(2, "This link is broke: " + port_in.name + " -> " + port_out.name)

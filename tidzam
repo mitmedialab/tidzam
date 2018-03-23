@@ -117,11 +117,11 @@ if [ "$ACTION" == "start" ]; then
 elif [ "$ACTION" == "stop" ]; then
   echo "Stopping..."
   echo -n "        Analyzer Engine       "
-  kill -9 `cat $PID_FILE`
+  kill `cat $PID_FILE`
   rm $PID_FILE
   echo "[ok]"
   echo -n "        Stream Loader         "
-  kill -9 `cat $PID_FILE-stream_loader`
+  kill `cat $PID_FILE-stream_loader`
   rm "$PID_FILE-stream_loader"
   echo "[ok]"
   echo -n "        Jack server           "
@@ -129,12 +129,12 @@ elif [ "$ACTION" == "stop" ]; then
   rm "$PID_FILE-jack"
   echo "[ok]"
   echo -n "        Database Manager      "
-  kill -9 `cat $PID_FILE-database_manager`
+  kill `cat $PID_FILE-database_manager`
   rm "$PID_FILE-database_manager"
   echo "[ok]"
   echo -n "        Cleaning ffmpeg / mpv "
   pkill mpv
-  pkill ffmpeg
+  #pkill ffmpeg
   echo "[ok]"
   echo "TidZam [  STOP  ]"
 
