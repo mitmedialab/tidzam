@@ -68,7 +68,6 @@ if [ "$ACTION" == "start" ]; then
     echo -n "        Jack server       "
     nohup /usr/bin/jackd  \
         --port-max 2048 \
-        -v \
         -r \
         -t5000000000 \
         -ddummy \

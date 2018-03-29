@@ -212,14 +212,24 @@ $( "#timeselector_creation" ).slider({range: false,
   }
 });
 
+ready = false
 livestream_io.on('sys', function(data){
   if (data.sys)
-    if(data.sys.database)
+    if(data.sys.database){
+      ready = true
       extractor_extractor_update(data.sys.database);
+    }
   });
 
-$(document).ready(function(){
+function load_sources_list(){
+  console.log("load " + ready)
+  if(ready) return
   livestream_io.emit('sys', {"sys":{"database":""}});
-})
+  }
+  setTimeout(load_sources_list,500)
+
+$(document).ready(function(){
+  load_sources_list()
+});
 
 </script>

@@ -140,7 +140,7 @@ class TidzamDatabaseManager(socketio.AsyncNamespace):
             dest_name = data["extract"]["path"].split("]")[1]
 
             tmp = data["extract"]["classe"].split("-")
-            dst_path = self.database_folder
+            dst_path = self.database_folder + "/DatabaseManager/"
             for i in range(0,len(tmp)):
                  dst_path = os.path.join(dst_path ,"-".join(tmp[:i+1]) )
             dst_path += "(DatabaseManager)/"

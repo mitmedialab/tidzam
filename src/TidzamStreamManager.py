@@ -253,7 +253,6 @@ class TidzamStreamManager(threading.Thread):
                 return
 
         if source is None:
-            self.sources.append(source)
             return None
 
         logfile = open(os.devnull, 'w')
@@ -280,7 +279,7 @@ class TidzamStreamManager(threading.Thread):
 
     def load_source_local_database(self, source):
 
-        if source.path_database[len(source.path_database)-1] != "/":
+        if path_database[len(path_database)-1] != "/":
             source.path_database += "/"
 
         # This call if for the next file of a previous source playing which terminated
@@ -322,12 +321,12 @@ class TidzamStreamManager(threading.Thread):
 
                 if source.seek < 0:
                     App.log(1, "Unable to load local database ("+source.database+"): " + str(source.starting_time) + " audio file unavailable.")
-                    return source
+                    return None
 
             except:
                 App.log(1, "Unable to load local database ("+source.database+"): " + str(source.starting_time))
                 traceback.print_exc()
-                return source
+                return None
         return source
 
     ############
@@ -622,15 +621,19 @@ if __name__ == '__main__':
                                     files = sorted(glob.glob(source.path_database + "/*.opus")+glob.glob(source.path_database + "/*.ogg"))
                                     nb_seconds = source.database_file_length
                                     for fo in files:
-                                        f = fo.split("/")
-                                        f = f[len(f)-1].replace(".opus", "").replace(".ogg", "").replace(source.database+"-","")
-                                        f = f.split("-")
-                                        start = datetime.datetime(int(f[len(f)-6]),int(f[len(f)-5]),int(f[len(f)-4]),int(f[len(f)-3]),int(f[len(f)-2]),int(f[len(f)-1]))
-                                        end = start + datetime.timedelta(seconds=nb_seconds)
-                                        rsp[source.name]["database"].append([
-                                                start.strftime('%Y-%m-%d-%H-%M-%S'),
-                                                end.strftime('%Y-%m-%d-%H-%M-%S')
-                                                ])
+                                        try:
+                                            f = fo.split("/")
+                                            f = f[len(f)-1].replace(".opus", "").replace(".ogg", "").replace(source.database+"-","")
+                                            f = f.split("-")
+                                            start = datetime.datetime(int(f[0]),int(f[1]),int(f[2]),int(f[3]),int(f[4]),int(f[len(f)-1]))
+                                            end = start + datetime.timedelta(seconds=nb_seconds)
+                                            rsp[source.name]["database"].append([
+                                                    start.strftime('%Y-%m-%d-%H-%M-%S'),
+                                                    end.strftime('%Y-%m-%d-%H-%M-%S')
+                                                    ])
+                                        except:
+                                            App.warning(0, "Error during database parsing of "+ str(source.database) + " in " + str(fo))
+
                         await sio.emit('sys', {"sys":{"database":rsp}})
                 else:
                     App.warning(0, "Unknown socket.io command: " +str(obj)+ " ("+str(sid)+")")
