@@ -23,6 +23,14 @@ class ChainAPI(threading.Thread):
         except chainclient.ChainException:
             App.error(0,"Unable to connect to site "+self.site_url)
 
+    def getLocation(self,device):
+        devices_coll = self.site.rels['ch:devices']
+
+        for dev in devices_coll.rels['items']:
+            if dev.name == str(device):
+                return dev.geoLocation
+
+
     def push(self, device, sensor, time):
         devices_coll = self.site.rels['ch:devices']
         found = False

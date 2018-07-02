@@ -11,7 +11,7 @@ cd $PATH_TIDZAM
 
 LOGS=$PATH_TIDZAM/logs/
 DATABASE=/opt/tidzam/out-tidzam/
-BACKUP=/mnt/tidzam-raid/backup-tidzam.tar.gz
+BACKUP=/mnt/tidzam-raid
 BACKUP_REMOTE=slash6475@duhart-clement.fr:~/
 
 PID_FILE=/tmp/tidzam-pid
@@ -21,6 +21,7 @@ DEBUG=1
 JACK_NAME=tidzam
 
 ACTION=$1
+PROCESS=$2
 
 export CUDA_VISIBLE_DEVICES=0
 
@@ -49,6 +50,121 @@ install(){
   echo "Installation terminated."
 }
 
+cron(){
+  echo -n "TidZam process database"
+  python3 tidstream_split.py
+  echo "terminated"
+
+  echo -n "TidZam database update"
+  python3 src/TidzamDatabaseManager.py \
+    --postgres tidzam:tidzam17@localhost:5432/tidzam \
+    --chainAPI=https://chain-api.media.mit.edu/sites/18 \
+    --database-folder=$DATABASE \
+    --cron
+  echo "terminated"
+}
+
+start_jack(){
+  if [ -f "$PID_FILE-jack" ]; then
+    echo "Jack server already started"
+  else
+    echo -n "        Starting Jack server  "
+    nohup /usr/bin/jackd  \
+        --port-max 2048 \
+        -r \
+        -t1000 \
+        -ddummy \
+        -r48000 \
+        -p8192  \
+        > $LOGS/tidzam-jack.log.txt 2>&1  &
+    echo $! > "$PID_FILE-jack"
+    echo "[ok]"
+  fi
+  }
+
+stop_jack(){
+  echo -n "        Stopping Jack server  "
+  kill -9 `cat $PID_FILE-jack`
+  rm "$PID_FILE-jack"
+  echo "[ok]"
+}
+
+start_database_manager(){
+  if [ -f "$PID_FILE-database_manager" ]; then
+    echo "Database Manager already started"
+  else
+    echo -n "        Starting Database Manager  "
+    nohup python3 -u -W ignore src/TidzamDatabaseManager.py \
+        --database-folder=$DATABASE  \
+        > $LOGS/tidzam-database-manager.log.txt 2>&1 &
+    echo $! > "$PID_FILE-database_manager"
+    echo "[ok]"
+  fi
+  }
+
+stop_database_manager(){
+  echo -n "        Stopping Database Manager  "
+  kill `cat $PID_FILE-database_manager`
+  rm "$PID_FILE-database_manager"
+  echo "[ok]"
+}
+
+start_stream_manager(){
+  if [ -f "$PID_FILE-stream_loader" ]; then
+    echo "Stream Manager already started"
+  else
+    echo -n "        Starting Stream Manager  "
+    nohup python3 -u -W ignore $PATH_TIDZAM/src/TidzamStreamManager.py \
+        --debug=$DEBUG \
+        --port-available=2 \
+        --sources=tidzam.conf \
+        > $LOGS/tidzam-stream-manager.log.txt 2>&1  &
+    echo $! > "$PID_FILE-stream_loader"
+    echo "[ok]"
+  fi
+  }
+
+stop_stream_manager(){
+  echo -n "        Stopping Stream Manager  "
+  kill `cat $PID_FILE-stream_loader`
+  rm "$PID_FILE-stream_loader"
+  echo "[ok]"
+  }
+
+start_analyzer(){
+  if [ -f "$PID_FILE-analyzer" ]; then
+    echo "Analyzer already started"
+  else
+    echo -n "        Starting Analyzer  "
+    nohup python3 -u -W ignore $PATH_TIDZAM/src/TidzamAnalyzer.py \
+          --nn=builds/prod/  \
+          --overlap=0.25 \
+          --debug=$DEBUG \
+          --jack=tidzam-,impoundment,cam- \
+          --port=8001 \
+          --out=$DATABASE \
+          --chainAPI=slash:toto@chain-api.media.mit.edu/sites/18 \
+          > $LOGS/tidzam-analyzer.log.txt 2>&1 &
+
+    echo $! > "$PID_FILE-analyzer"
+    echo "[ok]"
+  fi
+  }
+
+stop_analyzer(){
+  echo -n "        Stopping Analyzer  "
+  kill `cat $PID_FILE`
+  rm "$PID_FILE-analyzer"
+  echo "[ok]"
+  }
+
+tidzam_clean(){
+  echo -n "        Cleaning FFMPEG / MPV  "
+  pkill mpv
+  #pkill ffmpeg
+  echo "[ok]"
+}
+
 test_memory (){
    PID=$1
    MEM=`ps -emo %mem,pid | grep $PID`
@@ -61,86 +177,49 @@ test_memory (){
    }
 
 if [ "$ACTION" == "start" ]; then
-  if [ -f $PID_FILE ]; then
-    echo "TidZam is already running"
+  if [ "$PROCESS" == "jack" ]; then
+    start_jack
+  elif [ "$PROCESS" == "database" ]; then
+    start_database_manager
+  elif [ "$PROCESS" == "stream" ]; then
+    start_stream_manager
+  elif [ "$PROCESS" == "analyzer" ]; then
+    start_analyzer
+  elif [ "$PROCESS" == "cron" ]; then
+    cron
   else
-    echo "Booting..."
-    echo -n "        Jack server       "
-    nohup /usr/bin/jackd  \
-        --port-max 2048 \
-        -r \
-        -t5000000000 \
-        -ddummy \
-        -r48000 \
-        -p8192  \
-        > $LOGS/tidzam-jack.log.txt 2>&1  &
-    #nohup /usr/bin/jackd -r -d alsa -r 44100 &
-    echo $! > "$PID_FILE-jack"
-    echo "[ok]"
+    echo "Tidzam booting ..."
+    start_jack
     sleep 1
-
-    echo -n "        Database Manager  "
-    nohup python3 -u -W ignore src/TidzamDatabaseManager.py \
-        --database-folder=$DATABASE  \
-        > $LOGS/tidzam-database-manager.log.txt 2>&1 &
-    echo $! > "$PID_FILE-database_manager"
-    echo "[ok]"
+    start_database_manager
     sleep 1
-
-    echo -n "        Stream Loader     "
-    nohup python3 -u -W ignore $PATH_TIDZAM/src/TidzamStreamManager.py \
-        --debug=$DEBUG \
-        --port-available=2 \
-        --sources=tidzam.conf \
-        > $LOGS/tidzam-stream-manager.log.txt 2>&1  &
-    echo $! > "$PID_FILE-stream_loader"
-    echo "[ok]"
+    start_stream_manager
     sleep 1
-
-    echo -n "        Analyzer Engine   "
-    nohup python3 -u -W ignore $PATH_TIDZAM/src/TidzamAnalyzer.py \
-          --nn=builds/prod/  \
-          --overlap=0.25 \
-          --debug=$DEBUG \
-          --jack=tidzam-,impoundment,cam- \
-          --port=8001 \
-          --out=$DATABASE \
-          --chainAPI=slash:toto@chain-api.media.mit.edu/sites/18 \
-          > $LOGS/tidzam-analyzer.log.txt 2>&1 &
-
-    echo $! > $PID_FILE
-    echo "[ok]"
-    echo "TidZam [  READY  ]"
+    start_analyzer
   fi
 
 elif [ "$ACTION" == "stop" ]; then
-  echo "Stopping..."
-  echo -n "        Analyzer Engine       "
-  kill `cat $PID_FILE`
-  rm $PID_FILE
-  echo "[ok]"
-  echo -n "        Stream Loader         "
-  kill `cat $PID_FILE-stream_loader`
-  rm "$PID_FILE-stream_loader"
-  echo "[ok]"
-  echo -n "        Jack server           "
-  kill -9 `cat $PID_FILE-jack`
-  rm "$PID_FILE-jack"
-  echo "[ok]"
-  echo -n "        Database Manager      "
-  kill `cat $PID_FILE-database_manager`
-  rm "$PID_FILE-database_manager"
-  echo "[ok]"
-  echo -n "        Cleaning ffmpeg / mpv "
-  pkill mpv
-  #pkill ffmpeg
-  echo "[ok]"
-  echo "TidZam [  STOP  ]"
+  if [ "$PROCESS" == "jack" ]; then
+    stop_jack
+  elif [ "$PROCESS" == "database" ]; then
+    stop_database_manager
+  elif [ "$PROCESS" == "stream" ]; then
+    stop_stream_manager
+  elif [ "$PROCESS" == "analyzer" ]; then
+    stop_analyzer
+  else
+    echo "Tidzam stopping ..."
+    stop_analyzer
+    stop_stream_manager
+    stop_jack
+    stop_database_manager
+    tidzam_clean
+  fi
 
 elif [ "$ACTION" == "restart" ]; then
-  $0 stop
+  $0 stop $2
   sleep 3
-  $0 start
+  $0 start $2
 
 elif [ "$ACTION" == "install" ]; then
   install
@@ -153,17 +232,16 @@ elif [ "$ACTION" == "check" ]; then
   fi
 
 elif [ "$ACTION" == "backup" ]; then
-  echo "TidZam backup $DATABASE -> $BACKUP"
-  mv $BACKUP $BACKUP-0
-  tar -zcvf $BACKUP $DATABASE
+  echo "TidZam backup $DATABASE -> $BACKUP/backup-tidzam.tar.gz"
+  mv $BACKUP/backup-tidzam.tar.gz $BACKUP/backup-tidzam.tar.gz-0
+  mv "$BACKUP/tidzam.sql" "$BACKUP/tidzam.sql-0"
+  echo "$BACKUP/tidzam.sql"
+  pg_dump -U tidzam -F c tidzam > "$BACKUP/tidzam.sql"
+  tar -zcvf $BACKUP/backup-tidzam.tar.gz $DATABASE $BACKUP/tidzam.sql
+  #
   echo  "Backup to remote $BACKUP_REMOTE"
-  scp $BACKUP $BACKUP_REMOTE
+  scp "$BACKUP/backup-tidzam.tar.gz" $BACKUP_REMOTE
   echo "Backup terminated"
-
-elif [ "$ACTION" == "database-process" ]; then
-  echo "TidZam process database"
-  python3 tidstream_split.py
-  echo "terminated"
 
 else
   echo "tidzam (start | stop | check | restart | install | backup | database-process)"

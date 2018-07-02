@@ -1,4 +1,3 @@
-import socketio
 from aiohttp import web
 import aiohttp_cors
 import asyncio
@@ -6,160 +5,161 @@ import numpy as np
 import optparse
 import traceback
 import glob, os
-
+import re
+from PIL import Image
+from PIL import ImageOps
 import soundfile as sf
-from TidzamDatabase import get_spectrogram
 from App import App
+import base64
+import math
+import psycopg2
+import struct, json
+from io import BytesIO
 
-sio = socketio.AsyncServer(
-            ping_timeout=120,
-            ping_interval=10,
-            cors_credentials='tidmarsh.media.mit.edu')
+from TidzamDatabase import get_spectrogram
+import ChainAPI as ChainAPI
+
 app = web.Application()
 
 cors = aiohttp_cors.setup(app, defaults={
         "tidmarsh.media.mit.edu": aiohttp_cors.ResourceOptions(),
     })
-sio.attach(app)
-class TidzamDatabaseManager(socketio.AsyncNamespace):
 
-    def __init__(self,namespace, database_folder):
-        socketio.AsyncNamespace.__init__(self, namespace)
-        sio.register_namespace(self)
+def convertToPNG(im):
+    with BytesIO() as f:
+        im.save(f, format='PNG')
+        return f.getvalue()
 
+
+class TidzamDatabaseManager():
+
+    def __init__(self, database_folder):
+        self.chain           = ChainAPI.ChainAPI()
         self.database_folder = database_folder
-
         cors.add(app.router.add_static('/database', "out-tidzam"), {
                 "*":aiohttp_cors.ResourceOptions(allow_credentials=True)
             })
 
-    def get_samples_list(self, classe, start=0, limit=-1):
-        files_result = []
-        tmp = classe.split("-")
-        classe = tmp[0]
-        if len(tmp) > 1:
-            for i in range(2, len(tmp)):
-                classe += "/" + tmp[i]
-            classe += "/" + tmp[len(tmp)-2] + "-" + tmp[len(tmp)-1]
+    def arrayToPNG(self, array, size):
+        res = []
+        for i in range(size[0]*size[1]):
+            color = 255 - array[0][i] * 255
+            color = 255 if color >= 250 else 0
+            res.append(color)
+        tmp = np.reshape(res, [size[0], size[1]] )
 
-        App.log(2, "Client request "+str(limit)+" samples lists from " + self.database_folder + "/" +classe)
-        files = glob.glob(self.database_folder + "/"+classe+"*/**/*.wav", recursive=True)
-        if start == -1:
-            start = 0
-            idx = np.arange(len(files))
-            np.random.shuffle(idx)
-            files = np.asarray(files)[idx]
+        im = Image.fromarray(np.asarray(tmp, np.uint8))
+        im = ImageOps.autocontrast(im)
+        im = ImageOps.mirror(im)
+        im = im.rotate(180)
+        buffered = BytesIO()
+        im.save(buffered, format="PNG",optimize=False,quality=100)
+        return buffered
 
-        for i in range(start, len(files) ):
-            data, samplerate = sf.read(files[i])
-            try:
-                try:
-                    freq, time, fft, size = get_spectrogram(data, samplerate, show=False)
-                except:
-                    freq, time, fft, size = get_spectrogram(data[:,0], samplerate, show=False)
-                files_result.append({
-                    "path":files[i].replace(self.database_folder,""),
-                    "length":len(data)/samplerate,
-                    "samplerate":samplerate,
-                    "fft": {
-                        "data":fft[0].tolist(),
-                        "time_scale": time.tolist(),
-                        "freq_scale": freq.tolist(),
-                        "size":size
-                        }
-                })
-            except:
-                App.error(0, "During the spectrogram processing of " + files[i])
 
-            if limit > -1 and len(files_result) >= limit:
-                break
-        return files_result
+    async def make_fft(self,request):
+        recording = str(request.rel_url).replace("/fft/","")
+        recording = self.database_folder + "/" + recording
+        recording = recording.replace('%5B', '[').replace('%5D', ']');
+        recording = recording.replace("png","wav")
+        App.log(2, "FFT for " + recording)
+        data, samplerate = sf.read(recording)
+        try:
+            freq, time, fft, size = get_spectrogram(data, samplerate, show=False)
+        except:
+            freq, time, fft, size = get_spectrogram(data[:,0], samplerate, show=False)
+
+        im = self.arrayToPNG(fft,size)
+        im = base64.b64encode(im.getvalue())
+        return web.Response(body=im, content_type='image/png')
 
     def start(self, port=5678):
+        app.router.add_get('/fft/{tail:.*}', self.make_fft)
         web.run_app(app, port=port)
 
-    def on_connect(self, sid, environ):
-        App.log(1,"Client connection " + str(sid) )
 
-    def on_disconnect(self, sid):
-        App.log(1, "Client disconnection " + str(sid) )
+    def get_fileinfo(self,path):
+        tidzam_detection = None
+        source           = None
+        datetime         = None
 
-    async def on_DatabaseManager(self, sid, data):
-        if isinstance(data, dict) is False:
-            await sio.emit("sys",
-                {"error":"request must be a JSON.", "request-origin":data},
-                room=sid)
-            return
+        recording    = path.replace(self.database_folder,"")
 
-        if data.get("samples_list") is not None:
-            if data["samples_list"].get("classe") is None:
-                await sio.emit("DatabaseManager",
-                    {"error":"classe field MUST be specified", "request-origin":data},
-                    room=sid)
-                return
-            limit   = int(data["samples_list"].get("limit")) if data["samples_list"].get("limit") else 10
-            start   = int(data["samples_list"].get("start")) if data["samples_list"].get("start") else 0
-            classe  = data["samples_list"].get("classe") if data["samples_list"].get("classe") else ""
+        classe       = recording.split("/")
+        classe       = classe[len(classe)-2]
+        classe       = classe.split("(")
+        origin       = classe[1][:-1] if len(classe) == 2 else None
+        classe       = classe[0]
 
-            await sio.emit("DatabaseManager",
-                {"samples_list":self.get_samples_list(classe, start, limit)},
-                room=sid)
+        file      = recording.split("/")
+        file      = file[len(file)-1]
 
-        if data.get("classes_list") is not None:
-            classes = []
-            for root, dirs, files in os.walk(self.database_folder):
-                classes += dirs
-            for i, cl in enumerate(classes):
-                classes[i] = cl.split("(")[0]
-            classes = list(set(classes))
-            await sio.emit("DatabaseManager",
-                {"classes_list":sorted(classes)},
-                room=sid)
+        data, samplerate = sf.read(path)
+        duration     = len(data)/samplerate
 
-        if data.get("delete") is not None:
-            try:
-                os.remove(self.database_folder + "/" + data["delete"]["path"])
-                await sio.emit("DatabaseManager",
-                    {"ok":"sample deleted " + data["delete"]["path"], "request-origin":data},
-                    room=sid)
-            except OSError:
-                await sio.emit("DatabaseManager",
-                    {"error":"unable to delete " + data["extract"]["path"], "request-origin":data},
-                    room=sid)
+        # Check filename version 3
+        file_pattern = re.compile("\['(.*?)'\]\((.*?)\)_(.*?).wav")
+        file_matches = file_pattern.findall(file)
+        if(len(file_matches)>0):
+            if(len(file_matches[0]) == 3):
+                App.log(2,"file v3")
+                tidzam_detection = file_matches[0][0]
+                source           = file_matches[0][1]
+                datetime         = file_matches[0][2]
 
-        if data.get("extract") is not None:
-            if data["extract"].get("path") is None or data["extract"].get("time") is None or data["extract"].get("classe") is None:
-                await sio.emit("DatabaseManager",
-                    {"error":"an argument is missing (path, time, classe)", "request-origin":data},
-                    room=sid)
-                return
-            length = float(data["extract"].get("length")) if data["extract"].get("length") is not None else 0.5
+        return recording, tidzam_detection, source, samplerate, duration, datetime,classe, origin
 
-            print(data.get("extract"))
+    def cron_recordings_list(self,chain_url):
+        App.log(1,"Read folder " + self.database_folder)
+        files = glob.glob(self.database_folder+"**/*.wav", recursive=True)
 
-            dest_name = data["extract"]["path"].split("]")[1]
 
-            tmp = data["extract"]["classe"].split("-")
-            dst_path = self.database_folder + "/DatabaseManager/"
-            for i in range(0,len(tmp)):
-                 dst_path = os.path.join(dst_path ,"-".join(tmp[:i+1]) )
-            dst_path += "(DatabaseManager)/"
+        self.chain.connect(chain_url)
 
-            if os.path.isdir(dst_path) is False:
-                print("hello")
-                os.makedirs(dst_path)
+        for f in files:
+            if (os.path.isfile(f)):
+                fr = f.replace(self.database_folder,"")
+                self.cur.execute("SELECT * FROM recordings WHERE recording=%s",(fr,))
+                res = self.cur.fetchone()
+                if(res is None):
+                    try:
+                        recording, tidzam_detection, source, samplerate, duration, datetime,classe, origin = self.get_fileinfo(f)
 
-            dest_name = dst_path + "['" + data["extract"]["classe"] + "']" + dest_name
+                        source_chain = source.split("-")
+                        source_chain = source_chain[0] + ":"+source_chain[1]+"_"+source_chain[2]
+                        try:
+                            geolocation = json.dumps(self.chain.getLocation(source_chain))
+                        except:
+                            geolocation = json.dumps({})
 
-            print(dest_name)
-            with sf.SoundFile(self.database_folder + "/" + data["extract"]["path"], 'r') as fin:
-                with sf.SoundFile(dest_name, 'w',
-                            samplerate=fin.samplerate,
-                            channels=1) as fout:
-                    fin.seek( int(data["extract"]["time"] * fin.samplerate) )
-                    data = fin.read(int(fin.samplerate * length))
-                    print(len(data))
-                    fout.write(data)
+                        ret = self.cur.execute("INSERT INTO recordings (recording, tidzam_detection, source, samplerate, duration, datetime,classe, origin,geolocation) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                            (recording,tidzam_detection,source,samplerate, duration,datetime, classe, origin,geolocation, ))
+                    except:
+                        print (recording, tidzam_detection, source, samplerate, duration, datetime,classe, origin)
+                        traceback.print_exc()
+
+                    App.log(2,"Added " + fr)
+                else:
+                    App.log(2,"Skip " + fr)
+            self.conn.commit()
+
+
+    def pq_connect(self, db_server,db_port,db_name,db_user,db_pwd):
+        try:
+            self.conn = psycopg2.connect("host = "+db_server+" port = "+str(db_port)+" dbname = "+db_name+" user = "+db_user+" password = "+db_pwd)
+            App.ok(0,"Connected to Postgres server")
+            self.cur  = self.conn.cursor()
+
+        except:
+            App.error(0,"Unable to connect to postgres (host = "+db_server+" port = "+str(db_port)+" dbname = "+db_name+" user = "+db_user+" password = XXXX)")
+
+    def pq_disconnect(self):
+        try:
+            self.cur.close()
+            self.conn.close()
+
+        except:
+            App.error(0,"Unable to disconnect to postgres")
 
 if __name__ == "__main__":
     parser = optparse.OptionParser(usage="python src/TidzamDatabase.py")
@@ -173,8 +173,39 @@ if __name__ == "__main__":
     parser.add_option("--debug", action="store", type="int", dest="debug",
         default=2, help="Debug level (default: 2).")
 
+    parser.add_option("--cron", action="store_true", dest="cron",
+        default=False, help="Start cron jobs (default: false).")
+
+    parser.add_option("--chainAPI", action="store", type="string", dest="chainAPI", default=None,
+        help="Provide URL for chainAPI username:password@url (default: None).")
+
+    parser.add_option("--postgres", action="store", type="string", dest="postgres", default=None,
+        help="Provide URL for postgres username:password@host/database (default: None).")
+
     (options, args) = parser.parse_args()
     App.verbose     = options.debug
 
-manager = TidzamDatabaseManager("/", database_folder=options.database_folder)
-manager.start(options.port)
+manager = TidzamDatabaseManager(database_folder=options.database_folder)
+if (options.cron):
+    if options.postgres is None:
+        print("--postgres should be given.")
+        exit()
+
+    if options.database_folder is None:
+        print("--database-folder should be given.")
+        exit()
+
+    if options.chainAPI is None:
+        print("--chainAPI should be given.")
+        exit()
+
+    file_pattern = re.compile("(.*?):(.*?)@(.*?):(.*?)/(.*)")
+    file_matches = file_pattern.findall(options.postgres)
+    if(len(file_matches[0]) != 5):
+        print("Wrong postgres url "+options.postgres)
+        exit()
+
+    manager.pq_connect(file_matches[0][2], file_matches[0][3], file_matches[0][4], file_matches[0][0],file_matches[0][1])
+    manager.cron_recordings_list(options.chainAPI)
+else:
+    manager.start(options.port)
