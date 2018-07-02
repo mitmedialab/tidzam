@@ -248,5 +248,3 @@ if __name__ == "__main__":
                                     accuracy_test,
                                     cost_test,
                                      ))
-
-                sv.stop()
