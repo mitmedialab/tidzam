@@ -1,0 +1,394 @@
+<div class="alert alert-warning" style="display: none" id="alert_box">
+  <span class="close" onclick="$('#alert_box').hide('slow');">
+    <span aria-hidden="true">&times;</span>
+  </span>
+  <h4 class="alert-heading">No stream available!</h4>
+  <p>There is no recordings available for this audio stream at the requested period. Please feel free to select another one on the green periods.</p>
+</div>
+<audio id="audio_player">
+    <source src="" type="audio/wav">
+</audio>
+
+<div class="container">
+  <div class="card mt-3">
+    <div class="card-header bg-success text-white">
+      <h4>Listen on TidMarsh</h4>
+    </div>
+    <div class="card-body border rounded m-1 p-2">
+      <h5 class="card-title">How To use ?</h5>
+      <p class="card-text text-justify">
+        TidMarsh is covered by 24 microphones and 4 cameras specially designed for harsh environmental conditions.
+          All of these audio streams are recorded and available through the interface above.
+           The green areas indicates the periods of time available for each stream.
+      </p>
+    </div>
+
+    <div class="m-2  col">
+      <h4 class=""></h4>
+      <p class="text-justify width:100px;"></p>
+    </div>
+    <div class="">
+      <div id="map" class="p-2 rounded w-100 " style="width:500px;height:400px;"></div>
+    </div>
+    <div id="content-pane"></div>
+  </div>
+</div>
+<style>
+
+.btn-play {
+    width: 50px;
+    height: 40px;
+    padding: 0px 0px;
+    border-radius: 15px;
+    text-align: center;
+    font-size: 30px;
+    line-height: 1.42857;
+}
+
+
+.listen_database{
+  width:300px;
+}
+
+.listen_dateselector{
+  min-width:150px;
+}
+
+.event a {
+  background-color: #42B373 !important;
+  background-image :none !important;
+  color: #ffffff !important;
+}
+
+
+.listen_timeselector{
+  height:40px;
+  text-align:center;
+}
+
+.listen_channel{
+  height:40px;
+  padding:0px;
+}
+
+.btn_play{
+  height:40px;
+}
+
+
+.dateselector{
+  font-size:14px;
+  height:40px;
+  min-width:150px;
+}
+
+.source_btn{
+  width:40px;
+  height:40px;
+}
+
+#audio_player{
+
+}
+
+.audioplayer_navbar{
+  border-width:0px;
+  border-color:green;
+  border-style:solid;
+}
+
+.audioplayer_navbar:focus-within{
+  border-width:1px;
+}
+
+
+</style>
+<script>
+livestream_io = io("//tidzam.media.mit.edu/",{ path: '/livestream/socket.io'});
+DATABASE               = {}
+STREAM_SELECTED        = "";
+START                  = "";
+MARKERS                = []
+FOCUS_SCRIPTED         = false;
+TRY_PLAY               = 0;
+TRY_PLAY_MAX           = 3;
+TRY_TIMEOUT            = 3000;
+
+function start_audio(stream){
+  TRY_PLAY = 0;
+  load_audio(stream);
+}
+
+function load_audio(stream){
+  btn_spin();
+  setTimeout(function(){
+    if (TRY_PLAY > TRY_PLAY_MAX) {
+      TRY_PLAY = 0;
+      $("#alert_box").show("slow");
+      btn_play();
+      return false;
+    }
+    if(stream)   $( '#audio_player'  ).attr('src', stream);
+    else         $( '#audio_player'  ).attr('src', $( '#audio_player'  ).attr('src'));
+    console.log("Try #"+TRY_PLAY+" " + $( '#audio_player'  ).attr('src'))
+    $( '#audio_player' ).trigger('play');
+    TRY_PLAY ++;
+  },TRY_TIMEOUT);
+}
+
+function unload_audio(){
+  try{
+  client_id = $("#audio_player").attr("src").split("/");
+  client_id = client_id[client_id.length-1]
+  client_id = client_id.split("-")[1]
+  $( '#audio_player' ).trigger('stop');
+  livestream_io.emit('sys', {sys:{unloadsource:{name:"client-"+client_id} } });
+  }
+  catch(err){
+    console.log("No audio stream loaded.")
+  }
+}
+
+livestream_io.on('sys', function(msg){
+  if (!msg.sys)
+  return
+  if(msg.sys.database){
+    DATABASE = msg.sys.database;
+    var eventDates = {}
+    for (var database in msg.sys.database){
+      eventDates[database] = {};
+      for (var i=0;i < msg.sys.database[database]["database"].length; i++){
+        f = msg.sys.database[database]["database"][i]
+        start = f[0].split("-");
+        start_date = new Date(start[0],start[1]-1,start[2])
+        end   = f[1].split("-");
+        end_date = new Date(end[0],end[1]-1,end[2])
+        for (var d = start_date; d <= end_date; d.setDate(d.getDate() + 1))
+          eventDates[database][d] = new Date(d).toString();
+        }
+      }
+
+    $("#content-pane").empty();
+    current_time = new Date()
+    current_time.setMinutes(current_time.getMinutes() + 2); // HACK : If we want to ask realtime stream, we need to be in advance
+    current_time = current_time.getHours()+":"+current_time.getMinutes()+":"+current_time.getSeconds();
+    for (var database in msg.sys.database){
+        template = '<nav class="navbar navbar-expand-lg navbar-light dropdown shadow p-1 m-2 bg-white rounded audioplayer_navbar" id="navbar_'+database+'" tabindex="0">';
+        template += '<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbar-'+database+'" aria-controls="#navbar-'+database+'" aria-expanded="false" aria-label="Toggle navigation">';
+        template += '  <span class="navbar-toggler-icon"></span></button>';
+
+        template += '<div class="d-flex justify-content-between w-100 row">';
+        template += ' <h4 class="navbar-text pl-4 align-middle">'+database+'</h4>';
+        template += ' <div class=" p-2 pl-4 w-100 navbar-collapse collapse" id="navbar-'+database+'">';
+        template += '   <ul class="navbar-nav w-100">';
+        template += '     <input type="button" class="dateselector align-middle" id="dateselector_'+database+'" >';
+        template += '     <div class=" timeselector w-100 listen_timeselector d-flex flex-row" id="timeselector_'+database+'">';
+        template += '       <div class="h-100 w-100 timeselector_slots" id="timeselector_slots_'+database+'"></div>';
+        template += '       <div class="h-100 w-100 align-middle" id="time_label_'+database+'" style="position:absolute;text-align:center;">'+current_time+'</div>';
+        template += '     </div>';
+        template += '     <select id="channels_'+database+'" class="nav-link listen_channel d-flex justify-content-end"><option selected>0</option>'
+                            for(var i=1; i < msg.sys.database[database]["nb_channels"]; i++)
+                              template += '<option value="'+i+'">'+i+'</option>'
+        template += '         <option>all</option><option>copy</option></select>';
+        template += '         <button type="button" class="btn btn-play btn-xxl" style="padding:0px;" id="source_btn_'+database+'"><i class="fa fa-play-circle" aria-hidden="true"></i></button>';
+        template += '   </ul>';
+        template += ' </div>';
+        template += '</div>';
+        template += '</nav>';
+        $("#content-pane").append(template);
+
+      $('#navbar_'+database).focusin(function(ev){
+        sensor = this.id.split("_");
+        sensor = sensor[sensor.length-1];
+        setTimeout(function(){
+          if (FOCUS_SCRIPTED) {
+            FOCUS_SCRIPTED = false;
+            return
+          }
+          markers_update(sensor+":out_0")
+        },200);
+      })
+
+      $('#channels_'+database).on("change",function(){
+        sensor = this.id.split("_");
+        sensor = sensor[sensor.length-1];
+        sensor += ":out_"+$( "#"+this.id+" option:selected" ).text();
+        markers_update(sensor);
+      })
+
+      $( "#dateselector_"+database ).datepicker({
+          beforeShowDay: function(date) {
+            database = this.id.split("_");
+            database = database[database.length-1];
+            if (eventDates[database][date]) return [true, "event", eventDates[database][date]];
+            else                  return [true, '', ''];
+          },
+          onSelect: function (date) {
+                $('.timeselector_slots').empty()
+                date   = date.split("/");
+                date   = date[2]+"-"+date[0]+"-"+date[1];
+                stream = this.id.split("_")[1];
+                if(!DATABASE[stream]) return;
+                bar_width = $('#timeselector_slots_'+database).width();
+                slot_hour_width = Math.floor(bar_width/ 24);
+                for (var i=0; i < 24 ; i++) {
+                  color = "none";
+                  for (var j=0; j < DATABASE[stream]["database"].length; j++ ){
+                    f = msg.sys.database[stream]["database"][j];
+                    if (f[0].indexOf(date+"-"+("0" + i).slice(-2)) == 0){
+                        color = "#42B373";
+                      }
+                    }
+                  div = '<div class="d-inline-flex" style="width:'+slot_hour_width+'px;height:100%;background-color:'+color+';position:relative;left:'+(i*10)+'"></div>'
+                  $('#timeselector_slots_'+stream).append(div)
+                }
+            }
+          })
+
+      $( "#dateselector_"+database ).datepicker('setDate', 'today');
+
+      $( "#timeselector_"+database ).slider({range: false,
+        value:12*60*60,
+        max: 24 * 60 * 60,
+        slide: function(event, ui) {
+          database = this.id.split("_");
+          database = database[database.length-1];
+          var hours   = Math.floor(ui.value / 3600);
+          var minutes = Math.floor((ui.value - (hours * 3600)) / 60);
+          var seconds = ui.value - (hours * 3600) - (minutes * 60);
+          $( "#time_label_"+database ).text( ("0"+hours).slice(-2)+":"+("0"+minutes).slice(-2)+":"+("0"+seconds).slice(-2))
+        }
+      });
+
+      $( "#source_btn_"+database ).on("click", function(){
+        $('#alert_box').hide('slow');
+        unload_audio();
+        if (btn_play())       return
+
+        STREAM_SELECTED = this.id.split("_");
+        STREAM_SELECTED = STREAM_SELECTED[STREAM_SELECTED.length-1];
+        START    = $( "#time_label_"+STREAM_SELECTED ).html().split(":");
+
+        var date      = $( "#dateselector_"+STREAM_SELECTED ).val().split('/');
+        var time      = $( "#time_label_"+STREAM_SELECTED ).html().replace(/:/g,"-");
+        var channels   = $( "#channels_"+STREAM_SELECTED ).val();
+        format = "ogg";
+        if (channels == "all") channels = null;
+        else if (channels == "copy") {
+          format  = "copy";
+          channels = null;
+        }
+          req = {
+            sys:{
+              loadsource:{
+                name:"client-"+(new Date().getTime()).toString().slice(-10),
+                url:null,
+                database:STREAM_SELECTED,
+                channels:channels,
+                format:format,
+                date:date[2]+"-"+date[0]+"-"+date[1]+"-"+time
+            }
+          }
+        }
+        console.log(req)
+        livestream_io.emit('sys', req);
+
+        // Load the audio player
+        start_audio("https://tidzam.media.mit.edu/icecast/"+req.sys.loadsource.name+"-out_"+channels+".ogg");
+
+        });
+    }
+  }
+});
+
+function markers_update(sensor){
+  for (var i=0; i < MARKERS.length; i++)
+    if (MARKERS[i].name == sensor)
+      MARKERS[i].setIcon({
+        url: "static/img/unknown-white.png",
+        scaledSize: new google.maps.Size(50, 31)
+      });
+    else
+      MARKERS[i].setIcon({
+        url: "static/img/unknown.png",
+        scaledSize: new google.maps.Size(50, 31)
+      });
+}
+
+function btn_unspin(){
+  if ($("#source_btn_"+STREAM_SELECTED+" i").hasClass("spin"))
+    $("#source_btn_"+STREAM_SELECTED+" i").removeClass("spin");
+}
+
+function btn_spin(){
+  $("#source_btn_"+STREAM_SELECTED+" i").addClass("fa-stop-circle").addClass("spin");
+  $("#source_btn_"+STREAM_SELECTED+" i").removeClass("fa-play-circle");
+}
+
+function btn_play(){
+  btn_unspin();
+
+  $("#source_btn_"+STREAM_SELECTED+" i").addClass("fa-play-circle");
+  if ($("#source_btn_"+STREAM_SELECTED+" i").hasClass("fa-stop-circle")){
+    $("#source_btn_"+STREAM_SELECTED+" i").removeClass("fa-stop-circle")
+    return true;
+  }
+  return false;
+}
+
+$(document).ready(function(){
+  livestream_io.emit('sys', {"sys":{"database":""}});
+
+  var location = {lat: 41.901, lng: -70.571101};
+  var markers = Array()
+  var map = new google.maps.Map(document.getElementById("map"), {
+      center: location,
+      zoom: 15,
+      mapTypeId: google.maps.MapTypeId.SATELLITE
+    });
+
+  streams  = chain.getStreamsInfo();
+
+  for (var i=0; i<streams.length; i++){
+    try {
+      marker = new google.maps.Marker({
+        map:map,
+        position: {lat: streams[i].geoLocation.latitude, lng: streams[i].geoLocation.longitude},
+        icon:{
+          url: "static/img/unknown.png",
+          scaledSize: new google.maps.Size(50, 31)
+        }
+      })
+      marker.name = streams[i].name
+      marker.setMap(map);
+      MARKERS.push(marker);
+
+      google.maps.event.addListener(marker, 'click', function() {
+        markers_update(this.name)
+        sensor = this.name.split(":");
+        $("#channels_"+sensor[0]).val(sensor[1].split("out_"))
+        $('#navbar_'+sensor[0]).focus();
+        FOCUS_SCRIPTED = true;
+      })
+    }
+  catch(err){
+    console.log("Unknown geoLocation of " + streams[i].name)
+    }
+  }
+
+  $("#audio_player").on("error", function(){
+    load_audio();
+  });
+
+
+  $("#audio_player").on("timeupdate", function(){
+    btn_unspin();
+    TRY_PLAY = 0;
+    progress = Math.ceil($("#audio_player").get(0).currentTime);
+    date     = new Date(1, 1, 2000, parseInt(START[0]), parseInt(START[1]), parseInt(START[2])+progress, 00);
+    $( "#time_label_"+STREAM_SELECTED ).text(date.getHours()+":"+date.getMinutes()+":"+date.getSeconds())
+  });
+
+  console.log("ready")
+});
+</script>

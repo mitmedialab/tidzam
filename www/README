@@ -1,0 +1,6 @@
+* Dependencies
+composer
+PHP v>5
+
+* Install
+composer require php-ffmpeg/php-ffmpeg

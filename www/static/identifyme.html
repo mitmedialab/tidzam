@@ -1,0 +1,74 @@
+  <style>
+  #livestream_start {
+      background:url(static/img/loading-ori.png) no-repeat;
+      background-size: 200px 200px;
+      cursor:pointer;
+      width: 200px;
+      height: 200px;
+      border: none;
+  }
+
+  #livestream_result {
+    font-size:24px;
+    text-align:center;
+    width:100%;
+  }
+
+</style>
+
+<script>
+function button_recording_update(domID){
+  count  = 0
+  run   = false
+  function update(){
+    $("#"+domID).css("background-image", "url('/static/img/loading-"+count+".png')");
+    count = (count + 1 ) % 4;
+    if (run) setTimeout(update,250);
+    else $("#"+domID).css("background-image", "url('/static/img/loading-ori.png')");
+  }
+  this.start = function(){
+    run = true
+    update()
+  }
+  this.stop = function(){
+    run = false
+  }
+}
+
+$( document ).ready(function() {
+  buttonUpdate = new button_recording_update("livestream_start")
+  var recorder = new LiveStream();
+  $("#livestream_start").click(function(){
+    if (!this.start){
+      this.start = true
+      run = false
+      recorder.start(function(msg){
+        if (!run){
+          run = true;
+          buttonUpdate.start()
+        }
+        try{
+          $("#livestream_result").html(msg.analysis.time.replace("T"," ")  + "<br><br>" + msg.analysis.result)
+          $("#livestream_result_img").attr("src","/static/img/" + msg.analysis.result + ".png");
+        }
+        catch(err){
+          console.log(msg + err)
+        }
+        })
+    }
+    else {
+      this.start = false
+      recorder.stop()
+      buttonUpdate.stop()
+      $("#livestream_result").html("");
+      $("#livestream_result_img").attr("src","");
+      }
+    })
+});
+</script>
+
+<div style="text-align:center;padding-top:10%;">
+    <input type="submit" value="" id="livestream_start"/><br>
+    <div  id="livestream_result"> No stream selected </div>
+    <img  id="livestream_result_img">
+</div>
