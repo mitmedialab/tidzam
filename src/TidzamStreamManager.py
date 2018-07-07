@@ -106,36 +106,40 @@ class TidzamStreamManager(threading.Thread):
 
     def run(self):
         while not self.stopFlag.wait(0.1):
-            # Check if all sources are loaded
-            for source in self.sources:
-                if source.process.poll() is not None:
-                    App.log(1, "The source "+source.name+" has been terminated.")
-                    if source.is_permanent or source.playing_next:
-                        source.process = None
-                        self.load_source(source)
-                    else:
-                        self.sources.remove(source)
-                    time.sleep(1)
+            try:
+                # Check if all sources are loaded
+                for source in self.sources:
+                    if source.process.poll() is not None:
+                        App.log(1, "The source "+source.name+" has been terminated.")
+                        if source.is_permanent or source.playing_next:
+                            source.process = None
+                            self.load_source(source)
+                        else:
+                            self.sources.remove(source)
+                        time.sleep(1)
 
-            for pro in self.streamer_process:
-                if pro[0].poll() is not None:
-                    App.log(2, "The streamer "+pro[1]+" has been terminated.")
-                    self.streamer_process.remove(pro)
-                    name = pro[1].split(":")[0]
-                    for source in self.sources:
-                        if source.name == name and source.is_permanent and source.process is not None:
-                            self.port_create_streamer(pro[1])
+                for pro in self.streamer_process:
+                    if pro[0].poll() is not None:
+                        App.log(2, "The streamer "+pro[1]+" has been terminated.")
+                        self.streamer_process.remove(pro)
+                        name = pro[1].split(":")[0]
+                        for source in self.sources:
+                            if source.name == name and source.is_permanent and source.process is not None:
+                                self.port_create_streamer(pro[1])
 
-            # Check if there are port connections to create
-            for connection in self.portstoconnect:
-                try:
-                    port_in = self.client.get_port_by_name(connection[0])
-                    port_ou = self.client.get_port_by_name(connection[1])
-                    App.log(2, "Port connection " + port_in.name + " -> " + port_ou.name)
-                    self.client.connect(port_in, port_ou)
-                except:
-                    App.log(2, "The streamer is not ready")
-                self.portstoconnect.remove(connection)
+                # Check if there are port connections to create
+                for connection in self.portstoconnect:
+                    try:
+                        port_in = self.client.get_port_by_name(connection[0])
+                        port_ou = self.client.get_port_by_name(connection[1])
+                        App.log(2, "Port connection " + port_in.name + " -> " + port_ou.name)
+                        self.client.connect(port_in, port_ou)
+                    except:
+                        App.log(2, "The streamer is not ready")
+                    self.portstoconnect.remove(connection)
+            except:
+                App.warning(0, "An error occurs in main loop.")
+                traceback.print_exc()
 
     def exit(self):
         for source in self.sources:
@@ -279,7 +283,7 @@ class TidzamStreamManager(threading.Thread):
 
     def load_source_local_database(self, source):
 
-        if path_database[len(path_database)-1] != "/":
+        if source.path_database[len(source.path_database)-1] != "/":
             source.path_database += "/"
 
         # This call if for the next file of a previous source playing which terminated
@@ -290,7 +294,7 @@ class TidzamStreamManager(threading.Thread):
         datetime_asked  = datetime.datetime.strptime(source.starting_time, '%Y-%m-%d-%H-%M-%S')
 
         # Boudary: if the date is in future, load onlime stream
-        if datetime_asked.date() > datetime.datetime.today().date():
+        if time.mktime(datetime_asked.timetuple()) >= time.time():
             source.url              = source.default_stream
             source.starting_time    = None
             source.seek             = 0
@@ -319,7 +323,7 @@ class TidzamStreamManager(threading.Thread):
                 else:
                     source.seek = -1
 
-                if source.seek < 0:
+                if source.seek < 0 or source.seek > source.database_file_length:
                     App.log(1, "Unable to load local database ("+source.database+"): " + str(source.starting_time) + " audio file unavailable.")
                     return None
 
@@ -328,12 +332,6 @@ class TidzamStreamManager(threading.Thread):
                 traceback.print_exc()
                 return None
         return source
-
-    ############
-    # JACK Callbacks
-    ############
-    def callback_client_registration(self, name, registered):
-        App.log(2, "New client connector detected " + name + "(" + str(registered) + ")")
 
     def port_create_streamer(self, portname):
         cmd = ["./icecast/icecast_stream.sh", portname.replace(":","-")]
@@ -370,6 +368,23 @@ class TidzamStreamManager(threading.Thread):
                 return source
         return None
 
+    def port_remove_streamer(self,portname):
+        for pro in self.streamer_process:
+            if pro[1] == portname:
+                os.killpg(os.getpgid(pro[0].pid), signal.SIGKILL)
+                self.streamer_process.remove(pro)
+        tmp = []
+        for connection in self.portstoconnect:
+            if (connection[0] != portname and connection[1] != portname):
+                tmp.append(connection)
+        self.portstoconnect = tmp
+
+    ############
+    # JACK Callbacks
+    ############
+    def callback_client_registration(self, name, registered):
+        App.log(2, "New client connector detected " + name + "(" + str(registered) + ")")
+
     def callback_port_registration(self, port, registered):
         App.log(2, "Port registration status " + port.name + "(" + str(registered) + ")")
 
@@ -382,7 +397,6 @@ class TidzamStreamManager(threading.Thread):
                     tmp    = tmp[1].split("_")[1] # channel id
                     if source.channels != None and tmp not in source.channels:
                         return
-
                 self.port_create_streamer(port.name)
             # If the streamer has been created, we ask its connection to its stream producer
             else:
@@ -390,12 +404,6 @@ class TidzamStreamManager(threading.Thread):
         else:
             # If the link has been destroyed, we remove the streamer
             self.port_remove_streamer(port.name)
-
-    def port_remove_streamer(self,portname):
-        for pro in self.streamer_process:
-            if pro[1] == portname:
-                os.killpg(os.getpgid(pro[0].pid), signal.SIGKILL)
-                self.streamer_process.remove(pro)
 
     def callback_port_connection(self,port_in, port_out, state):
         if state is True:

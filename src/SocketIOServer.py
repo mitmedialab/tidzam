@@ -121,12 +121,3 @@ class TidzamSocketIO(socketio.AsyncNamespace):
 
         except:
             App.warning(0,"Unable to process request " + str(obj))
-
-
-cors.add(app.router.add_static('/static', 'static'), {
-        "*":aiohttp_cors.ResourceOptions(allow_credentials=True)
-    })
-def index(request):
-     with open('static/index.html') as f:
-         return web.Response(text=f.read(), content_type='text/html')
-app.router.add_get('/', index)

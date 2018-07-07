@@ -108,8 +108,8 @@ if __name__ == "__main__":
     App.log(0, "Worker " + workers[opts.task_index]+ " started")
 
     gpu_options = tf.GPUOptions(
-    #    per_process_gpu_memory_fraction=0.25
-    #    allow_growth=True
+        per_process_gpu_memory_fraction=0.25,
+        allow_growth=True
         )
     config = tf.ConfigProto(
             intra_op_parallelism_threads=4,
