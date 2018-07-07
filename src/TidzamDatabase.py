@@ -22,6 +22,46 @@ import traceback
 
 from App import App
 
+###################################SOUND PROCESS##########################################
+
+
+#This function blend a sound inside a given background and repeat the process for a given number of time
+#to produce multiple samples with the same sound at different position
+def blend_sound_to_background_severals_positions(sound_data , ambiant_sound_data , number_of_instance):
+    new_outputs = []
+    for i in range(number_of_instance):
+        new_outputs.append(blend_sound_to_background(sound_data , ambiant_sound_data))
+    return new_outputs
+
+#This function blend a sound inside a given background at a random position
+def blend_sound_to_background(sound_data , ambiant_sound_data):
+    volume_factor = np.max(sound_data)
+
+    sound_data = sound_data / np.max(sound_data) * volume_factor
+    ambiant_sound_data = ambiant_sound_data / np.max(ambiant_sound_data) * volume_factor
+
+    sound_data_position = int(random.random() * ((len(ambiant_sound_data) - len(sound_data)) - 1) )
+
+    signal_sum = ambiant_sound_data[:]
+    for i in range(len(sound_data)):
+        try:
+            signal_sum[sound_data_position + i] += sound_data[i]
+        except:
+            signal_sum[sound_data_position + i] += sound_data[i,0]
+
+    mixed_signal = signal_sum / np.max(signal_sum) * volume_factor
+    return mixed_signal
+
+def blend_multiple_sound_to_background(sounds_data , ambiant_sound_data):
+    for sound_data in sounds_data:
+        ambiant_sound_data = blend_sound_to_background(sound_data , ambiant_sound_data)
+    return ambiant_sound_data
+
+def convert_to_monochannel(input):
+    return input if len(input.shape) <= 1 else input[: , 0]
+
+###################################SOUND PROCESS##########################################
+
 def get_spectrogram(data, samplerate, channel=0,  show=False):
     plt.ion()
     fs, t, Sxx = signal.spectrogram(data, samplerate, nfft=1024, noverlap=128)
@@ -72,6 +112,33 @@ def play_spectrogram_from_stream(file, show=False, callable_objects = [], overla
 
         return Sxx, t, fs, size
 
+def play_spectrogram_from_stream_data(data , samplerate , channels , show=False, callable_objects = [], overlap = 0):
+    idx = 0
+    while idx < len(data):
+        trunc_data = data[ idx : idx + samplerate // 2]
+
+        for i in range(0,channels):
+            if channels > 1:
+                fs, t, Sxx, size = get_spectrogram(trunc_data[:,i], samplerate, i,  show=show)
+            else:
+                fs, t, Sxx, size  = get_spectrogram(trunc_data, samplerate, i, show=show)
+
+            if i == 0:
+                Sxxs = Sxx
+                fss = fs
+                ts = t
+            else:
+                Sxxs = np.concatenate((Sxxs, Sxx), axis=0)
+                fss = np.concatenate((fss, fs), axis=0)
+                ts = np.concatenate((ts, t), axis=0)
+
+            for obj in callable_objects:
+                obj.run(Sxxs, fss, ts, [trunc_data, samplerate], overlap=overlap)
+
+            idx += samplerate // 2 + int(-int(samplerate/2)*overlap)
+
+    return Sxx, t, fs, size
+
 def sorted_nicely( l ):
     """ Sort the given iterable in the way that humans expect."""
     convert = lambda text: int(text) if text.isdigit() else text
@@ -96,7 +163,7 @@ class Dataset:
         self.data           = []
         self.labels         = []
         self.labels_dic     = []
-        self.batch_size     = 128
+        self.batch_size     = 64
 
         self.mode                  = None
         self.thread_count_training = 3
@@ -105,6 +172,21 @@ class Dataset:
         self.queue_training        = None
         self.queue_maxsize         = 20
         self.split                 = split
+
+        self.data_augmentation = True
+        self.type_dictionnary = {"airplane" : "ambiant_sound" ,
+                                 "birds" : "content" ,
+                                 "cicadas" : "content" ,
+                                 "crickets" : "content" ,
+                                 "frog" : "content" ,
+                                 "mic_crackle" : "ambiant_sound" ,
+                                 "no_signal" : "" ,
+                                 "quiet" : "ambiant_sound" ,
+                                 "rain" : "ambiant_sound" ,
+                                 "spring_peepers" : "content" ,
+                                 "wind" : "ambiant_sound" ,}
+
+
 
         atexit.register(self.exit)
         self.load(self.name)
@@ -122,7 +204,7 @@ class Dataset:
             self.mode = "onfly"
             self.load_onfly(input)
 
-    def load_onfly(self, folder):
+    def load_onfly(self, folder ):
         self.name   = folder
         ctx = mp.get_context('spawn')
         self.queue_training  = ctx.Queue(self.queue_maxsize)
@@ -154,7 +236,8 @@ class Dataset:
         # Start the workers
         for i in range(self.thread_count_training):
             t = ctx.Process(target=self.build_batch_onfly,
-                    args=(self.queue_training, self.files_training, self.batch_size))
+                    args=(self.queue_training, self.files_training, self.batch_size ,
+                          self.data_augmentation, self.type_dictionnary))
             t.start()
             self.threads.append(t)
 
@@ -182,7 +265,66 @@ class Dataset:
                 pass
             return self.queue_testing.get()
 
-    def build_batch_onfly(self, queue, files, batch_size=128):
+    def build_batch_onfly(self, queue, files, batch_size=64 , data_augmentation = False ,  type_dictionnary = None):
+        while True:
+            while self.queue_training.full():
+                pass
+
+            count = math.ceil(batch_size / len(self.labels_dic))
+            data = []
+            labels = []
+
+            if data_augmentation:
+                assert (type_dictionnary is not None)
+                #List all the ambiant class
+                ambiant_cl = [cl for cl , type in type_dictionnary.items() if type == "ambiant_sound"]
+
+            for i , cl in enumerate(self.labels_dic):
+                #pick random sample (only get the indexes)
+                files_cl = files[cl]
+                idx = np.arange(len(files_cl))
+                np.random.shuffle(idx)
+                idx = idx[:count]
+
+                #for each picked sample -> process
+                for id in idx:
+                    sound_data , samplerate = sf.read(files_cl[id])
+                    sound_data = sound_data if len(sound_data.shape) <= 1 else convert_to_monochannel(sound_data)
+
+                    if data_augmentation and type_dictionnary[cl] == "content":
+                        ambiant_sound , samplerate = sf.read(random.choice(files[random.choice(ambiant_cl)]))
+                        ambiant_sound = ambiant_sound if len(ambiant_sound.shape) <= 1 else convert_to_monochannel(ambiant_sound)
+                        sound_data = blend_sound_to_background(sound_data , ambiant_sound)
+
+                    try:
+                        raw, time, freq, size   = play_spectrogram_from_stream(files_cl[id])
+                        raw                     = np.nan_to_num(raw)
+                        raw                     = np.reshape(raw, [1, raw.shape[0]*raw.shape[1]])
+                        label                   = np.zeros((1,len(self.labels_dic)))
+                        label[0,i]              = 1
+                        try:
+                            data = np.concatenate((data, raw), axis=0)
+                            labels = np.concatenate((labels, label), axis=0)
+                        except:
+                            data   = raw
+                            labels = label
+
+                    except Exception as e :
+                        App.log(0, "Bad file" + str(e))
+                        traceback.print_exc()
+
+            #Shuffle the final batch
+            idx = np.arange(data.shape[0])
+            np.random.shuffle(idx)
+            data   = data[idx,:]
+            labels = labels[idx,:]
+
+            data   = data[:batch_size,:]
+            labels = labels[:batch_size,:]
+
+            queue.put([data, labels])
+
+        '''
         while True:
             while self.queue_training.full():
                 pass
@@ -222,6 +364,7 @@ class Dataset:
             labels = labels[:batch_size,:]
 
             queue.put([data, labels])
+            '''
 
     def load_file(self, file):
         self.cur_batch = 0
