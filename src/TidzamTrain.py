@@ -80,6 +80,9 @@ if __name__ == "__main__":
     parser.add_option("--ps",
         action="store", type="string", dest="ps", default="",
         help='List of parameter servers (ps1.mynet:2222,ps2.mynet:2222, etc).')
+
+    parser.add_option("--class_file", action="store", type="string", dest="class_file" ,
+        default="" , help="json file holding the data necessary about class access path and type")
     ###
     (opts, args) = parser.parse_args()
 
@@ -123,9 +126,15 @@ if __name__ == "__main__":
     ###################################
     # Load the data
     ###################################
-    dataset      = database.Dataset(opts.dataset_train)
+    try:
+        labels_dic = np.load(opts.out + "/labels_dic.npy")
+    except:
+        App.log(0 , "Couldn't find a label dic , a new one will be build")
+        labels_dic = []
+
+    dataset      = database.Dataset(opts.dataset_train , class_file=opts.class_file, labels_dic=labels_dic)
     if opts.dataset_test:
-        dataset_test = database.Dataset(opts.dataset_test)
+        dataset_test = database.Dataset(opts.dataset_test, class_file=opts.class_file, labels_dic=labels_dic)
     App.log(0, "Sample size: " + str(dataset.dataw) + 'x' + str(dataset.datah))
 
     ###################################

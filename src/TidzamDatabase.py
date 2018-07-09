@@ -21,6 +21,7 @@ import sounddevice as sd
 import traceback
 
 from App import App
+import json
 
 ###################################SOUND PROCESS##########################################
 
@@ -146,7 +147,7 @@ def sorted_nicely( l ):
     return sorted(l, key = alphanum_key)
 
 class Dataset:
-    def __init__(self, name="/tmp/dataset",p=0.9, data_size=(150,186), max_file_size=1000, split=0.9):
+    def __init__(self, name="/tmp/dataset",class_file="", labels_dic=[], p=0.9, data_size=(150,186), max_file_size=1000, split=0.9):
         self.cur_batch = 0
 
         self.dataw          = data_size[0]
@@ -162,7 +163,7 @@ class Dataset:
 
         self.data           = []
         self.labels         = []
-        self.labels_dic     = []
+        self.labels_dic     = labels_dic
         self.batch_size     = 64
 
         self.mode                  = None
@@ -173,20 +174,12 @@ class Dataset:
         self.queue_maxsize         = 20
         self.split                 = split
 
-        self.data_augmentation = True
-        self.type_dictionnary = {"airplane" : "ambiant_sound" ,
-                                 "birds" : "content" ,
-                                 "cicadas" : "content" ,
-                                 "crickets" : "content" ,
-                                 "frog" : "content" ,
-                                 "mic_crackle" : "ambiant_sound" ,
-                                 "no_signal" : "" ,
-                                 "quiet" : "ambiant_sound" ,
-                                 "rain" : "ambiant_sound" ,
-                                 "spring_peepers" : "content" ,
-                                 "wind" : "ambiant_sound" ,}
-
-
+        try:
+            with open(class_file) as json_file:
+                self.class_dictionnary = json.load(json_file)
+        except:
+            App.log(0 , "There isn't any valide json class_file , the class dictionnary will be build automatically and data augmentation won't be used")
+            self.class_dictionnary = None
 
         atexit.register(self.exit)
         self.load(self.name)
@@ -211,12 +204,17 @@ class Dataset:
         self.queue_testing   = ctx.Queue(self.queue_maxsize)
 
         # Build classe dictionnary
-        for cl in glob.glob(self.name + "/*"):
-            if os.path.isdir(cl):
-                cl = cl.split("/")
-                cl = cl[len(cl)-1].split("(")[0]
-                if cl not in self.labels_dic and cl != "unchecked":
-                    self.labels_dic.append(cl)
+        if len(self.labels_dic) == 0:
+            if self.class_dictionnary is None:
+                for cl in glob.glob(self.name + "/*"):
+                    if os.path.isdir(cl):
+                        cl = cl.split("/")
+                        cl = cl[len(cl)-1].split("(")[0]
+                        if cl not in self.labels_dic and cl != "unchecked":
+                            self.labels_dic.append(cl)
+            else:
+                for object in self.class_dictionnary:
+                    self.labels_dic.append(object["name"])
 
         # Extract file for training and testing
         if self.split == None:
@@ -225,8 +223,17 @@ class Dataset:
 
         self.files_training = {}
         self.files_testing  = {}
-        for cl in self.labels_dic:
-            files_cl = np.array(glob.glob(self.name + "/" + cl + "*/**/*.wav", recursive=True))
+
+        if self.class_dictionnary is not None:
+            cl_paths_list = [np.array(glob.glob(object["path"] + "*/**/*.wav", recursive=True)) for object in self.class_dictionnary]
+            cl_names = [object["name"] for object in self.class_dictionnary]
+        else:
+            cl_paths_list = [np.array(glob.glob(self.name + "/" + cl + "*/**/*.wav", recursive=True)) for cl in self.labels_dic]
+            cl_names = self.labels_dic
+
+        #if self.class_dictionnary is None:
+        for cl , paths in zip(cl_names , cl_paths_list):
+            files_cl = paths
             idx = np.arange(len(files_cl))
             np.random.shuffle(idx)
             self.files_training[cl] = files_cl[ idx[:int(len(idx)*self.split)] ]
@@ -237,7 +244,7 @@ class Dataset:
         for i in range(self.thread_count_training):
             t = ctx.Process(target=self.build_batch_onfly,
                     args=(self.queue_training, self.files_training, self.batch_size ,
-                          self.data_augmentation, self.type_dictionnary))
+                          self.class_dictionnary))
             t.start()
             self.threads.append(t)
 
@@ -265,7 +272,14 @@ class Dataset:
                 pass
             return self.queue_testing.get()
 
-    def build_batch_onfly(self, queue, files, batch_size=64 , data_augmentation = False ,  type_dictionnary = None):
+    def build_batch_onfly(self, queue, files, batch_size=64 , class_dictionnary = None):
+        if class_dictionnary is not None:
+            #List all the ambiant class
+            ambiant_cl = [item["name"] for item in class_dictionnary if item["type"] == "ambiant_sound"]
+            type_dictionnary = dict()
+            for cl in class_dictionnary:
+                type_dictionnary[cl["name"]] = cl["type"]
+
         while True:
             while self.queue_training.full():
                 pass
@@ -273,11 +287,6 @@ class Dataset:
             count = math.ceil(batch_size / len(self.labels_dic))
             data = []
             labels = []
-
-            if data_augmentation:
-                assert (type_dictionnary is not None)
-                #List all the ambiant class
-                ambiant_cl = [cl for cl , type in type_dictionnary.items() if type == "ambiant_sound"]
 
             for i , cl in enumerate(self.labels_dic):
                 #pick random sample (only get the indexes)
@@ -291,7 +300,7 @@ class Dataset:
                     sound_data , samplerate = sf.read(files_cl[id])
                     sound_data = sound_data if len(sound_data.shape) <= 1 else convert_to_monochannel(sound_data)
 
-                    if data_augmentation and type_dictionnary[cl] == "content":
+                    if class_dictionnary is not None and type_dictionnary[cl] == "content":
                         ambiant_sound , samplerate = sf.read(random.choice(files[random.choice(ambiant_cl)]))
                         ambiant_sound = ambiant_sound if len(ambiant_sound.shape) <= 1 else convert_to_monochannel(ambiant_sound)
                         sound_data = blend_sound_to_background(sound_data , ambiant_sound)
@@ -1007,6 +1016,7 @@ if __name__ == "__main__":
 
     parser.add_option("--info", action="store_true", dest="info",
         default=False, help="Return some dataset information.")
+
 
     (options, args) = parser.parse_args()
 
