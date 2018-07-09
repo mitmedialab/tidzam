@@ -40,7 +40,7 @@ def blend_sound_to_background(sound_data , ambiant_sound_data):
     sound_data = sound_data / np.max(sound_data) * volume_factor
     ambiant_sound_data = ambiant_sound_data / np.max(ambiant_sound_data) * volume_factor
 
-    sound_data_position = int(random.random() * ((len(ambiant_sound_data) - len(sound_data)) - 1) )
+    sound_data_position = 0
 
     signal_sum = ambiant_sound_data[:]
     for i in range(len(sound_data)):
@@ -176,14 +176,14 @@ class Dataset:
         self.data_augmentation = True
         self.type_dictionnary = {"airplane" : "ambiant_sound" ,
                                  "birds" : "content" ,
-                                 "cicadas" : "content" ,
-                                 "crickets" : "content" ,
+                                 "cicadas" : "ambiant_sound" ,
+                                 "crickets" : "ambiant_sound" ,
                                  "frog" : "content" ,
                                  "mic_crackle" : "ambiant_sound" ,
-                                 "no_signal" : "" ,
+                                 "no_signal" : "ambiant_sound" ,
                                  "quiet" : "ambiant_sound" ,
                                  "rain" : "ambiant_sound" ,
-                                 "spring_peepers" : "content" ,
+                                 "spring_peepers" : "ambiant_sound" ,
                                  "wind" : "ambiant_sound" ,}
 
 
@@ -292,9 +292,14 @@ class Dataset:
                     sound_data = sound_data if len(sound_data.shape) <= 1 else convert_to_monochannel(sound_data)
 
                     if data_augmentation and type_dictionnary[cl] == "content":
-                        ambiant_sound , samplerate = sf.read(random.choice(files[random.choice(ambiant_cl)]))
-                        ambiant_sound = ambiant_sound if len(ambiant_sound.shape) <= 1 else convert_to_monochannel(ambiant_sound)
-                        sound_data = blend_sound_to_background(sound_data , ambiant_sound)
+                        try:
+                            ambient_file                = random.choice(files[random.choice(ambiant_cl)])
+                            ambiant_sound , samplerate  = sf.read(ambient_file)
+                            ambiant_sound = ambiant_sound if len(ambiant_sound.shape) <= 1 else convert_to_monochannel(ambiant_sound)
+                            sound_data = blend_sound_to_background(sound_data , ambiant_sound)
+                        except:
+                            App.warning(0, "Unable to augment the audiofile " + files_cl[id] + " with " + ambient_file)
+                            traceback.print_exc()
 
                     try:
                         raw, time, freq, size   = play_spectrogram_from_stream(files_cl[id])
