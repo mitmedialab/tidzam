@@ -41,7 +41,10 @@ def blend_sound_to_background(sound_data , ambiant_sound_data):
     sound_data = sound_data / np.max(sound_data) * volume_factor
     ambiant_sound_data = ambiant_sound_data / np.max(ambiant_sound_data) * volume_factor
 
-    sound_data_position = 0
+    sound_data_position = int(random.randint(0 , len(ambiant_sound_data) - len(sound_data)) )
+
+    if sound_data_position < 0:
+        raise Exception("Corrupted Data")
 
     signal_sum = ambiant_sound_data[:]
     for i in range(len(sound_data)):
@@ -190,7 +193,8 @@ class Dataset:
             t. terminate()
 
     def load(self, input):
-        if os.path.isdir(input) is False:
+        if os.path.isdir(input) is False and input != "":
+            App.log(0 , "file_mode")
             self.mode = "file"
             self.load_file(input)
         else:
@@ -213,7 +217,7 @@ class Dataset:
                         if cl not in self.labels_dic and cl != "unchecked":
                             self.labels_dic.append(cl)
             else:
-                for object in self.class_dictionnary:
+                for object in self.class_dictionnary["object"]:
                     self.labels_dic.append(object["name"])
 
         # Extract file for training and testing
@@ -225,8 +229,8 @@ class Dataset:
         self.files_testing  = {}
 
         if self.class_dictionnary is not None:
-            cl_paths_list = [np.array(glob.glob(object["path"] + "*/**/*.wav", recursive=True)) for object in self.class_dictionnary]
-            cl_names = [object["name"] for object in self.class_dictionnary]
+            cl_paths_list = [np.array(glob.glob(object["path"] + "*/**/*.wav", recursive=True)) for object in self.class_dictionnary["object"]]
+            cl_names = [object["name"] for object in self.class_dictionnary["object"]]
         else:
             cl_paths_list = [np.array(glob.glob(self.name + "/" + cl + "*/**/*.wav", recursive=True)) for cl in self.labels_dic]
             cl_names = self.labels_dic
@@ -275,10 +279,15 @@ class Dataset:
     def build_batch_onfly(self, queue, files, batch_size=64 , class_dictionnary = None):
         if class_dictionnary is not None:
             #List all the ambiant class
-            ambiant_cl = [item["name"] for item in class_dictionnary if item["type"] == "ambiant_sound"]
+            ambiant_cl = class_dictionnary["ambiant_sound"]
             type_dictionnary = dict()
-            for cl in class_dictionnary:
-                type_dictionnary[cl["name"]] = cl["type"]
+            for cl in class_dictionnary["object"]:
+                if cl["name"] in class_dictionnary["ambiant_sound"]:
+                    type_dictionnary[cl["name"]] = "ambiant_sound"
+                elif cl["name"] in class_dictionnary["content"]:
+                    type_dictionnary[cl["name"]] = "content"
+                else :
+                    type_dictionnary[cl["name"]] = "none_type"
 
         while True:
             while self.queue_training.full():
@@ -301,13 +310,13 @@ class Dataset:
                     sound_data = sound_data if len(sound_data.shape) <= 1 else convert_to_monochannel(sound_data)
 
                     if class_dictionnary is not None and type_dictionnary[cl] == "content":
+                        ambiant_file = random.choice(files[random.choice(ambiant_cl)])
+                        ambiant_sound , samplerate = sf.read(ambiant_file)
+                        ambiant_sound = ambiant_sound if len(ambiant_sound.shape) <= 1 else convert_to_monochannel(ambiant_sound)
                         try:
-                            ambiant_sound , samplerate = sf.read(random.choice(files[random.choice(ambiant_cl)]))
-                            ambiant_sound = ambiant_sound if len(ambiant_sound.shape) <= 1 else convert_to_monochannel(ambiant_sound)
                             sound_data = blend_sound_to_background(sound_data , ambiant_sound)
                         except:
-                            App.warning(0, "Unable to augment the audiofile " + files_cl[id] + " with " + ambient_file)
-                            traceback.print_exc()
+                            App.Log(0 , "One of these 2 files are corrupted (or probably both) : " , files_cl[id] , " , " , ambiant_file)
 
                     try:
                         raw, time, freq, size   = play_spectrogram_from_stream(files_cl[id])

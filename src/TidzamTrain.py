@@ -10,12 +10,32 @@ import os
 import vizualisation as vizu
 import TidzamDatabase as database
 from App import App
+import json
+
+def build_command_from_conf(conf_file):
+    try:
+        with open(conf_file) as json_file:
+            conf_data = json.load(json_file)
+    except:
+        App.log(0 , "There isn't any valide json file")
+        return []
+
+    build_cmd_line = []
+    for key , value in conf_data.items():
+        if is_primitive(value) or isinstance(value , int):
+            build_cmd_line.append("--{}={}".format(key , value))
+    return build_cmd_line
+
+primitive_list = [str ,int ,float, bool]
+def is_primitive(var):
+    for primitive_var_type in primitive_list:
+        if isinstance(var , primitive_var_type):
+            return True
+    return False
 
 if __name__ == "__main__":
-
     from tensorflow.contrib.tensorboard.plugins import projector
     import tensorflow as tf
-
 
     App.log(0, "TensorFlow "+ tf.__version__)
 
@@ -25,7 +45,7 @@ if __name__ == "__main__":
     usage="TidzamTrain.py --dataset-train=mydataset --dnn=models/model.py --out=save/ [OPTIONS]"
     parser = optparse.OptionParser(usage=usage)
     parser.add_option("-d", "--dataset-train",
-        action="store", type="string", dest="dataset_train",
+        action="store", type="string", dest="dataset_train", default="",
         help='Define the dataset to train.')
 
     parser.add_option("-t", "--dataset-test",
@@ -81,10 +101,12 @@ if __name__ == "__main__":
         action="store", type="string", dest="ps", default="",
         help='List of parameter servers (ps1.mynet:2222,ps2.mynet:2222, etc).')
 
-    parser.add_option("--class_file", action="store", type="string", dest="class_file" ,
+    parser.add_option("--conf-file", action="store", type="string", dest="conf_file" ,
         default="" , help="json file holding the data necessary about class access path and type")
     ###
     (opts, args) = parser.parse_args()
+    command_line = build_command_from_conf(opts.conf_file) + sys.argv
+    (opts, args) = parser.parse_args(command_line)
 
 
     ###################################
@@ -132,9 +154,9 @@ if __name__ == "__main__":
         App.log(0 , "Couldn't find a label dic , a new one will be build")
         labels_dic = []
 
-    dataset      = database.Dataset(opts.dataset_train , class_file=opts.class_file, labels_dic=labels_dic)
+    dataset      = database.Dataset(opts.dataset_train , class_file=opts.conf_file, labels_dic=labels_dic)
     if opts.dataset_test:
-        dataset_test = database.Dataset(opts.dataset_test, class_file=opts.class_file, labels_dic=labels_dic)
+        dataset_test = database.Dataset(opts.dataset_test, class_file=opts.conf_file, labels_dic=labels_dic)
     App.log(0, "Sample size: " + str(dataset.dataw) + 'x' + str(dataset.datah))
 
     ###################################
