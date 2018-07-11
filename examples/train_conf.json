@@ -1,45 +1,26 @@
-[{
-	"name": "airplane",
-	"path": "tidzam.media.mit.edu/samples/airplane",
-	"type": "ambiant_sound"
-}, {
-	"name": "birds",
-	"path": "tidzam.media.mit.edu/samples/birds",
-	"type": "content"
-}, {
-	"name": "cicadas",
-	"path": "tidzam.media.mit.edu/samples/cicadas",
-	"type": "ambiant_sound"
-}, {
-	"name": "crickets",
-	"path": "tidzam.media.mit.edu/samples/crickets",
-	"type": "ambiant_sound"
-}, {
-	"name": "frog",
-	"path": "tidzam.media.mit.edu/samples/frog",
-	"type": "content"
-}, {
-	"name": "mic_crackle",
-	"path": "tidzam.media.mit.edu/samples/mic_crackle",
-	"type": "ambiant_sound"
-}, {
-	"name": "no_signal",
-	"path": "tidzam.media.mit.edu/samples/no_signal",
-	"type": ""
-}, {
-	"name": "quiet",
-	"path": "tidzam.media.mit.edu/samples/quiet",
-	"type": "ambiant_sound"
-}, {
-	"name": "rain",
-	"path": "tidzam.media.mit.edu/samples/rain",
-	"type": "ambiant_sound"
-}, {
-	"name": "spring_peepers",
-	"path": "tidzam.media.mit.edu/samples/spring_peepers",
-	"type": "content"
-}, {
-	"name": "wind",
-	"path": "tidzam.media.mit.edu/samples/wind",
-	"type": "ambiant_sound"
-}]
+{
+	"out": "new2",
+	"training_iters": 200000,
+	"batch_size": 128,
+	"dnn": "model/model.py",
+	"learning_rate": 0.1,
+	
+	"object": [{
+		"name": "class 1",
+		"path": "path/to/class1",
+		"type" : "content",
+		"is_augmented":true
+	}, {
+		"name": "class 2",
+		"path": "path/to/class2",
+		"type": "content",
+		"is_augmented":true
+	}, {
+		"name": "class 3",
+		"path": "path/to/class3",
+		"type": "background"
+	}],
+
+
+	"classes": ["class 1" , "class 2"]
+}
