@@ -150,7 +150,7 @@ def sorted_nicely( l ):
     return sorted(l, key = alphanum_key)
 
 class Dataset:
-    def __init__(self, name="/tmp/dataset",class_file="", labels_dic=[], p=0.9, data_size=(150,186), max_file_size=1000, split=0.9):
+    def __init__(self, name="/tmp/dataset",conf_data = None, p=0.9, data_size=(150,186), max_file_size=1000, split=0.9):
         self.cur_batch = 0
 
         self.dataw          = data_size[0]
@@ -166,7 +166,6 @@ class Dataset:
 
         self.data           = []
         self.labels         = []
-        self.labels_dic     = labels_dic
         self.batch_size     = 64
 
         self.mode                  = None
@@ -177,12 +176,7 @@ class Dataset:
         self.queue_maxsize         = 20
         self.split                 = split
 
-        try:
-            with open(class_file) as json_file:
-                self.class_dictionnary = json.load(json_file)
-        except:
-            App.log(0 , "There isn't any valide json class_file , the class dictionnary will be build automatically and data augmentation won't be used")
-            self.class_dictionnary = None
+        self.conf_data = conf_data
 
         atexit.register(self.exit)
         self.load(self.name)
@@ -201,6 +195,37 @@ class Dataset:
             self.mode = "onfly"
             self.load_onfly(input)
 
+    def build_label(self):
+        are_labels_wrong = False
+        try:
+            if "object" not in self.conf_data:
+                self.conf_data["classes"] = []
+                for cl in glob.glob(self.name + "/*"):
+                    if os.path.isdir(cl):
+                        cl = cl.split("/")
+                        cl = cl[len(cl)-1].split("(")[0]
+                        if cl not in self.conf_data["classes"] and cl != "unchecked":
+                            self.conf_data["classes"].append(cl)
+
+            labels_dic = np.load(self.conf_data["out"] + "/labels_dic.npy")
+
+            if len(labels_dic) > len(self.conf_data["classes"]):
+                are_labels_wrong = True
+            for label in labels_dic:
+                if label not in self.conf_data["classes"]:
+                    are_labels_wrong = True
+
+            if not are_labels_wrong:
+                self.conf_data["classes"] = labels_dic
+        except:
+            App.log(0 , "Couldn't find a label dic , a new one will be build")
+
+        if are_labels_wrong:
+            App.log(0 , "CARE : The model was build for different labels")
+            App.log(0 , "previous model classes : " + str(labels_dic))
+            App.log(0 , "current model classes : " + str(self.conf_data["classes"]))
+            exit(0)
+
     def load_onfly(self, folder ):
         self.name   = folder
         ctx = mp.get_context('spawn')
@@ -208,17 +233,9 @@ class Dataset:
         self.queue_testing   = ctx.Queue(self.queue_maxsize)
 
         # Build classe dictionnary
-        if len(self.labels_dic) == 0:
-            if self.class_dictionnary is None:
-                for cl in glob.glob(self.name + "/*"):
-                    if os.path.isdir(cl):
-                        cl = cl.split("/")
-                        cl = cl[len(cl)-1].split("(")[0]
-                        if cl not in self.labels_dic and cl != "unchecked":
-                            self.labels_dic.append(cl)
-            else:
-                for object in self.class_dictionnary["object"]:
-                    self.labels_dic.append(object["name"])
+        self.build_label()
+
+        App.log(0 ,"trained class are : " + str(self.conf_data["classes"]))
 
         # Extract file for training and testing
         if self.split == None:
@@ -228,14 +245,15 @@ class Dataset:
         self.files_training = {}
         self.files_testing  = {}
 
-        if self.class_dictionnary is not None:
-            cl_paths_list = [np.array(glob.glob(object["path"] + "*/**/*.wav", recursive=True)) for object in self.class_dictionnary["object"]]
-            cl_names = [object["name"] for object in self.class_dictionnary["object"]]
+        if "object" in self.conf_data:
+            cl_paths_list = [np.array(glob.glob(object["path"] + "*/**/*.wav", recursive=True)) for object in self.conf_data["object"]]
+            cl_names = [object["name"] for object in self.conf_data["object"]]
+            cl_type = [object["type"] for object in self.conf_data["object"]]
         else:
-            cl_paths_list = [np.array(glob.glob(self.name + "/" + cl + "*/**/*.wav", recursive=True)) for cl in self.labels_dic]
-            cl_names = self.labels_dic
+            cl_paths_list = [np.array(glob.glob(self.name + "/" + cl + "*/**/*.wav", recursive=True)) for cl in self.conf_data["classes"]]
+            cl_names = self.conf_data["classes"]
 
-        #if self.class_dictionnary is None:
+        #if self.conf_data is None:
         for cl , paths in zip(cl_names , cl_paths_list):
             files_cl = paths
             idx = np.arange(len(files_cl))
@@ -244,11 +262,13 @@ class Dataset:
             self.files_testing[cl]  = files_cl[ idx[int(len(idx)*self.split):] ]
             App.log(0, "training / testing datasets for " + cl + ": " + str(len(self.files_training[cl])) + " / " +str(len(self.files_testing[cl]))+" samples" )
 
+        dictionnary = None if "object" not in self.conf_data else self.conf_data["object"]
+
         # Start the workers
         for i in range(self.thread_count_training):
             t = ctx.Process(target=self.build_batch_onfly,
                     args=(self.queue_training, self.files_training, self.batch_size ,
-                          self.class_dictionnary))
+                          dictionnary))
             t.start()
             self.threads.append(t)
 
@@ -276,28 +296,26 @@ class Dataset:
                 pass
             return self.queue_testing.get()
 
-    def build_batch_onfly(self, queue, files, batch_size=64 , class_dictionnary = None):
-        if class_dictionnary is not None:
+    def build_batch_onfly(self, queue, files, batch_size=64 , dictionnary = None):
+        if dictionnary is not None:
             #List all the ambiant class
-            ambiant_cl = class_dictionnary["ambiant_sound"]
+            ambiant_cl = [object["name"] for object in dictionnary if object["type"] == "background"]
             type_dictionnary = dict()
-            for cl in class_dictionnary["object"]:
-                if cl["name"] in class_dictionnary["ambiant_sound"]:
-                    type_dictionnary[cl["name"]] = "ambiant_sound"
-                elif cl["name"] in class_dictionnary["content"]:
-                    type_dictionnary[cl["name"]] = "content"
-                else :
-                    type_dictionnary[cl["name"]] = "none_type"
+            augmentation_dictionnary = dict()
+            for cl in  dictionnary:
+                type_dictionnary[cl["name"]] = cl["type"]
+                if "is_augmented" in cl and cl["is_augmented"]:
+                    augmentation_dictionnary[cl["name"]] = cl["is_augmented"]
 
         while True:
             while self.queue_training.full():
                 pass
 
-            count = math.ceil(batch_size / len(self.labels_dic))
+            count = math.ceil(batch_size / len(self.conf_data["classes"]))
             data = []
             labels = []
 
-            for i , cl in enumerate(self.labels_dic):
+            for i , cl in enumerate(self.conf_data["classes"]):
                 #pick random sample (only get the indexes)
                 files_cl = files[cl]
                 idx = np.arange(len(files_cl))
@@ -309,7 +327,7 @@ class Dataset:
                     sound_data , samplerate = sf.read(files_cl[id])
                     sound_data = sound_data if len(sound_data.shape) <= 1 else convert_to_monochannel(sound_data)
 
-                    if class_dictionnary is not None and type_dictionnary[cl] == "content":
+                    if dictionnary is not None and type_dictionnary[cl] == "content" and cl in augmentation_dictionnary:
                         ambiant_file = random.choice(files[random.choice(ambiant_cl)])
                         ambiant_sound , samplerate = sf.read(ambiant_file)
                         ambiant_sound = ambiant_sound if len(ambiant_sound.shape) <= 1 else convert_to_monochannel(ambiant_sound)
@@ -322,7 +340,7 @@ class Dataset:
                         raw, time, freq, size   = play_spectrogram_from_stream(files_cl[id])
                         raw                     = np.nan_to_num(raw)
                         raw                     = np.reshape(raw, [1, raw.shape[0]*raw.shape[1]])
-                        label                   = np.zeros((1,len(self.labels_dic)))
+                        label                   = np.zeros((1,len(self.conf_data["classes"])))
                         label[0,i]              = 1
                         try:
                             data = np.concatenate((data, raw), axis=0)
@@ -351,10 +369,10 @@ class Dataset:
             while self.queue_training.full():
                 pass
 
-            count = math.ceil(batch_size / len(self.labels_dic))
+            count = math.ceil(batch_size / len(self.conf_data["classes"]))
             data   = []
             labels = []
-            for i, cl in enumerate(self.labels_dic):
+            for i, cl in enumerate(self.conf_data["classes"]):
                 files_cl = files[cl]
                 idx = np.arange(len(files_cl))
                 np.random.shuffle(idx)
@@ -364,7 +382,7 @@ class Dataset:
                         raw, time, freq, size   = play_spectrogram_from_stream(files_cl[id])
                         raw                     = np.nan_to_num(raw)
                         raw                     = np.reshape(raw, [1, raw.shape[0]*raw.shape[1]])
-                        label                   = np.zeros((1,len(self.labels_dic)))
+                        label                   = np.zeros((1,len(self.conf_data["classes"])))
                         label[0,i]              = 1
                         try:
                             data = np.concatenate((data, raw), axis=0)
@@ -417,7 +435,7 @@ class Dataset:
             f = np.load(self.name+"-"+str(self.fileID)+".npz")
             self.data   = f["data"]
             self.labels = f["labels"]
-            self.labels_dic = list(np.load(self.name+"_labels_dic.npy"))
+            self.conf_data["classes"] = list(np.load(self.name+"_labels_dic.npy"))
 
             # Print dataset information
             App.log(0, str(self.count_samples) +" samples of " +
@@ -431,7 +449,7 @@ class Dataset:
         except Exception as ex:
              App.log(0, "File not found: " + file + str(ex))
              self.data = []
-             self.labels_dic = []
+             self.conf_data["classes"] = []
              self.labels = []
 
     def save(self,name=None):
@@ -447,7 +465,7 @@ class Dataset:
                 data=self.data,
                 labels=self.labels
                 )
-            np.save(name + "_labels_dic", self.labels_dic)
+            np.save(name + "_labels_dic", self.conf_data["classes"])
         except:
             App.log(0, "Unable to save the dataset (write permission ?)")
 
@@ -499,14 +517,14 @@ class Dataset:
             App.log(0, file + " -> " + name + "-" + a)
             os.rename(file, name + "-" + a)
         self.name = name
-        np.save(name + "_labels_dic", self.labels_dic)
+        np.save(name + "_labels_dic", self.conf_data["classes"])
 
     def create_classe(self,name):
         try:
-            self.labels_dic.index(name)
+            self.conf_data["classes"].index(name)
         except:
-            self.labels_dic.append(name)
-            np.save(self.name + "_labels_dic", self.labels_dic)
+            self.conf_data["classes"].append(name)
+            np.save(self.name + "_labels_dic", self.conf_data["classes"])
 
             tmp_name = self.name.split("/")
             tmp_name = tmp_name[len(tmp_name)-1]
@@ -521,7 +539,7 @@ class Dataset:
                 np.savez(file,
                     data=f["data"],
                     labels=label_tmp,
-                    labels_dic=self.labels_dic,
+                    labels_dic=self.conf_data["classes"],
                     dataFormat=[self.dataw, self.datah],
                     maxfilesize=self.max_file_size,
                     name=tmp_name)
@@ -536,9 +554,9 @@ class Dataset:
     def load_from_wav_folder(self, folder, asOneclasse=None):
         App.log(0, "\nLoading from folder " + folder)
         try:
-            self.labels_dic = list(np.load(self.name + "_labels_dic.npy"))
+            self.conf_data["classes"] = list(np.load(self.name + "_labels_dic.npy"))
         except:
-            self.labels_dic = []
+            self.conf_data["classes"] = []
 
         for f in glob.glob(folder+"/*.wav"):
             App.log(0, f)
@@ -565,9 +583,9 @@ class Dataset:
                 self.data = raw
 
             # Check if the classe is known, else create it
-            n_classes = len(self.labels_dic)
+            n_classes = len(self.conf_data["classes"])
             try:
-                pos = self.labels_dic.index(classe)
+                pos = self.conf_data["classes"].index(classe)
                 b = np.zeros((1, n_classes))# IDEA:
                 b[0][pos] = 1
             except ValueError:
@@ -584,7 +602,7 @@ class Dataset:
 
         self.save_chunks()
 
-        return self.data, self.labels, self.labels_dic
+        return self.data, self.labels, self.conf_data["classes"]
 
     def print_sample(self,dataX, dataY, classe, print_all=False):
         id = np.zeros((1, dataY.shape[1]))
@@ -606,7 +624,7 @@ class Dataset:
     def balance_classe(self):
         App.log(0, "\nClasse balancing.")
         for cl in range(self.labels.shape[1]):
-            App.log(0, self.labels_dic[cl])
+            App.log(0, self.conf_data["classes"][cl])
             nb_cl = self.get_sample_count_by_classe()
             nb_new = int(np.max(nb_cl) - nb_cl[cl])
 
@@ -737,14 +755,14 @@ class Dataset:
                 np.savez(file1,
                         data=data1,
                         labels=labels1,
-                        labels_dic=self.labels_dic,
+                        labels_dic=self.conf_data["classes"],
                         dataFormat=[self.dataw, self.datah],
                         maxfilesize=self.max_file_size,
                         name=tmp_name)
                 np.savez(file2,
                         data=data2,
                         labels=labels2,
-                        labels_dic=self.labels_dic,
+                        labels_dic=self.conf_data["classes"],
                         dataFormat=[self.dataw, self.datah],
                         maxfilesize=self.max_file_size,
                         name=tmp_name)
@@ -755,7 +773,7 @@ class Dataset:
         id = 0
         if asOneClasse is not None:
             try:
-                pos = self.labels_dic.index(asOneClasse)
+                pos = self.conf_data["classes"].index(asOneClasse)
             except:
                 App.log(0, "New classe " + asOneClasse)
                 try:
@@ -779,7 +797,7 @@ class Dataset:
             except:
                 self.data = data
 
-            App.log(0, self.labels_dic)
+            App.log(0, self.conf_data["classes"])
             if asOneClasse is not None:
                 try:
                     # IS A NEW CLASSE
@@ -797,8 +815,8 @@ class Dataset:
                     self.labels = np.concatenate((self.labels, l),axis=0)
                 # If the current dataset is empty
                 except:
-                    self.labels_dic.append(asOneClasse)
-                    np.save(self.name + "_labels_dic", self.labels_dic)
+                    self.conf_data["classes"].append(asOneClasse)
+                    np.save(self.name + "_labels_dic", self.conf_data["classes"])
                     self.labels = np.ones( (data.shape[0], 1) )
 
             else:
@@ -806,7 +824,7 @@ class Dataset:
                     name = labels_dic_to_merge[np.argmax(l)]
                     try:
                         # Looking for label position
-                        pos = self.labels_dic.index(name)
+                        pos = self.conf_data["classes"].index(name)
 
                     # If classe not found, it is a new classe which must be added to the dataset
                     except:
@@ -849,14 +867,14 @@ class Dataset:
             np.savez(self.name + "-" + str(i) + ".npz",
                 data=d1,
                 labels=l1,
-                labels_dic=self.labels_dic,
+                labels_dic=self.conf_data["classes"],
                 dataFormat=[self.dataw, self.datah],
                 maxfilesize=self.max_file_size,
                 name=tmp_name)
             np.savez(name + "-" + str(i) + ".npz",
                 data=d2,
                 labels=l2,
-                labels_dic=self.labels_dic,
+                labels_dic=self.conf_data["classes"],
                 dataFormat=[self.dataw, self.datah],
                 maxfilesize=self.max_file_size,
                 name=name)
@@ -904,7 +922,7 @@ class Dataset:
         return features["data"].shape[1]
 
     def get_nb_classes(self):
-        return len(self.labels_dic)
+        return len(self.conf_data["classes"])
 
     def get_classes(self):
         classes = np.load(self.name+"_labels_dic.npy")
