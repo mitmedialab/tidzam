@@ -217,6 +217,10 @@ class Dataset:
         if(self.conf_data["cutoff_up"] is not None and self.conf_data["cutoff_down"] is not None ):
             self.cutoff = [ int(conf_data["cutoff_down"]), int(conf_data["cutoff_up"]) ]
 
+        self.cutoff = cutoff
+        if(self.conf_data["cutoff_up"] is not None and self.conf_data["cutoff_down"] is not None ):
+            self.cutoff = [ int(conf_data["cutoff_down"]), int(conf_data["cutoff_up"]) ]
+
         atexit.register(self.exit)
 
         self.load(self.name)
@@ -225,15 +229,6 @@ class Dataset:
         App.log(0, " Exit.")
         for t in self.threads:
             t. terminate()
-
-    def load(self, input):
-        if os.path.isdir(input) is False and input != "":
-            App.log(0 , "file_mode")
-            self.mode = "file"
-            self.load_file(input)
-        else:
-            self.mode = "onfly"
-            self.load_onfly(input)
 
     def build_labels_dic(self):
         are_labels_wrong = False
@@ -301,7 +296,7 @@ class Dataset:
         return label
 
 
-    def load_onfly(self, folder ):
+    def load(self, folder ):
         self.name   = folder
         ctx = mp.get_context('spawn')
         self.queue_training  = ctx.Queue(self.queue_maxsize)
