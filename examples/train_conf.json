@@ -3,8 +3,8 @@
 	"training_iters": 200000,
 	"batch_size": 128,
 	"dnn": "model/model.py",
-	"learning_rate": 0.1,
-	
+	"learning_rate": 0.001,
+
 	"object": [{
 		"name": "birds",
 		"path": "tidzam.media.mit.edu/samples/birds",

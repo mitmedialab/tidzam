@@ -17,6 +17,9 @@ import datetime
 import atexit
 import time
 import json
+import wave
+
+import resampy
 
 import optparse
 import traceback
@@ -24,24 +27,41 @@ import traceback
 from App import App
 
 class Stream():
-    def __init__(self, id, samplerate=44100, buffer_jack_size=3):
+    def __init__(self, id, samplerate=48000, buffer_jack_size=3,database_path=None):
         self.samplerate         = samplerate
         self.buffer_jack_size   = buffer_jack_size
         self.ring_buffer        = jack.RingBuffer(samplerate*buffer_jack_size)
         self.id                 = id
         self.portname           = None
+        self.file               = None
+        self.database_path      = database_path + "/unchecked"
+        self.filename           = self.database_path
 
-
-    def add_data(self,data):
-        data = np.frombuffer(data, dtype='int16')
-        data = data.astype("float32")
-        data = data / 32768
-        data = data.tobytes()
+    def add_data(self,json):
+        #json["buffer"] = resampy.resample(np.frombuffer(json["buffer"]), int(json["samplerate"]), 48000, axis=-1).tobytes()
+        data            = np.frombuffer(json["buffer"], dtype='int16')
+        data            = data.astype("float32")
+        data            = data / 32768
+        data            = data.tobytes()
         self.ring_buffer.write(data)
         App.log(3, "Connection " +self.id + " Jack Ring Buffer usage: " + str(self.ring_buffer.read_space*100/(self.ring_buffer.size)) + "%")
 
         if self.ring_buffer.write_space == 0:
             self.ring_buffer.reset()
+
+        if json["storage"] is True:
+            if self.file is None and self.database_path is not None:
+                self.filename += "/['unchecked']("+self.id+")_"+datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")+".wav"
+                self.file = wave.open(self.filename,"wb")
+                self.file.setsampwidth(2)
+                self.file.setnchannels(1)
+                self.file.setframerate(json["samplerate"])
+            self.file.writeframes(json["buffer"])
+
+    def terminate(self):
+        if self.file is not None:
+            App.log(1, "Save livestream " + str(self.id))
+            self.file.close()
 
 class Source():
     def __init__(self, name, url=None, channels=None, nb_channels=2, database=None, path_database=None, database_file_length=3600, format="ogg", starting_time=None,is_permanent=False):
@@ -70,13 +90,14 @@ class Source():
             self.url = self.path_database
 
 class TidzamStreamManager(threading.Thread):
-    def __init__(self, available_ports=10, samplerate=44100, buffer_jack_size=50, streamer_max=100):
+    def __init__(self, available_ports=10, samplerate=48000, buffer_jack_size=50, streamer_max=100,database_path=None):
         threading.Thread.__init__(self)
 
-        self.available_ports    = available_ports
-        self.available_ports    = available_ports
-        self.samplerate         = samplerate
-        self.buffer_jack_size   = buffer_jack_size
+        self.available_ports            = available_ports
+        self.available_ports            = available_ports
+        self.samplerate                 = samplerate
+        self.buffer_jack_size           = buffer_jack_size
+        self.database_path              = database_path
 
         self.streams            = []
         self.sources            = []
@@ -153,11 +174,11 @@ class TidzamStreamManager(threading.Thread):
     ############
     # Live Stream Interface for capturing Web microphones
     ############
-    def add_stream(self, id):
+    def add_stream(self, id, samplerate):
         App.log(1, "New live stream " + str(id))
 
         if len(self.streams) < self.available_ports:
-            self.streams.append(Stream(id, self.samplerate, self.buffer_jack_size))
+            self.streams.append(Stream(id, samplerate, self.buffer_jack_size, self.database_path))
         else:
             App.warning(0, "Unable to allocate a new live stream (already full).")
 
@@ -167,17 +188,18 @@ class TidzamStreamManager(threading.Thread):
         for s in self.streams:
             if s.id == id:
                 App.log(1, "Delete live stream " + str(id))
+                s.terminate()
                 self.streams.remove(s)
 
-    def add_data(self, id, data):
+    def add_data(self, id, json):
         found = False
         for s in self.streams:
             if s.id == id:
                 found = True
-                s.add_data(data)
+                s.add_data(json)
         if found is False:
-            self.add_stream(id)
-            self.add_data(id, data)
+            self.add_stream(id, json["samplerate"])
+            self.add_data(id, json)
 
     ############
     # Source Interface for capturing HTTP / local audio streams
@@ -429,13 +451,12 @@ class TidzamStreamManager(threading.Thread):
             try:
                 s.portname = ports[id].name
                 bufr = np.frombuffer(s.ring_buffer.read(self.blocksize*4), dtype='float32')
-                ports[id].get_array()[:] = bufr
+                if len(bufr) != 0:
+                    ports[id].get_array()[:] = bufr
 
             except Exception as e:
-                App.warning(2, "Error loading RT ring buffer " + s.id + "("+str(e)+")")
+                App.warning(1, "Error loading RT ring buffer " + s.id + "("+str(e)+")")
                 ports[id].get_array()[:].fill(0)
-                if len(bufr) == 0:
-                    self.del_stream(s.id)
 
     ############
     # Socket.IO controller
@@ -448,8 +469,8 @@ if __name__ == '__main__':
     parser.add_option("--buffer-size", action="store", type="int", dest="buffer_size", default=3,
         help="Set the Jack ring buffer size in seconds (default: 100 seconds).")
 
-    parser.add_option("--samplerate", action="store", type="int", dest="samplerate", default=44100,
-        help="Set the sample rate (default: 44100).")
+    parser.add_option("--samplerate", action="store", type="int", dest="samplerate", default=48000,
+        help="Set the sample rate (default: 48000).")
 
     parser.add_option("--port-available", action="store", type="int", dest="live_port", default=2,
         help="Number of available ports for live connections (default: 2).")
@@ -463,6 +484,10 @@ if __name__ == '__main__':
     parser.add_option("--sources", action="store", type="string", dest="sources",
         default="",
         help="JSON file containing the list of the initial audio source streams (default: None).")
+
+    parser.add_option("--database", action="store", type="string", dest="database_path",
+        default="",
+        help="Audio database path (default: None).")
 
     parser.add_option("--debug", action="store", type="int", dest="DEBUG", default=0,
         help="Set debug level (Default: 0).")
@@ -479,7 +504,8 @@ if __name__ == '__main__':
     jack_service = TidzamStreamManager(
                 available_ports=opts.live_port,
                 samplerate=opts.samplerate,
-                buffer_jack_size=opts.buffer_size)
+                buffer_jack_size=opts.buffer_size,
+                database_path=opts.database_path)
 
     # Load initial configuration
     try:
@@ -518,8 +544,8 @@ if __name__ == '__main__':
         App.log(1, "Client connected " + str(sid) )
 
     @sio.on('audio', namespace='/')
-    async def audio(sid, data):
-        jack_service.add_data(sid, data)
+    async def audio(sid, json):
+        jack_service.add_data(sid, json)
 
     @sio.on('disconnect', namespace='/')
     def disconnect(sid):
@@ -611,7 +637,11 @@ if __name__ == '__main__':
                     for s in jack_service.streams:
                         if s.id == sid:
                             await sio.emit('sys',
-                                    data={'portname': s.portname},
+                                    data={
+                                        'portname': s.portname,
+                                        'samplerate': s.samplerate,
+                                        'filename':s.filename.replace(opts.database_path,"")
+                                        },
                                     room=sid)
 
                 elif obj["sys"].get("del_livestream"):
