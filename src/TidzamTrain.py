@@ -193,7 +193,7 @@ if __name__ == "__main__":
         App.log(0, "Loading DNN model from:  " + conf_data["dnn"])
         sys.path.append('./')
         exec("import "+os.path.dirname(conf_data["dnn"])+"."+os.path.basename(conf_data["dnn"]).replace(".py","")+" as model")
-        net = eval("model.DNN([dataset.dataw, dataset.datah], dataset.get_nb_classes())")
+        net = eval("model.DNN([dataset.dataw, dataset.datah], dataset.get_nb_classes(), dataset.class_tree)")
 
         ## Generate summaries
         with tf.name_scope('Summaries'):

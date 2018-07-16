@@ -6,21 +6,21 @@
 	"learning_rate": 0.1,
 	
 	"object": [{
-		"name": "class 1",
-		"path": "path/to/class1",
+		"name": "birds",
+		"path": "tidzam.media.mit.edu/samples/birds",
 		"type" : "content",
 		"is_augmented":true
 	}, {
-		"name": "class 2",
-		"path": "path/to/class2",
+		"name": "frog",
+		"path": "tidzam.media.mit.edu/samples/frog",
 		"type": "content",
 		"is_augmented":true
 	}, {
-		"name": "class 3",
-		"path": "path/to/class3",
+		"name": "rain",
+		"path": "tidzam.media.mit.edu/samples/rain",
 		"type": "background"
 	}],
 
 
-	"classes": ["class 1" , "class 2"]
+	"classes": ["birds" , "frog"]
 }
