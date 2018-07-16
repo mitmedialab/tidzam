@@ -60,3 +60,5 @@ class DNN:
                 logits=self.out) )
 
             self.cost = self.cost + 0.01 * (R1 + R2 + R3 + R4)
+
+        self.output = tf.nn.softmax (self.out)

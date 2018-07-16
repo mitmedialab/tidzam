@@ -19,7 +19,7 @@ def sorted_nicely( l ):
     return sorted(l, key = alphanum_key)
 
 class TidzamJack(Thread):
-    def __init__(self, port_names, callable_objects=[], overlap=0, socketio_address="localhost:8001"):
+    def __init__(self, port_names, callable_objects=[], overlap=0, socketio_address="localhost:8001", cutoff=[20,170]):
         Thread.__init__(self)
 
         App.ok(0, "Jack client initialized")
@@ -39,6 +39,7 @@ class TidzamJack(Thread):
         self.overlap        = overlap
         self.buffer_jack    = -1
         self.stopFlag       = threading.Event()
+        self.cutoff         = cutoff
 
         self.callable_objects = callable_objects
         self.init_client()
@@ -181,7 +182,7 @@ class TidzamJack(Thread):
                             if run is True:
                                 data = self.channels_data[i][0:self.buffer_size]
                                 self.channels_data[i] = self.channels_data[i][int(self.buffer_size*(1-self.overlap) ):len(self.channels_data[i])]
-                                fs, t, Sxx, size = database.get_spectrogram(data, self.samplerate)
+                                fs, t, Sxx, size = database.get_spectrogram(data, self.samplerate, cutoff=[0, 170] )
 
                                 if i == 0:
                                     if int(len(self.channels_data[i])/self.buffer_size) > 1:

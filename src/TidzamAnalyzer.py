@@ -124,11 +124,17 @@ if __name__ == "__main__":
         if opts.stream is not None:
             import input_audiofile as ca
             connector = ca.TidzamAudiofile(opts.stream,
-                callable_objects = callable_objects,  overlap=opts.overlap, channel=opts.channel)
+                callable_objects = callable_objects,
+                overlap=opts.overlap,
+                channel=opts.channel,
+                cutoff=analyzer.cutoff)
 
         elif opts.jack is not None:
             import input_jack as cj
-            connector = cj.TidzamJack(opts.jack.split(","), callable_objects=callable_objects, overlap=opts.overlap)
+            connector = cj.TidzamJack(opts.jack.split(","),
+            callable_objects=callable_objects,
+            overlap=opts.overlap,
+            cutoff=analyzer.cutoff)
 
         connector.start()
         socket.start(opts.port)

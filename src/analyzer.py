@@ -27,14 +27,22 @@ gpu_options = tf.GPUOptions(
 
 config = tf.ConfigProto (allow_soft_placement=True,gpu_options=gpu_options)
 
-
 class Classifier:
     def __init__(self,folder):
-        self.dataw = 150
-        self.datah = 186
         self.nn_folder = folder
         self.history   = None
-        self.label_dic = np.load(folder + "/labels_dic.npy").astype(str)
+        self.cutoff    = None
+
+        # Load the conf file
+        try:
+            with open(folder + "/conf.json") as json_file:
+                conf_data = json.load(json_file)
+        except:
+            App.error(0, "No configuration file found for classifier " + folder)
+            sys.exit()
+
+        self.cutoff     = [conf_data["cutoff_down"],conf_data["cutoff_up"] ]
+        self.label_dic  = conf_data["classes"]
 
         # Get Neural Net name
         path = self.nn_folder.split('/')
@@ -48,7 +56,7 @@ class Classifier:
 
         g = tf.Graph()
         with g.as_default() as g:
-            self.model = eval( "model.DNN([self.dataw,self.datah], len(self.label_dic))" )
+            self.model = eval( 'model.DNN(conf_data["size"], len(self.label_dic))' )
             self.name = self.model.name
 
             self.sess = tf.InteractiveSession(config=config, graph=g)
@@ -64,11 +72,12 @@ class Classifier:
                 App.error(0,"No Neural Network found in " + checkpoint_dir)
                 quit()
 
-            # Add the final softmax decision function
-            self.net = tf.nn.softmax (self.model.out)
+            # Connect the neural net output
+            self.net = self.model.output
 
     def predict(self, batch):
-        return self.sess.run([self.net], feed_dict={self.model.input:batch, self.model.keep_prob: 1.0})[0]
+        res = self.sess.run([self.net], feed_dict={self.model.input:batch, self.model.keep_prob: 1.0})[0]
+        return res
 
 
 class Analyzer(threading.Thread):
@@ -82,6 +91,7 @@ class Analyzer(threading.Thread):
         self.callable_objects = callable_objects
 
         self.history = None
+        self.cutoff  = None
 
         # Configuration for socket.io from Redis PubSub
         self.stopFlag = threading.Event()
@@ -98,7 +108,13 @@ class Analyzer(threading.Thread):
         self.classifiers = []
         for f in glob.glob(self.nn_folder + "/*"):
             if os.path.isdir(f) and "__pycache__" not in f :
-                self.classifiers.append(Classifier(f))
+                c = Classifier(f)
+                self.classifiers.append(c)
+                if self.cutoff is None:
+                    self.cutoff = c.cutoff
+                elif self.cutoff != c.cutoff:
+                    App.error("Classifier must have the same cutoff value ("+str(self.cutoff)+" != "+c.cutoff+")")
+                    sys.exit(-1)
 
         if len(self.classifiers) < 1:
             App.error(0,"No classifier found in: " + self.nn_folder)
@@ -121,7 +137,6 @@ class Analyzer(threading.Thread):
     def execute(self, inputs):
         label_dic   = []
         res         = []
-
         # BOUNDARY THE VALUES
         inputs["ffts"]["data"] =  np.nan_to_num(inputs["ffts"]["data"])
 
@@ -158,8 +173,11 @@ class Analyzer(threading.Thread):
 
         # AVERAGE WITH PREVIOUS OUTPUTS IF THERE IS AN OVERLAP
         if inputs["overlap"] > 0:
-            if self.history is None or self.history.shape != res.shape:
+            if self.history is None:
                 self.history = np.copy(res)
+            elif self.history.shape != res.shape:
+                self.history = np.copy(res)
+
             res = (res + self.history) / 2
             self.history = res
 

@@ -166,6 +166,7 @@ if __name__ == "__main__":
         per_process_gpu_memory_fraction=0.25,
         allow_growth=True
         )
+
     config = tf.ConfigProto(
             intra_op_parallelism_threads=4,
             inter_op_parallelism_threads=4,
@@ -178,11 +179,11 @@ if __name__ == "__main__":
     ###################################
     # Load the data
     ###################################    '''
-
     dataset      = database.Dataset(conf_data["dataset_train"] , conf_data=conf_data)
     if conf_data["dataset_test"]:
         dataset_test = database.Dataset(conf_data["dataset_test"], class_file=conf_data)
     App.log(0, "Sample size: " + str(dataset.size[0]) + 'x' + str(dataset.size[1]))
+    conf_data["size"]   = dataset.size
 
     ###################################
     # Between-graph replication
@@ -231,6 +232,7 @@ if __name__ == "__main__":
         ###################################
         if conf_data["task_index"] != 0:
             App.log(0, "Waiting for the master worker.")
+
         with tf.train.MonitoredTrainingSession(master=server.target,
                                                is_chief=(conf_data["task_index"] == 0),
                                                checkpoint_dir=conf_data["out"]+"/model/",
@@ -240,11 +242,11 @@ if __name__ == "__main__":
                 writer_train.add_graph(sess.graph)
                 writer_test.add_graph(sess.graph)
 
+                # Save the model and conf file
                 shutil.copyfile(conf_data["dnn"], conf_data["out"] + "/model.py")
-                np.save(conf_data["out"] + "/labels_dic.npy", dataset.conf_data["classes"])
                 with open(conf_data["out"] + "/conf.json", 'w') as outfile:
                     json.dump(conf_data, outfile)
-                    
+
                 while not sess.should_stop():
                     App.log(0, "---")
                     start_time = time.time()

@@ -15,15 +15,11 @@ import math
 import psycopg2
 import struct, json
 from io import BytesIO
+import os, signal
 
 from TidzamDatabase import get_spectrogram
 import ChainAPI as ChainAPI
 
-app = web.Application()
-
-cors = aiohttp_cors.setup(app, defaults={
-        "tidmarsh.media.mit.edu": aiohttp_cors.ResourceOptions(),
-    })
 
 def convertToPNG(im):
     with BytesIO() as f:
@@ -36,9 +32,6 @@ class TidzamDatabaseManager():
     def __init__(self, database_folder):
         self.chain           = ChainAPI.ChainAPI()
         self.database_folder = database_folder
-        cors.add(app.router.add_static('/database', "out-tidzam"), {
-                "*":aiohttp_cors.ResourceOptions(allow_credentials=True)
-            })
 
     def arrayToPNG(self, array, size):
         res = []
@@ -88,6 +81,9 @@ class TidzamDatabaseManager():
     def start(self, port=5678):
         app.router.add_get('/fft/{tail:.*}', self.make_fft)
         app.router.add_get('/add/{tail:.*}', self.add_recording_database_request)
+        cors.add(app.router.add_static('/database', "out-tidzam"), {
+            "*":aiohttp_cors.ResourceOptions(allow_credentials=True)
+            })
         web.run_app(app, port=port)
 
 
@@ -143,11 +139,9 @@ class TidzamDatabaseManager():
         return False
 
     def cron_recordings_list(self,chain_url):
+        self.chain.connect(chain_url)
         App.log(1,"Read folder " + self.database_folder)
         files = glob.glob(self.database_folder+"**/*.wav", recursive=True)
-
-
-        self.chain.connect(chain_url)
 
         for f in files:
             if (os.path.isfile(f)):
@@ -160,7 +154,6 @@ class TidzamDatabaseManager():
                 else:
                     App.log(2,"Skip " + fr)
             self.conn.commit()
-
 
     def pq_connect(self, db_server,db_port,db_name,db_user,db_pwd):
         try:
@@ -175,7 +168,6 @@ class TidzamDatabaseManager():
         try:
             self.cur.close()
             self.conn.close()
-
         except:
             App.error(0,"Unable to disconnect to postgres")
 
@@ -217,7 +209,6 @@ if(len(file_matches[0]) != 5):
 manager.pq_connect(file_matches[0][2], file_matches[0][3], file_matches[0][4], file_matches[0][0],file_matches[0][1])
 
 if (options.cron):
-
     if options.database_folder is None:
         print("--database-folder should be given.")
         exit()
@@ -226,7 +217,16 @@ if (options.cron):
         print("--chainAPI should be given.")
         exit()
 
-
     manager.cron_recordings_list(options.chainAPI)
+    manager.pq_disconnect()
 else:
+    app = web.Application()
+    cors = aiohttp_cors.setup(app, defaults={
+            "tidmarsh.media.mit.edu": aiohttp_cors.ResourceOptions(),
+        })
+
     manager.start(options.port)
+    manager.pq_disconnect()
+
+App.ok(0,"exit.")
+os.kill(os.getpid(), signal.SIGKILL)

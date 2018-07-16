@@ -8,7 +8,7 @@ import TidzamDatabase as database
 from App import App
 
 class TidzamAudiofile(Thread):
-    def __init__(self, streams, callable_objects=[], overlap=0, channel=None):
+    def __init__(self, streams, callable_objects=[], overlap=0, channel=None, cutoff=[20,170]):
         Thread.__init__(self)
 
         if os.path.isdir(streams) is True:
@@ -19,6 +19,7 @@ class TidzamAudiofile(Thread):
         self.callable_objects   = callable_objects
         self.overlap            = overlap
         self.channel            = channel
+        self.cutoff             = cutoff
 
     def stop(self):
         return
@@ -40,9 +41,9 @@ class TidzamAudiofile(Thread):
 
                     for i in channels:
                         if f.channels > 1:
-                            fs, t, Sxx, size  = database.get_spectrogram(data[:,i], f.samplerate, i)
+                            fs, t, Sxx, size  = database.get_spectrogram(data[:,i], f.samplerate, i, cutoff=self.cutoff)
                         else:
-                            fs, t, Sxx, size = database.get_spectrogram(data, f.samplerate, i)
+                            fs, t, Sxx, size = database.get_spectrogram(data, f.samplerate, i, cutoff=self.cutoff)
 
                         if i == 0:
                             Sxxs = Sxx
