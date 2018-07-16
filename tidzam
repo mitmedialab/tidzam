@@ -16,7 +16,6 @@ BACKUP_REMOTE=slash6475@duhart-clement.fr:~/
 
 PID_FILE=/tmp/tidzam-pid
 RAM_LIMIT=50
-PID=`cat $PID_FILE`
 DEBUG=1
 JACK_NAME=tidzam
 
@@ -95,6 +94,7 @@ start_database_manager(){
   else
     echo -n "        Starting Database Manager  "
     nohup python3 -u -W ignore src/TidzamDatabaseManager.py \
+        --postgres tidzam:tidzam17@localhost:5432/tidzam \
         --database-folder=$DATABASE  \
         > $LOGS/tidzam-database-manager.log.txt 2>&1 &
     echo $! > "$PID_FILE-database_manager"
@@ -118,6 +118,7 @@ start_stream_manager(){
         --debug=$DEBUG \
         --port-available=2 \
         --sources=tidzam.conf \
+        --database=$DATABASE \
         > $LOGS/tidzam-stream-manager.log.txt 2>&1  &
     echo $! > "$PID_FILE-stream_loader"
     echo "[ok]"
@@ -153,7 +154,7 @@ start_analyzer(){
 
 stop_analyzer(){
   echo -n "        Stopping Analyzer  "
-  kill `cat $PID_FILE`
+  kill `cat $PID_FILE-analyzer`
   rm "$PID_FILE-analyzer"
   echo "[ok]"
   }
@@ -166,7 +167,7 @@ tidzam_clean(){
 }
 
 test_memory (){
-   PID=$1
+   PID=`cat $1`
    MEM=`ps -emo %mem,pid | grep $PID`
    MEM=`echo $MEM | cut -d' ' -f1`
 
@@ -226,7 +227,7 @@ elif [ "$ACTION" == "install" ]; then
 
 # Check RAM usage, if exceed the limit than restart (in case of memory leak)
 elif [ "$ACTION" == "check" ]; then
-  test_memory $PID
+  test_memory $PID_FILE-analyzer
   if [[ $? == 1 ]]; then
     $0 restart
   fi

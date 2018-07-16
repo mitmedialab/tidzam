@@ -57,6 +57,18 @@ class TidzamDatabaseManager():
         return buffered
 
 
+    async def add_recording_database_request(self, req):
+        file = str(req.rel_url).replace("/add/","")
+        file = self.database_folder + "/" + file
+        file = file.replace('%5B', '[').replace('%5D', ']');
+        self.add_recording_database(file)
+        self.conn.commit()
+
+        if self.cur.rowcount:
+            return web.Response(text="done "+ file)
+        else:
+            return web.Response(text="fail adding "+ file)
+
     async def make_fft(self,request):
         recording = str(request.rel_url).replace("/fft/","")
         recording = self.database_folder + "/" + recording
@@ -65,9 +77,9 @@ class TidzamDatabaseManager():
         App.log(2, "FFT for " + recording)
         data, samplerate = sf.read(recording)
         try:
-            freq, time, fft, size = get_spectrogram(data, samplerate, show=False)
+            freq, time, fft, size = get_spectrogram(data, samplerate, show=False, cutoff=[0,170])
         except:
-            freq, time, fft, size = get_spectrogram(data[:,0], samplerate, show=False)
+            freq, time, fft, size = get_spectrogram(data[:,0], samplerate, show=False, cutoff=[0,170])
 
         im = self.arrayToPNG(fft,size)
         im = base64.b64encode(im.getvalue())
@@ -75,6 +87,7 @@ class TidzamDatabaseManager():
 
     def start(self, port=5678):
         app.router.add_get('/fft/{tail:.*}', self.make_fft)
+        app.router.add_get('/add/{tail:.*}', self.add_recording_database_request)
         web.run_app(app, port=port)
 
 
@@ -102,12 +115,32 @@ class TidzamDatabaseManager():
         file_matches = file_pattern.findall(file)
         if(len(file_matches)>0):
             if(len(file_matches[0]) == 3):
-                App.log(2,"file v3")
                 tidzam_detection = file_matches[0][0]
                 source           = file_matches[0][1]
                 datetime         = file_matches[0][2]
 
         return recording, tidzam_detection, source, samplerate, duration, datetime,classe, origin
+
+    def add_recording_database(self,f):
+        try:
+            recording, tidzam_detection, source, samplerate, duration, datetime, classe, origin = self.get_fileinfo(f)
+            try:
+                source_chain = source.split("-")
+                source_chain = source_chain[0] + ":"+source_chain[1]+"_"+source_chain[2]
+            except:
+                source_chain = source
+            try:
+                geolocation = json.dumps(self.chain.getLocation(source_chain))
+            except:
+                geolocation = json.dumps({})
+
+            self.cur.execute("INSERT INTO recordings (recording, tidzam_detection, source, samplerate, duration, datetime,classe, origin,geolocation) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                    (recording,tidzam_detection,source,samplerate, duration,datetime, classe, origin,geolocation, ))
+
+        except:
+            print("Error adding the audio file in database ("+f+")") #(recording, tidzam_detection, source, samplerate, duration, datetime,classe, origin)
+            traceback.print_exc()
+        return False
 
     def cron_recordings_list(self,chain_url):
         App.log(1,"Read folder " + self.database_folder)
@@ -122,22 +155,7 @@ class TidzamDatabaseManager():
                 self.cur.execute("SELECT * FROM recordings WHERE recording=%s",(fr,))
                 res = self.cur.fetchone()
                 if(res is None):
-                    try:
-                        recording, tidzam_detection, source, samplerate, duration, datetime,classe, origin = self.get_fileinfo(f)
-
-                        source_chain = source.split("-")
-                        source_chain = source_chain[0] + ":"+source_chain[1]+"_"+source_chain[2]
-                        try:
-                            geolocation = json.dumps(self.chain.getLocation(source_chain))
-                        except:
-                            geolocation = json.dumps({})
-
-                        ret = self.cur.execute("INSERT INTO recordings (recording, tidzam_detection, source, samplerate, duration, datetime,classe, origin,geolocation) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-                            (recording,tidzam_detection,source,samplerate, duration,datetime, classe, origin,geolocation, ))
-                    except:
-                        print (recording, tidzam_detection, source, samplerate, duration, datetime,classe, origin)
-                        traceback.print_exc()
-
+                    self.add_recording_database(f)
                     App.log(2,"Added " + fr)
                 else:
                     App.log(2,"Skip " + fr)
@@ -186,10 +204,19 @@ if __name__ == "__main__":
     App.verbose     = options.debug
 
 manager = TidzamDatabaseManager(database_folder=options.database_folder)
+
+if options.postgres is None:
+    print("--postgres should be given.")
+    exit()
+
+file_pattern = re.compile("(.*?):(.*?)@(.*?):(.*?)/(.*)")
+file_matches = file_pattern.findall(options.postgres)
+if(len(file_matches[0]) != 5):
+    print("Wrong postgres url "+options.postgres)
+    exit()
+manager.pq_connect(file_matches[0][2], file_matches[0][3], file_matches[0][4], file_matches[0][0],file_matches[0][1])
+
 if (options.cron):
-    if options.postgres is None:
-        print("--postgres should be given.")
-        exit()
 
     if options.database_folder is None:
         print("--database-folder should be given.")
@@ -199,13 +226,7 @@ if (options.cron):
         print("--chainAPI should be given.")
         exit()
 
-    file_pattern = re.compile("(.*?):(.*?)@(.*?):(.*?)/(.*)")
-    file_matches = file_pattern.findall(options.postgres)
-    if(len(file_matches[0]) != 5):
-        print("Wrong postgres url "+options.postgres)
-        exit()
 
-    manager.pq_connect(file_matches[0][2], file_matches[0][3], file_matches[0][4], file_matches[0][0],file_matches[0][1])
     manager.cron_recordings_list(options.chainAPI)
 else:
     manager.start(options.port)

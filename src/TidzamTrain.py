@@ -111,13 +111,21 @@ if __name__ == "__main__":
         action="store", type="string", dest="ps",
         help='List of parameter servers (ps1.mynet:2222,ps2.mynet:2222, etc).')
 
+    parser.add_option("--cutoff-up",
+        action="store", type="string", dest="cutoff_up",
+        help='Pixel cutoff on frequency axis high value.')
+
+    parser.add_option("--cutoff-down",
+        action="store", type="string", dest="cutoff_down",
+        help='Pixel cutoff on frequency axis low value.')
+
     parser.add_option("--conf-file", action="store", type="string", dest="conf_file" ,
         default="" , help="json file holding the data necessary about class access path and type")
     ###
 
     default_values_dic = {"dataset_train" : "" ,"out" : "/tmp/tflearn_logs" , "dnn" : "default" , "training_iters" : 20000,"testing_iterations" : 10,
                             "batch_size" : 64, "learning_rate" : 0.001, "STATS_STEP" : 20, "nb_embeddings" : 50, "task_index" : 0, "workers" : "localhost:2222","ps": "",
-                            "job_type" : "worker"}
+                            "job_type" : "worker", "cutoff_down":20, "cutoff_up":170}
 
     (opts, args) = parser.parse_args()
     opts = vars(opts)
@@ -174,7 +182,7 @@ if __name__ == "__main__":
     dataset      = database.Dataset(conf_data["dataset_train"] , conf_data=conf_data)
     if conf_data["dataset_test"]:
         dataset_test = database.Dataset(conf_data["dataset_test"], class_file=conf_data)
-    App.log(0, "Sample size: " + str(dataset.dataw) + 'x' + str(dataset.datah))
+    App.log(0, "Sample size: " + str(dataset.size[0]) + 'x' + str(dataset.size[1]))
 
     ###################################
     # Between-graph replication
@@ -193,7 +201,7 @@ if __name__ == "__main__":
         App.log(0, "Loading DNN model from:  " + conf_data["dnn"])
         sys.path.append('./')
         exec("import "+os.path.dirname(conf_data["dnn"])+"."+os.path.basename(conf_data["dnn"]).replace(".py","")+" as model")
-        net = eval("model.DNN([dataset.dataw, dataset.datah], dataset.get_nb_classes())")
+        net = eval("model.DNN([dataset.size[0], dataset.size[1]], dataset.get_nb_classes())")
 
         ## Generate summaries
         with tf.name_scope('Summaries'):
@@ -234,7 +242,9 @@ if __name__ == "__main__":
 
                 shutil.copyfile(conf_data["dnn"], conf_data["out"] + "/model.py")
                 np.save(conf_data["out"] + "/labels_dic.npy", dataset.conf_data["classes"])
-
+                with open(conf_data["out"] + "/conf.json", 'w') as outfile:
+                    json.dump(conf_data, outfile)
+                    
                 while not sess.should_stop():
                     App.log(0, "---")
                     start_time = time.time()
@@ -251,7 +261,7 @@ if __name__ == "__main__":
 
                         _, accuracy_train, cost_train, summary_train = sess.run(
                             [train_op, summaries.accuracy, net.cost, merged],
-                            feed_dict={ net.input: batch_x, net.labels: batch_y, net.keep_prob: 0.5},
+                            feed_dict={ net.input: batch_x, net.labels: batch_y, net.keep_prob: 0.25},
                             options=run_options, run_metadata=run_metadata)
 
                         embed_train.evaluate(
