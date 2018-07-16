@@ -184,7 +184,7 @@ class LabelTree(LabelNode):
         LabelNode.__init__(self , '')
 
 class Dataset:
-    def __init__(self, name="/tmp/dataset",conf_data = None, p=0.9, max_file_size=1000, split=0.9, cutoff=[20,170], expert_mode=True):
+    def __init__(self, name="/tmp/dataset",conf_data = None, p=0.9, max_file_size=1000, split=0.9, cutoff=[20,170]):
         self.cur_batch = 0
         self.size           = None
         self.max_file_size  = max_file_size
@@ -210,7 +210,7 @@ class Dataset:
 
         self.conf_data = conf_data
         self.class_tree = None
-        self.expert_mode = expert_mode
+        self.expert_mode = conf_data["expert_mode"]
         self.expert_labels_dic = []
 
         self.cutoff = cutoff
@@ -242,7 +242,7 @@ class Dataset:
                         if cl not in self.conf_data["classes"] and cl != "unchecked":
                             self.conf_data["classes"].append(cl)
 
-            labels_dic = np.load(self.conf_data["out"] + "/labels_dic.npy").to_list()
+            labels_dic = (np.load(self.conf_data["out"] + "/labels_dic.npy")).tolist()
 
             if len(labels_dic) > len(self.conf_data["classes"]):
                 are_labels_wrong = True
