@@ -151,10 +151,41 @@ def sorted_nicely( l ):
     alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ]
     return sorted(l, key = alphanum_key)
 
+class LabelNode:
+    def __init__(self , name):
+        self.child_list = []
+        self.name = name
+
+    def find_child(self , name):
+        for child in self.child_list:
+            if child.name == name:
+                return child
+        return None
+
+    def add_child(self , name):
+        self.child_list.append(LabelNode(name))
+        return self.child_list[-1]
+
+    def get_child_number(self):
+        child_number = len(self.child_list)
+        for child in self.child_list:
+            child_number += child.get_child_number()
+        return child_number
+
+    def show(self):
+        print(self.name)
+        print("go_down")
+        for child in self.child_list:
+            child.show()
+        print("can't go down")
+
+class LabelTree(LabelNode):
+    def __init__(self):
+        LabelNode.__init__(self , '')
+
 class Dataset:
     def __init__(self, name="/tmp/dataset",conf_data = None, p=0.9, max_file_size=1000, split=0.9, cutoff=[20,170]):
         self.cur_batch = 0
-
         self.size           = None
         self.max_file_size  = max_file_size
         self.name           = name
@@ -178,6 +209,13 @@ class Dataset:
         self.split                 = split
 
         self.conf_data = conf_data
+        self.class_tree = None
+        self.expert_mode = conf_data["expert_mode"]
+        self.expert_labels_dic = []
+
+        self.cutoff = cutoff
+        if(self.conf_data["cutoff_up"] is not None and self.conf_data["cutoff_down"] is not None ):
+            self.cutoff = [ int(conf_data["cutoff_down"]), int(conf_data["cutoff_up"]) ]
 
         self.cutoff = cutoff
         if(self.conf_data["cutoff_up"] is not None and self.conf_data["cutoff_down"] is not None ):
@@ -192,7 +230,7 @@ class Dataset:
         for t in self.threads:
             t. terminate()
 
-    def build_label(self):
+    def build_labels_dic(self):
         are_labels_wrong = False
         try:
             if "object" not in self.conf_data:
@@ -204,7 +242,7 @@ class Dataset:
                         if cl not in self.conf_data["classes"] and cl != "unchecked":
                             self.conf_data["classes"].append(cl)
 
-            labels_dic = np.load(self.conf_data["out"] + "/labels_dic.npy")
+            labels_dic = (np.load(self.conf_data["out"] + "/labels_dic.npy")).tolist()
 
             if len(labels_dic) > len(self.conf_data["classes"]):
                 are_labels_wrong = True
@@ -223,6 +261,41 @@ class Dataset:
             App.log(0 , "current model classes : " + str(self.conf_data["classes"]))
             exit(0)
 
+        self.conf_data["classes"].sort()
+
+
+    def build_labels_tree(self):
+        self.class_tree = LabelTree()
+        self.build_labels_dic()
+        for cl in self.conf_data["classes"]:
+            current_node = self.class_tree
+            cl_s = cl.split("_")
+            for sub_cl in cl_s:
+                node = current_node.find_child(sub_cl)
+                if node is not None:
+                    current_node = node
+                else:
+                    current_node = current_node.add_child(sub_cl)
+
+    def build_expert_labels_dic_rec(self , node):
+        for child in node.child_list:
+            self.expert_labels_dic.append(child.name)
+        for child in node.child_list:
+            self.build_expert_labels_dic_rec(child)
+
+
+    def build_output_vector(self , class_index):
+        label = np.zeros((1,len(self.out_labels)))
+        if not self.expert_mode:
+            label[0,class_index] = 1
+        else:
+            labels_classes = self.conf_data["classes"][class_index].split('_')
+            for sub_label in labels_classes:
+                label[0 , self.out_labels.index(sub_label)] = 1
+
+        return label
+
+
     def load(self, folder ):
         self.name   = folder
         ctx = mp.get_context('spawn')
@@ -230,9 +303,16 @@ class Dataset:
         self.queue_testing   = ctx.Queue(self.queue_maxsize)
 
         # Build classe dictionnary
-        self.build_label()
+        self.build_labels_tree()
+        if self.expert_mode:
+            self.build_expert_labels_dic_rec(self.class_tree)
+            self.out_labels = self.expert_labels_dic
+            print(self.out_labels)
+        else:
+            self.out_labels = self.conf_data["classes"]
 
-        App.log(0 ,"trained class are : " + str(self.conf_data["classes"]))
+        App.log(0 ,"trained expert classes are : " + str(self.expert_labels_dic))
+        App.log(0 ,"trained classes are : " + str(self.conf_data["classes"]))
 
         # Extract file for training and testing
         if self.split == None:
@@ -335,12 +415,39 @@ class Dataset:
                         except:
                             App.Log(0 , "One of these 2 files are corrupted (or probably both) : " , files_cl[id] , " , " , ambiant_file)
 
+
                     try:
                         raw, time, freq, size   = play_spectrogram_from_stream(files_cl[id],cutoff=self.cutoff)
                         raw                     = np.nan_to_num(raw)
                         raw                     = np.reshape(raw, [1, raw.shape[0]*raw.shape[1]])
-                        label                   = np.zeros((1,len(self.conf_data["classes"])))
-                        label[0,i]              = 1
+                        label                   = self.build_output_vector(i)
+
+                        try:
+                            data = np.concatenate((data, raw), axis=0)
+                            labels = np.concatenate((labels, label), axis=0)
+                        except:
+                            data   = raw
+                            labels = label
+
+                    except Exception as e :
+                        App.log(0, "Bad file" + str(e))
+                        traceback.print_exc()
+
+            #Shuffle the final batch
+            idx = np.arange(data.shape[0])
+            np.random.shuffle(idx)
+            data   = data[idx,:]
+            labels = labels[idx,:]
+
+            data   = data[:batch_size,:]
+            labels = labels[:batch_size,:]
+
+            queue.put([data, labels])
+
+        '''
+        while True:
+            while self.queue_training.full():
+                pass
 
                         try:
                             data = np.concatenate((data, raw), axis=0)
@@ -366,3 +473,4 @@ class Dataset:
 
     def get_nb_classes(self):
         return len(self.conf_data["classes"])
+    '''

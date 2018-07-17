@@ -83,6 +83,10 @@ if __name__ == "__main__":
         action="store", type="int", dest="batch_size",
         help='Size of the training batch (Default:64).')
 
+    parser.add_option("--expert-mode",
+        action="store_true", dest="expert_mode" ,
+        help='Are you training an expert like model ?')
+
     parser.add_option("--learning-rate",
         action="store", type="float", dest="learning_rate",
         help='Learning rate (default: 0.001).')
@@ -125,7 +129,7 @@ if __name__ == "__main__":
 
     default_values_dic = {"dataset_train" : "" ,"out" : "/tmp/tflearn_logs" , "dnn" : "default" , "training_iters" : 20000,"testing_iterations" : 10,
                             "batch_size" : 64, "learning_rate" : 0.001, "STATS_STEP" : 20, "nb_embeddings" : 50, "task_index" : 0, "workers" : "localhost:2222","ps": "",
-                            "job_type" : "worker", "cutoff_down":20, "cutoff_up":170}
+                            "job_type" : "worker", "cutoff_down":20, "cutoff_up":170 , "expert_mode":False}
 
     (opts, args) = parser.parse_args()
     opts = vars(opts)
@@ -202,7 +206,7 @@ if __name__ == "__main__":
         App.log(0, "Loading DNN model from:  " + conf_data["dnn"])
         sys.path.append('./')
         exec("import "+os.path.dirname(conf_data["dnn"])+"."+os.path.basename(conf_data["dnn"]).replace(".py","")+" as model")
-        net = eval("model.DNN([dataset.size[0], dataset.size[1]], dataset.get_nb_classes())")
+        net = eval("model.DNN([dataset.size[0], dataset.size[1]], dataset.get_nb_classes(), dataset.class_tree)")
 
         ## Generate summaries
         with tf.name_scope('Summaries'):

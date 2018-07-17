@@ -55,8 +55,14 @@ class Summaries:
         self.sunnaries_op = []
 
         App.log(0, "Build summaries")
-        correct_prediction = tf.equal(tf.argmax(self.net.labels, 1), tf.argmax(self.net.out, 1))
-        self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+        #correct_prediction = tf.equal(tf.argmax(self.net.labels, 1), tf.argmax(self.net.out, 1))
+        #self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+        correct_prediction = tf.equal(tf.round(tf.nn.sigmoid(self.net.out)), tf.round(self.net.labels))
+
+        all_labels_true = tf.reduce_min(tf.cast(correct_prediction, tf.float32), 1)
+        self.accuracy = tf.reduce_mean(all_labels_true)
+        #self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
 
         tf.summary.scalar('accuracy', self.accuracy)
         tf.summary.scalar('Cost', self.net.cost)
