@@ -71,8 +71,8 @@ def get_spectrogram(data, samplerate, channel=0,  show=False, cutoff=[20,170]):
     fs, t, Sxx = signal.spectrogram(data, samplerate, nfft=1024, noverlap=128)
     # editor between 1-8 Khz
     if cutoff is not []:
-        Sxx = Sxx[[x for x in range(cutoff[0],cutoff[1])], :]*1000
-        fs = fs[[x for x in range(cutoff[0],cutoff[1])]]
+        Sxx = Sxx[[x for x in range( max(0,cutoff[0]) , min(cutoff[1], len(Sxx)) )], :]*1000
+        fs = fs[[x for x in range( max(0,cutoff[0]) , min(cutoff[1], len(Sxx)) )]]
     # Normalize and cutoff
     Sxx = np.maximum(Sxx/np.max(Sxx), np.ones((Sxx.shape[0], Sxx.shape[1]))*0.01)
 

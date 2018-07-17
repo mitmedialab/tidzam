@@ -182,7 +182,7 @@ class TidzamJack(Thread):
                             if run is True:
                                 data = self.channels_data[i][0:self.buffer_size]
                                 self.channels_data[i] = self.channels_data[i][int(self.buffer_size*(1-self.overlap) ):len(self.channels_data[i])]
-                                fs, t, Sxx, size = database.get_spectrogram(data, self.samplerate, cutoff=[0, 170] )
+                                fs, t, Sxx, size = database.get_spectrogram(data, self.samplerate, cutoff=self.cutoff )
 
                                 if i == 0:
                                     if int(len(self.channels_data[i])/self.buffer_size) > 1:

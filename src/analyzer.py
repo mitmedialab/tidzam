@@ -113,7 +113,7 @@ class Analyzer(threading.Thread):
                 if self.cutoff is None:
                     self.cutoff = c.cutoff
                 elif self.cutoff != c.cutoff:
-                    App.error("Classifier must have the same cutoff value ("+str(self.cutoff)+" != "+c.cutoff+")")
+                    App.error(0,"Classifier must have the same cutoff value ("+str(self.cutoff)+" != "+str(c.cutoff)+") for " + self.nn_folder)
                     sys.exit(-1)
 
         if len(self.classifiers) < 1:
@@ -168,7 +168,7 @@ class Analyzer(threading.Thread):
         for nn in self.classifiers:
             if nn.name != "selector":
                 label_dic += list(nn.label_dic)
-                weight_selector = res[:,np.where(selector.label_dic==nn.name)[0][0]]
+                weight_selector = res[:,np.where(np.asarray(selector.label_dic)==nn.name)[0][0]]
                 res = np.concatenate( (res, np.transpose( np.transpose(nn.predict(inputs["ffts"]["data"]))  * weight_selector) ), axis=1 )
 
         # AVERAGE WITH PREVIOUS OUTPUTS IF THERE IS AN OVERLAP
@@ -187,7 +187,7 @@ class Analyzer(threading.Thread):
             detections_classe = []
             a = np.argsort(res[i,:])
 
-            if res[i,a[len(a)-1]] - res[i,a[len(a)-2]] > 0.2:
+            if res[i,a[len(a)-1]] - res[i,a[len(a)-2]] > 0.5:
                 # If we detect a super classe, we check if the seond best detection is the specimen
                 if label_dic[a[len(a)-1]] in label_dic[a[len(a)-2]] and res[i,a[len(a)-2]] - res[i,a[len(a)-3]] > 0.2:
                     detections_classe.append(label_dic[a[len(a)-2]])
