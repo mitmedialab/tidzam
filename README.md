@@ -252,7 +252,7 @@ Options:
     'analysis':{
       'time':"YYYY-MM-DD-HH-MM-SS.MS",
       'result':[ classe2 ],
-      'predicitions':{
+      'outputs':{
         'classe1': 0.001,
         'classe2': 0.91
       }
@@ -280,44 +280,48 @@ Options:
 ```
 ###### Setting extraction rules
 Extraction rules define when a sample must be extracted. Its extraction is determined according to the parameter *rate* which defines its extraction probability when an element of *classes* is detected. If *rate* is set to *auto*, its extraction probability depends of the sample distribution in the database. The *length* parameter defines the audio file length in seconds (default 0.5 second), the detected sample will be localized in the middle of the audio file. *object_filter* parameter applies a filter which doesn't extract samples in which the spectrogram energy is located on the sample border. It tries to extract centered sound object.
-*Request on event 'SampleExtractionRules'*
+*Request on event 'RecorderRules'*
 ```
 {
-  'set':'rules',
-  'rules:'{
-    "source1":{
-      "classes":"classe1,classe2"
-      "rate":"auto | float"
-      "length":10,
-      "object_filter":[True | False]
-      },
-    "source2":{
-      "classes":"birds"
-      "rate":"auto | float"
-      }, [...]
-    }
+    "add_rule":{
+      "channels":["channel1", "channel2", etc],
+      "classes":["classe1", "classe2", etc],
+      "dst":"folder/",
+      "length":0.5,
+      "rate":0.5,
+      "object_filter":false
+  }
 }
 ```
-###### Getting Number of Extracted Samples
-*Request on event 'SampleExtractionRules'*
-```
-{'get':'extracted_count'}
-```
-
-*Response on event 'SampleExtractionRules'*
+###### Getting rules
+Return the list of extracted rules with the number of recordings extracted by each rule.
+*Request on event 'RecorderRules'*
 ```
 {
-    'extracted_count':{
-      "source1":#nb_samples,
-      "source2":18, [...]
-    }
+    "get_rules":[{
+      "id":0,
+      "count":"360",
+      "channels":["channel1", "channel2", etc],
+      "classes":["classe1", "classe2", etc],
+      "dst":"folder/",
+      "length":0.5,
+      "rate":0.5,
+      "object_filter":false
+  }, ...]
 }
 ```
 
-###### Getting Extracted Sample Information
-*Request on event 'SampleExtractionRules'*
+###### Getting Information on extracted recording in database
+Return the list of classes which have been extracted by automatic rules with the number of concerned recordings.
+*Request on event 'RecorderRules'*
 ```
-{'get':'database_info'}
+{
+  'get_database_info':{
+    "classe1":606,
+    "classe2":300,
+    etc
+  }
+}
 ```
 
 # Tidzam Training

@@ -75,12 +75,12 @@ if __name__ == "__main__":
             else:
                 wav_folder = opts.out
 
-            import SampleExtractor as SampleExtractor
+            import TidzamRecorder as TidzamRecorder
             # , 'birds', 'cricket', 'nothing', 'rain','wind'
             list_to_extract = opts.extract.split(",")
-            extraction_rules = {}
+            extraction_rules = []
 
-            extractor = SampleExtractor.SampleExtractor(
+            extractor = TidzamRecorder.TidzamRecorder(
                     extraction_rules=extraction_rules,
                     extraction_dest=wav_folder,
                     dd=opts.dd)

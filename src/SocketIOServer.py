@@ -80,7 +80,7 @@ class TidzamSocketIO(socketio.AsyncNamespace):
                      "analysis":{
                          "time":channel["time"],
                          "result":channel["detections"],
-                         "predicitions":outputs
+                         "outputs":outputs
                      }
                  }
             if "tidzam-livestreams" in channel["mapping"][0]:
@@ -97,8 +97,8 @@ class TidzamSocketIO(socketio.AsyncNamespace):
         #sleep(0.1)
 
     # TODO: SocketIO-client does nt support rooms for now, so broadcast to everybody ...
-    async def on_SampleExtractionRules(self, sid, data):
-            await sio.emit('SampleExtractionRules', data)
+    async def on_RecorderRules(self, sid, data):
+            await sio.emit('RecorderRules', data)
 
     # TODO: SocketIO-client does nt support rooms for now, so broadcast to everybody ...
     # Sources list received from the TidzamStreamManeger

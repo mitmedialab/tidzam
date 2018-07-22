@@ -205,6 +205,7 @@ class Analyzer(threading.Thread):
             channel["outputs"]      = res[i,:]
             channel["detections"]   = detections[i]
             channel["samplerate"]   = inputs["samplerate"]
+            channel["overlap"]      = inputs["overlap"]
             try:
                 channel["audio"]    = inputs["audio"][:,i]
             except:
