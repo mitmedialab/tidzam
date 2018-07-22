@@ -32,11 +32,8 @@ if __name__ == "__main__":
         default=None,
         help="List of classes to extract (--extract=unknown,birds).")
 
-    parser.add_option("--extract-dd", action="store_true", dest="dd", default=True,
-        help="Activate the extraction according to a Dynamic Distribution of extracted sample (Default: True).")
-
     parser.add_option("--extract-channels", action="store", type="string", dest="extract_channels",
-        default="",
+        default="*",
         help="Specify an id list of particular channels for the sample extraction (Default: "").")
 
     parser.add_option("--show", action="store_true", dest="show", default=False,
@@ -76,37 +73,39 @@ if __name__ == "__main__":
                 wav_folder = opts.out
 
             import TidzamRecorder as TidzamRecorder
-            # , 'birds', 'cricket', 'nothing', 'rain','wind'
-            list_to_extract = opts.extract.split(",")
-            extraction_rules = []
 
+            rule = {}
+            rule["channels"] = opts.extract_channels.split(",")
+            rule["classes"]  = opts.extract.split(',')
+            rule["length"]   = 0.5
+            rule["rate  "]   = 1
             extractor = TidzamRecorder.TidzamRecorder(
-                    extraction_rules=extraction_rules,
-                    extraction_dest=wav_folder,
-                    dd=opts.dd)
+                    extraction_rules=[rule],
+                    extraction_dest=wav_folder)
             callable_objects.append(extractor)
 
-        ### Socket.IO Output Connector
-        import SocketIOServer as socketio
-        socket = socketio.create_socket("/")
-        callable_objects.append(socket)
+        if opts.jack:
+            ### Socket.IO Output Connector
+            import SocketIOServer as socketio
+            socket = socketio.create_socket("/")
+            callable_objects.append(socket)
 
-        ### Chain API Output Connector
-        if opts.chainAPI is not None:
-            import ChainAPI as ChainAPI
-            from requests.auth import HTTPBasicAuth
-            ch = ChainAPI.ChainAPI()
-            try:
-                tmp = opts.chainAPI.split(":")
-                user = tmp[0]
-                tmp = tmp[1].split("@")
-                pwd = tmp[0]
-                url = "http://"+tmp[1]
-                ch.connect(url, auth=HTTPBasicAuth(user,pwd))
-                callable_objects.append(ch)
-            except:
-                App.error(0, "Error in parsing chainAPI URL: " + opts.chainAPI)
-                quit()
+            ### Chain API Output Connector
+            if opts.chainAPI is not None:
+                import ChainAPI as ChainAPI
+                from requests.auth import HTTPBasicAuth
+                ch = ChainAPI.ChainAPI()
+                try:
+                    tmp = opts.chainAPI.split(":")
+                    user = tmp[0]
+                    tmp = tmp[1].split("@")
+                    pwd = tmp[0]
+                    url = "http://"+tmp[1]
+                    ch.connect(url, auth=HTTPBasicAuth(user,pwd))
+                    callable_objects.append(ch)
+                except:
+                    App.error(0, "Error in parsing chainAPI URL: " + opts.chainAPI)
+                    quit()
 
         ### Load ANALYZER
         analyzer = Analyzer.Analyzer(opts.nn, callable_objects=callable_objects)
@@ -137,7 +136,8 @@ if __name__ == "__main__":
             cutoff=analyzer.cutoff)
 
         connector.start()
-        socket.start(opts.port)
+        if opts.jack:
+            socket.start(opts.port)
 
     else:
         App.log(0, parser.usage)

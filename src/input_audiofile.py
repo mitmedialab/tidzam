@@ -2,6 +2,7 @@ import soundfile as sf
 import numpy as np
 from threading import Thread
 import os, glob
+import datetime
 
 import TidzamDatabase as database
 
@@ -33,6 +34,12 @@ class TidzamAudiofile(Thread):
                 else:
                     channels = range(self.channel,self.channel+1)
 
+                sources = []
+                mapping = []
+                for ch in channels:
+                    sources.append({"name":str(ch),"starting_time":datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")})
+                    mapping.append([str(ch), str(ch)])
+
                 while f.tell() < len(f):
                     data = f.read(int(f.samplerate/2))
 
@@ -56,17 +63,17 @@ class TidzamAudiofile(Thread):
 
                     for obj in self.callable_objects:
                         obj.execute({
-                            "fft":{
+                            "ffts":{
                                 "data":Sxxs,
                                 "time_scale":ts,
                                 "freq_scale":fss,
                                 "size":size
                                 },
                             "samplerate":f.samplerate,
-                            "sources":None,
+                            "sources":sources,
                             "audio":data,
                             "overlap":self.overlap,
-                            "mapping:None"
+                            "mapping":mapping
                             })
 
                     f.seek(int(-int(f.samplerate/2)*self.overlap), whence=sf.SEEK_CUR)

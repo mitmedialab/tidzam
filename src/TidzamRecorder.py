@@ -15,7 +15,7 @@ from App import App
 import traceback
 
 class TidzamRecorder(threading.Thread):
-    def __init__(self, extraction_dest='/tmp/tidzam/opus', extraction_rules=[], dd=True):
+    def __init__(self, extraction_dest='/tmp/tidzam/opus', extraction_rules=[]):
         threading.Thread.__init__(self)
         self.lock   = threading.Lock()
 
@@ -27,8 +27,10 @@ class TidzamRecorder(threading.Thread):
         self.queue_fifo_length      = 300
         self.queue_fifo             = collections.deque(maxlen=self.queue_fifo_length)
 
+        self.standalone = False
+        if extraction_rules != []:
+            self.standalone = True
 
-        self.dd = dd
         self.extraction_dest            = extraction_dest
         self.extraction_rules           = extraction_rules
         self.database_info         = {}
@@ -166,13 +168,14 @@ class TidzamRecorder(threading.Thread):
             if rule.get("length") is None:
                 rule["length"] = 0.5;
 
-            if channel not in rule.get("channels"):
+            if channel not in rule.get("channels") and "*" not in rule.get("channels") :
                 continue
 
             if rule["length"] > (len(self.queue_fifo) * ( 1 - sample["overlap"]) ) /2:
                 continue
 
-            if len(set(results).intersection(rule["classes"])) == 0:
+            cl = set(results).intersection(rule["classes"])
+            if len(cl) == 0:
                 continue
 
             if rule.get("object_filter"):
@@ -186,8 +189,8 @@ class TidzamRecorder(threading.Thread):
                 if "unknown" in rule.get("classes"):
                     length = rule["length"]
 
-                if len(self.dynamic_distribution) > 0:
-                    if random.uniform(0, 1) > self.dynamic_distribution[self.label_dic.index(cl)]:
+                elif len(self.dynamic_distribution) > 0:
+                    if random.uniform(0, 1) > self.dynamic_distribution[self.label_dic.index(next(iter(cl)))]:
                         length = rule["length"]
 
             elif random.uniform(0, 1) > 1 - float(rule["rate"]):
@@ -221,7 +224,7 @@ class TidzamRecorder(threading.Thread):
 
         audio_file = [item for sublist in audio_file for item in sublist]
 
-        self.recording_channels[channel_name] = a
+        self.recording_channels[channel_name] = a + 1
 
         # Store the audio file
         pathlib.Path(self.extraction_dest + '/'+dst+'/').mkdir(parents=True, exist_ok=True)
@@ -235,7 +238,7 @@ class TidzamRecorder(threading.Thread):
 
     def run(self):
         while not self.stopFlag.wait(0.01):
-            if self.socketIO is None:
+            if self.socketIO is None and self.standalone is False:
                 self.init_socketIO()
 
             if len(self.queue_fifo) == 0:
@@ -251,9 +254,11 @@ class TidzamRecorder(threading.Thread):
                 if (length):
                     self.record_audiofile(channel_id, length, dst)
 
-            if --self.database_info_update_counter == 0:
+            if self.database_info_update_counter == 0:
                 self.dynamic_distribution_update()
-                self.database_info_update_counter = 500
+                self.database_info_update_counter = 6000
+            else:
+                self.database_info_update_counter -= 1
 
 
     def execute(self, results, label_dic):

@@ -15,7 +15,7 @@ BACKUP=/mnt/tidzam-raid
 BACKUP_REMOTE=slash6475@duhart-clement.fr:~/
 
 PID_FILE=/tmp/tidzam-pid
-RAM_LIMIT=50
+RAM_LIMIT=25
 DEBUG=1
 JACK_NAME=tidzam
 
