@@ -189,6 +189,8 @@ if __name__ == "__main__":
     App.log(0, "Sample size: " + str(dataset.size[0]) + 'x' + str(dataset.size[1]))
     conf_data["size"]   = dataset.size
 
+    conf_data["samplerate"] = dataset.samplerate
+
     ###################################
     # Between-graph replication
     ###################################

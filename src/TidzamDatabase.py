@@ -116,7 +116,7 @@ def play_spectrogram_from_stream(file, show=False, callable_objects = [], overla
 
             f.seek(int(-int(f.samplerate/2)*overlap), whence=sf.SEEK_CUR)
 
-        return Sxx, t, fs, size
+        return Sxx, t, fs, size, f.samplerate
 
 def play_spectrogram_from_stream_data(data , samplerate , channels , show=False, callable_objects = [], overlap = 0):
     idx = 0
@@ -195,6 +195,7 @@ class Dataset:
         self.batchIDfile    = 0
         self.batchfile      = []
         self.cur_batch      = 0
+        self.samplerate     = None
 
         self.data           = []
         self.labels         = []
@@ -330,7 +331,7 @@ class Dataset:
             cl_paths_list = [np.array(glob.glob(self.name + "/" + cl + "*/**/*.wav", recursive=True)) for cl in self.conf_data["classes"]]
             cl_names = self.conf_data["classes"]
 
-        raw, time, freq, self.size   = play_spectrogram_from_stream(cl_paths_list[0][0], cutoff=self.cutoff)
+        raw, time, freq, self.size, self.samplerate   = play_spectrogram_from_stream(cl_paths_list[0][0], cutoff=self.cutoff)
 
         #if self.conf_data is None:
         for cl , paths in zip(cl_names , cl_paths_list):
@@ -405,6 +406,10 @@ class Dataset:
                 for id in idx:
                     sound_data , samplerate = sf.read(files_cl[id])
                     sound_data = sound_data if len(sound_data.shape) <= 1 else convert_to_monochannel(sound_data)
+
+                    if self.samplerate  != samplerate:
+                        App.error(0, "All recording must have the same samplerate ("+str(self.samplerate)+"!="+samplerate+")")
+                        sys.exit()
 
                     if dictionnary is not None and type_dictionnary[cl] == "content" and cl in augmentation_dictionnary:
                         ambiant_file = random.choice(files[random.choice(ambiant_cl)])

@@ -29,9 +29,10 @@ config = tf.ConfigProto (allow_soft_placement=True,gpu_options=gpu_options)
 
 class Classifier:
     def __init__(self,folder):
-        self.nn_folder = folder
-        self.history   = None
-        self.cutoff    = None
+        self.nn_folder  = folder
+        self.history    = None
+        self.cutoff     = None
+        self.samplerate = None
 
         # Load the conf file
         try:
@@ -43,6 +44,7 @@ class Classifier:
 
         self.cutoff     = [conf_data["cutoff_down"],conf_data["cutoff_up"] ]
         self.label_dic  = conf_data["classes"]
+        self.samplerate = conf_data["samplerate"]
 
         # Get Neural Net name
         path = self.nn_folder.split('/')
@@ -158,9 +160,14 @@ class Analyzer(threading.Thread):
             date = datetime.strptime(source["starting_time"], "%Y-%m-%d-%H-%M-%S")
             source["time"] = (date + sample_time).isoformat()
 
+
+
         # COMPUTE THE DNN OUTPUTS
         for selector in self.classifiers:
             if selector.name == "selector":
+                if selector.samplerate != inputs["samplerate"]:
+                    App.error(0, "The classifier "+ selector.name + " has been trained on another samplerate ("+str(selector.samplerate)+"!="+str(inputs["samplerate"])+")")
+                    sys.exit()
                 res = selector.predict(inputs["ffts"]["data"])
                 label_dic += list(selector.label_dic)
                 break
@@ -168,6 +175,9 @@ class Analyzer(threading.Thread):
         for nn in self.classifiers:
             if nn.name != "selector":
                 label_dic += list(nn.label_dic)
+                if nn.samplerate != inputs["samplerate"]:
+                    App.error(0, "The classifier "+ nn.name + " has been trained on another samplerate ("+str(nn.samplerate)+"!="+str(inputs["samplerate"])+")")
+                    sys.exit()
                 weight_selector = res[:,np.where(np.asarray(selector.label_dic)==nn.name)[0][0]]
                 res = np.concatenate( (res, np.transpose( np.transpose(nn.predict(inputs["ffts"]["data"]))  * weight_selector) ), axis=1 )
 
