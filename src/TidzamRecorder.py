@@ -175,7 +175,7 @@ class TidzamRecorder(threading.Thread):
                 continue
 
             cl = set(results).intersection(rule["classes"])
-            if len(cl) == 0:
+            if len(cl) == 0 and "*" not in rule.get("classes") :
                 continue
 
             if rule.get("object_filter"):
