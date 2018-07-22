@@ -214,8 +214,9 @@ TidzamAnalyzer plays the different loaded classifiers on its input streams which
 ### Hierarchical Expert Architecture
 The classifiers, that must be loaded, are specified by the *--nn* argument. They can be cascaded if there is a pattern matching between their classe name. The primary classifier must be named by *selector*. If a classifier contains a classe that matchs the name of another classifier, then the output classe of the first classifier weights all classes of the second one. (For example, the classe *birds* of the *selector* classifier weights the classe of the bird specimen classifier named *birds*).
 
-### Automatic Sample Extraction
-TidzamAnalyzer has an optional module for automatic sample extraction which would be stored in the folder specified by *--out* argument. The sample extraction can specific on one port and depend of a pattern matching in the classe names (for example *birds-* will extract all detected sample with this prefix like *birds-american_crow* or *birds-canada_goose*). If the argument *--extract-dd* is specified, the decision of sample extraction is depend of a probability distribution representing the number of sample for each classe stored in *--out*. These rules can be defined for each channel during the runtime trough socket.io interface (see [Extraction rules](#Extraction-rules)).
+### Automatic Recording Extraction
+TidzamAnalyzer has an optional module for automatic recording extraction which would stores them in the folder specified by *--out* argument. This rule based engine allows you to indicate under which conditions a recording must be extract. A rule can be applied on one or multiple channels, and regarding of one or multiple classes. Several rules can be applied simulatenously. These rules can be provided by the command line or through socket.IO which provides more flexibility and more functionalities.
+
 ```
 Usage: TidzamAnalyzer.py --nn=build/test [--stream=stream.wav | --jack=jack-output] [OPTIONS]
 
@@ -226,11 +227,9 @@ Options:
   -c CHANNEL, --channel=CHANNEL
                         Select a particular channel (only with stream option).
   -j JACK, --jack=JACK  List of Jack audio mixer ports to process.
-  -n NN, --nn=NN        Folder containing the ckassifier to load.
+  -n NN, --nn=NN        Neural Network session to load.
   -o OUT, --out=OUT     Output folder for audio sound extraction.
   --extract=EXTRACT     List of classes to extract (--extract=unknown,birds).
-  --extract-dd          Activate the extraction according to a Dynamic
-                        Distribution of extracted sample (Default: True).
   --extract-channels=EXTRACT_CHANNELS
                         Specify an id list of particular channels for the
                         sample extraction (Default: ).
