@@ -17,7 +17,8 @@ import traceback
 class TidzamRecorder(threading.Thread):
     def __init__(self, extraction_dest='/tmp/tidzam/opus', extraction_rules=[]):
         threading.Thread.__init__(self)
-        self.lock   = threading.Lock()
+        self.lock_database_info   = threading.Lock()
+        self.lock_processing      = threading.Lock()
 
         self.socketIO = None
         self.socketio_address = App.socketIOanalyzerAdress
@@ -25,16 +26,17 @@ class TidzamRecorder(threading.Thread):
         self.stopFlag               = threading.Event()
         self.label_dic              = []
         self.queue_fifo_length      = 300
-        self.queue_fifo             = collections.deque(maxlen=self.queue_fifo_length)
-
-        self.standalone = False
-        if extraction_rules != []:
-            self.standalone = True
 
         self.extraction_dest            = extraction_dest
         self.extraction_rules           = extraction_rules
-        self.database_info         = {}
 
+        self.standalone = True
+        if len(extraction_rules):
+            self.standalone = False
+            self.queue_fifo_length = int(self.extraction_rules[0]["length"] * 2 )
+        self.queue_fifo             = collections.deque(maxlen=self.queue_fifo_length)
+
+        self.database_info              = {}
         self.dynamic_distribution           = []
         self.dynamic_distribution_prev      = []
         self.database_info_update_counter   = 0
@@ -48,7 +50,6 @@ class TidzamRecorder(threading.Thread):
             os.makedirs(self.extraction_dest + '/unchecked/')
 
         App.log(1, "Destination folder: " + extraction_dest)
-
         self.start()
 
     ###################################
@@ -81,7 +82,7 @@ class TidzamRecorder(threading.Thread):
 
         if req.get("del_rule"):
             for rule in self.extraction_rules:
-                if str(rule["id"]) == str(req.get("del_rule")):
+                if str(rule.get("id")) == str(req.get("del_rule")):
                     App.log(1, "Delete rule " + str(rule["id"]) + " of " + str(rule))
                     self.extraction_rules.remove(rule)
 
@@ -89,7 +90,7 @@ class TidzamRecorder(threading.Thread):
             self.socketIO.emit("RecorderRules",{"rules":self.extraction_rules, "emitter":"TidzamRecorder"})
 
         if req.get("get_database_info") == '':
-            with self.lock:
+            with self.lock_database_info:
                 self.socketIO.emit("RecorderRules",{"database_info":self.database_info, "emitter":"TidzamRecorder"})
 
         if req.get("emitter") and req.get("emitter") != "TidzamRecorder":
@@ -99,7 +100,7 @@ class TidzamRecorder(threading.Thread):
     # RECORDER FUNCTIONS
     ###################################
     def dynamic_distribution_update(self):
-        with self.lock:
+        with self.lock_database_info:
             self.database_info          = {}
             self.dynamic_distribution   = {}
             primary_count               = {}
@@ -171,7 +172,7 @@ class TidzamRecorder(threading.Thread):
             if channel not in rule.get("channels") and "*" not in rule.get("channels") :
                 continue
 
-            if rule["length"] > (len(self.queue_fifo) * ( 1 - sample["overlap"]) ) /2:
+            if rule["length"] > len(self.queue_fifo) / 2:
                 continue
 
             cl = set(results).intersection(rule["classes"])
@@ -203,11 +204,10 @@ class TidzamRecorder(threading.Thread):
         return [0, dst]
 
 
-    def record_audiofile(self, channel_id, length, dst='unchecked'):
+    def record_audiofile(self, index, channel_id, length, dst='unchecked'):
         # Audio stream reconstruction by concatenating sample
         audio_file = []
         overlap         = self.queue_fifo[0][channel_id]["overlap"]
-        index           = int(len(self.queue_fifo) / 2)
         time            = self.queue_fifo[index][channel_id]["time"]
         detected_as     = self.queue_fifo[index][channel_id]["detections"]
         samplerate      = int(self.queue_fifo[index][channel_id]["samplerate"])
@@ -237,44 +237,58 @@ class TidzamRecorder(threading.Thread):
     ###################################
 
     def run(self):
-        while not self.stopFlag.wait(0.01):
-            if self.socketIO is None and self.standalone is False:
-                self.init_socketIO()
+        if self.standalone:
+            App.ok(0, "Standalone mode")
+        else:
+            App.ok(0, "Live mode with rule:")
+            App.log(0, self.extraction_rules)
 
-            if len(self.queue_fifo) == 0:
-                continue
+        while not self.stopFlag.wait(0.001):
+            with self.lock_processing:
+                if self.socketIO is None and self.standalone is True:
+                    self.init_socketIO()
 
-            samples = self.queue_fifo[int(len(self.queue_fifo) / 2)]
-            for channel_id, sample in enumerate(samples):
-                channel = sample["mapping"][0].replace(":","-")
-                if self.recording_channels[channel] is None:
-                    self.recording_channels[channel] = 0
+                if len(self.queue_fifo) == 0:
+                    continue
 
-                [length, dst] = self.must_be_recorded(sample);
-                if (length):
-                    self.record_audiofile(channel_id, length, dst)
+                samples_index = int(len(self.queue_fifo) / 2)
+                samples = self.queue_fifo[samples_index]
 
-            if self.database_info_update_counter == 0:
-                self.dynamic_distribution_update()
-                self.database_info_update_counter = 6000
-            else:
-                self.database_info_update_counter -= 1
+                for channel_id, sample in enumerate(samples):
+                    channel = sample["mapping"][0].replace(":","-")
+                    if self.recording_channels[channel] is None:
+                        self.recording_channels[channel] = 0
+
+                    [length, dst] = self.must_be_recorded(sample);
+                    if (length):
+                        threading.Thread(
+                            target=self.record_audiofile,
+                            kwargs=dict(index=samples_index,channel_id=channel_id, length=length, dst=dst)
+                            ).start()
+                        #self.record_audiofile(channel_id, length, dst)
+
+                if self.database_info_update_counter == 0:
+                    threading.Thread(target=self.dynamic_distribution_update).start()
+                    self.database_info_update_counter = 60000
+                else:
+                    self.database_info_update_counter -= 1
 
 
     def execute(self, results, label_dic):
-        # Store the results in a circular buffer
-        self.queue_fifo.append(results)
+        with self.lock_processing:
+            # Store the results in a circular buffer
+            self.queue_fifo.append(results)
 
-        if len(self.label_dic) == 0:
-            self.label_dic = label_dic
+            if len(self.label_dic) == 0:
+                self.label_dic = label_dic
 
-        # Create / update the recording counter
-        # >0 a recodring has been done on the X last samples,
-        # we should wait for a next one
-        for channel in results:
-             channel_name = channel["mapping"][0].replace(":","-")
-             if self.recording_channels.get(channel_name) is None:
-                 self.recording_channels[channel_name] = 0
+            # Create / update the recording counter
+            # >0 a recodring has been done on the X last samples,
+            # we should wait for a next one
+            for channel in results:
+                 channel_name = channel["mapping"][0].replace(":","-")
+                 if self.recording_channels.get(channel_name) is None:
+                     self.recording_channels[channel_name] = 0
 
-             elif (self.recording_channels[channel_name] > 0):
-                 self.recording_channels[channel_name] -= 1
+                 elif (self.recording_channels[channel_name] > 0):
+                     self.recording_channels[channel_name] -= 1

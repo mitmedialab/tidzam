@@ -74,13 +74,17 @@ if __name__ == "__main__":
 
             import TidzamRecorder as TidzamRecorder
 
-            rule = {}
-            rule["channels"] = opts.extract_channels.split(",")
-            rule["classes"]  = opts.extract.split(',')
-            rule["length"]   = 0.5
-            rule["rate  "]   = 1
+            extraction_rules = []
+            if opts.extract:
+                rule = {}
+                rule["channels"] = opts.extract_channels.split(",")
+                rule["classes"]  = opts.extract.split(',')
+                rule["length"]   = 0.5
+                rule["rate  "]   = 1
+                extraction_rules.append(rule)
+
             extractor = TidzamRecorder.TidzamRecorder(
-                    extraction_rules=[rule],
+                    extraction_rules=extraction_rules,
                     extraction_dest=wav_folder)
             callable_objects.append(extractor)
 

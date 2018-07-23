@@ -237,7 +237,7 @@ class Analyzer(threading.Thread):
             channel["time"] = source["time"]
             results.append(channel)
 
-            App.log(3, source["time"] + "\tchannel: " + channel["mapping"][0] + '\t' + str(detections[i]))
+            App.log(4, source["time"] + "\tchannel: " + channel["mapping"][0] + '\t' + str(detections[i]))
 
         # CALL THE CONSUMERS
         for obj in self.callable_objects:
