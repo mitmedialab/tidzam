@@ -422,10 +422,10 @@ class Dataset:
 
 
                     try:
-                        raw, time, freq, size   = play_spectrogram_from_stream(files_cl[id],cutoff=self.cutoff)
-                        raw                     = np.nan_to_num(raw)
-                        raw                     = np.reshape(raw, [1, raw.shape[0]*raw.shape[1]])
-                        label                   = self.build_output_vector(i)
+                        raw, time, freq, size, samplerate   = play_spectrogram_from_stream(files_cl[id],cutoff=self.cutoff)
+                        raw                                 = np.nan_to_num(raw)
+                        raw                                 = np.reshape(raw, [1, raw.shape[0]*raw.shape[1]])
+                        label                               = self.build_output_vector(i)
 
                         try:
                             data = np.concatenate((data, raw), axis=0)
@@ -475,7 +475,6 @@ class Dataset:
             labels = labels[:batch_size,:]
 
             queue.put([data, labels])
-
+    '''
     def get_nb_classes(self):
         return len(self.conf_data["classes"])
-    '''
