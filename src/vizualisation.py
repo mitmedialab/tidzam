@@ -49,6 +49,7 @@ class Embedding:
                 metadata_file.write('%s\n' % ( str(dic[int(l)]) ))
         metadata_file.close()
 
+
 class Summaries:
     def __init__(self, net, nb_classes):
         self.net        = net
@@ -56,13 +57,16 @@ class Summaries:
 
         App.log(0, "Build summaries")
         correct_prediction = tf.equal(tf.argmax(self.net.labels, 1), tf.argmax(self.net.out, 1))
-        self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        #correct_prediction = tf.equal(tf.round(tf.nn.sigmoid(self.net.out)), tf.round(self.net.labels))
 
-        #all_labels_true = tf.reduce_min(tf.cast(correct_prediction, tf.float32), 1)
-        #self.accuracy = tf.reduce_mean(all_labels_true)
-        self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+        # badly_classed = tf.not_equal(correct_prediction, tf.constant(True, dtype=tf.bool))
+        # badly_classed_name = tf.gather(self.net.filenames, tf.where(badly_classed))
+        # correct_prediction = tf.Print(correct_prediction,
+        #         [tf.where(badly_classed),badly_classed_name],
+        #         summarize=256,
+        #         message="badly-classified: ")
 
+
+        self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
         tf.summary.scalar('accuracy', self.accuracy)
         tf.summary.scalar('Cost', self.net.cost)

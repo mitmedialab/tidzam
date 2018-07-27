@@ -12,29 +12,6 @@ import TidzamDatabase as database
 from App import App
 import json
 
-'''
-def build_command_from_conf(conf_file):
-    try:
-        with open(conf_file) as json_file:
-            conf_data = json.load(json_file)
-    except:
-        App.log(0 , "There isn't any valide json file")
-        return []
-
-    build_cmd_line = []
-    for key , value in conf_data.items():
-        if is_primitive(value) or isinstance(value , int):
-            build_cmd_line.append("--{}={}".format(key , value))
-    return build_cmd_line
-'''
-'''
-primitive_list = [str ,int ,float, bool]
-def is_primitive(var):
-    for primitive_var_type in primitive_list:
-        if isinstance(var , primitive_var_type):
-            return True
-    return False
-'''
 
 def overwrite_conf_with_opts(conf_data , opts , default_values_dic):
     for key , value in default_values_dic.items():
@@ -134,13 +111,16 @@ if __name__ == "__main__":
     (opts, args) = parser.parse_args()
     opts = vars(opts)
 
-    try:
-        with open(opts["conf_file"]) as json_file:
-            conf_data = json.load(json_file)
-    except:
-        conf_data = dict()
-        App.log(0 , "There isn't any valide json file")
+    if os.path.isfile(opts["conf_file"]):
+        try:
+            with open(opts["conf_file"]) as json_file:
+                conf_data = json.load(json_file)
+        except:
+            App.error(0 , "The configuration file has not a valid JSON format: " + opts["conf_file"])
+            sys.exit()
 
+    else:
+        conf_data = dict()
     overwrite_conf_with_opts(conf_data , opts , default_values_dic)
 
     ###################################
@@ -167,8 +147,8 @@ if __name__ == "__main__":
     App.log(0, "Worker " + workers[conf_data["task_index"]]+ " started")
 
     gpu_options = tf.GPUOptions(
-        per_process_gpu_memory_fraction=0.25,
-        allow_growth=True
+        per_process_gpu_memory_fraction=0.50,
+        #allow_growth=True
         )
 
     config = tf.ConfigProto(
@@ -183,7 +163,7 @@ if __name__ == "__main__":
     ###################################
     # Load the data
     ###################################    '''
-    dataset      = database.Dataset(conf_data["dataset_train"] , conf_data=conf_data)
+    dataset      = database.Dataset(conf_data["dataset_train"], conf_data=conf_data)
     if conf_data["dataset_test"]:
         dataset_test = database.Dataset(conf_data["dataset_test"], class_file=conf_data)
     App.log(0, "Sample size: " + str(dataset.size[0]) + 'x' + str(dataset.size[1]))
@@ -208,7 +188,7 @@ if __name__ == "__main__":
         App.log(0, "Loading DNN model from:  " + conf_data["dnn"])
         sys.path.append('./')
         exec("import "+os.path.dirname(conf_data["dnn"])+"."+os.path.basename(conf_data["dnn"]).replace(".py","")+" as model")
-        net = eval("model.DNN([dataset.size[0], dataset.size[1]], dataset.get_nb_classes(), dataset.class_tree)")
+        net = eval("model.DNN([dataset.size[0], dataset.size[1]], dataset.get_nb_classes() )")
 
         ## Generate summaries
         with tf.name_scope('Summaries'):
@@ -258,10 +238,14 @@ if __name__ == "__main__":
                     start_time = time.time()
 
                     ################### TRAINING
-                    batch_x, batch_y    = dataset.next_batch(batch_size=conf_data["batch_size"])
+                    batch_x, batch_y, filenames    = dataset.next_batch()
 
                     _, step = sess.run( [train_op, global_step],
-                        feed_dict={ net.input: batch_x, net.labels: batch_y, net.keep_prob: 0.5})
+                        feed_dict={
+                            net.input: batch_x,
+                            net.labels: batch_y,
+                            net.filenames:filenames,
+                            net.keep_prob: 0.5})
 
                     if step % conf_data["STATS_STEP"] == 0:
                         run_options         = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
@@ -269,7 +253,11 @@ if __name__ == "__main__":
 
                         _, accuracy_train, cost_train, summary_train = sess.run(
                             [train_op, summaries.accuracy, net.cost, merged],
-                            feed_dict={ net.input: batch_x, net.labels: batch_y, net.keep_prob: 0.25},
+                            feed_dict={
+                                net.input: batch_x,
+                                net.labels: batch_y,
+                                net.filenames:filenames,
+                                net.keep_prob: 0.25},
                             options=run_options, run_metadata=run_metadata)
 
                         embed_train.evaluate(
@@ -287,13 +275,17 @@ if __name__ == "__main__":
                     ################### TESTING
                     if step % conf_data["testing_iterations"] == 0:
                         if conf_data["dataset_test"]:
-                            batch_test_x, batch_test_y  = dataset_test.next_batch(batch_size=conf_data["batch_size"])
+                            batch_test_x, batch_test_y, filenames_test  = dataset_test.next_batch()
                         else:
-                            batch_test_x, batch_test_y  = dataset.next_batch(batch_size=conf_data["batch_size"], testing=True)
+                            batch_test_x, batch_test_y, filenames_test  = dataset.next_batch(testing=True)
 
                         accuracy_test, cost_test, summary_test = sess.run(
                             [summaries.accuracy, net.cost, merged ],
-                            feed_dict={net.input: batch_test_x,net.labels: batch_test_y, net.keep_prob: 1.0})
+                            feed_dict={
+                                net.input: batch_test_x,
+                                net.labels: batch_test_y,
+                                net.filenames:filenames_test,
+                                net.keep_prob: 1.0})
 
                         if step % conf_data["STATS_STEP"] == 0:
                             embed_test.evaluate(

@@ -21,7 +21,7 @@ import vizualisation as vizu
 from App import App
 
 gpu_options = tf.GPUOptions(
-    per_process_gpu_memory_fraction=0.25,
+    per_process_gpu_memory_fraction=0.15,
     allow_growth=True
     )
 

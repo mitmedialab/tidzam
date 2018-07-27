@@ -37,9 +37,8 @@ def blend_sound_to_background_severals_positions(sound_data , ambiant_sound_data
 #This function blend a sound inside a given background at a random position
 def blend_sound_to_background(sound_data , ambiant_sound_data):
     volume_factor = np.max(sound_data)
-
-    sound_data = sound_data / np.max(sound_data) * volume_factor
-    ambiant_sound_data = ambiant_sound_data / np.max(ambiant_sound_data) * volume_factor
+    sound_data = sound_data / max(np.max(sound_data),0.0001) * volume_factor
+    ambiant_sound_data = ambiant_sound_data / max(np.max(ambiant_sound_data),0.0001) * volume_factor
 
     sound_data_position = int(random.randint(0 , len(ambiant_sound_data) - len(sound_data)) )
 
@@ -53,7 +52,7 @@ def blend_sound_to_background(sound_data , ambiant_sound_data):
         except:
             signal_sum[sound_data_position + i] += sound_data[i,0]
 
-    mixed_signal = signal_sum / np.max(signal_sum) * volume_factor
+    mixed_signal = signal_sum / max(np.max(signal_sum),0.0001) * volume_factor
     return mixed_signal
 
 def blend_multiple_sound_to_background(sounds_data , ambiant_sound_data):
@@ -74,7 +73,7 @@ def get_spectrogram(data, samplerate, channel=0,  show=False, cutoff=[20,170]):
         Sxx = Sxx[[x for x in range( max(0,cutoff[0]) , min(cutoff[1], len(Sxx)) )], :]*1000
         fs = fs[[x for x in range( max(0,cutoff[0]) , min(cutoff[1], len(Sxx)) )]]
     # Normalize and cutoff
-    Sxx = np.maximum(Sxx/np.max(Sxx), np.ones((Sxx.shape[0], Sxx.shape[1]))*0.01)
+    Sxx = np.maximum(Sxx/ max(np.max(Sxx),0.00001), np.ones((Sxx.shape[0], Sxx.shape[1]))*0.01)
 
     if show is True:
         plt.figure(channel, figsize=(7, 7))
@@ -184,7 +183,8 @@ class LabelTree(LabelNode):
         LabelNode.__init__(self , '')
 
 class Dataset:
-    def __init__(self, name="/tmp/dataset",conf_data = None, p=0.9, max_file_size=1000, split=0.9, cutoff=[20,170]):
+    def __init__(self, name,conf_data = None, p=0.9, max_file_size=1000, split=0.9, cutoff=[20,170]):
+
         self.cur_batch = 0
         self.size           = None
         self.max_file_size  = max_file_size
@@ -199,14 +199,13 @@ class Dataset:
 
         self.data           = []
         self.labels         = []
-        self.batch_size     = 64
 
         self.mode                  = None
-        self.thread_count_training = 3
+        self.thread_count_training = 4
         self.thread_count_testing  = 1
         self.threads               = []
         self.queue_training        = None
-        self.queue_maxsize         = 20
+        self.queue_maxsize         = 50
         self.split                 = split
 
         self.conf_data = conf_data
@@ -214,6 +213,7 @@ class Dataset:
         self.expert_mode = conf_data["expert_mode"]
         self.expert_labels_dic = []
 
+        self.batch_size     = conf_data["batch_size"]
         self.cutoff = cutoff
         if(self.conf_data["cutoff_up"] is not None and self.conf_data["cutoff_down"] is not None ):
             self.cutoff = [ int(conf_data["cutoff_down"]), int(conf_data["cutoff_up"]) ]
@@ -333,6 +333,9 @@ class Dataset:
 
         raw, time, freq, self.size, self.samplerate   = play_spectrogram_from_stream(cl_paths_list[0][0], cutoff=self.cutoff)
 
+        App.log(0, "Sample size ("+str(self.size[0])+"x"+str(self.size[0])+")")
+        App.log(0, "Batchsize ("+str(self.batch_size)+")")
+
         #if self.conf_data is None:
         for cl , paths in zip(cl_names , cl_paths_list):
             files_cl = paths
@@ -360,9 +363,9 @@ class Dataset:
 
         while self.queue_training.empty():
             pass
-        self.data, self.labels = self.queue_training.get()
+        self.data, self.labels, filenames = self.queue_training.get()
 
-    def next_batch(self, batch_size=128, testing=False):
+    def next_batch(self, testing=False):
         if testing is False:
             if self.queue_training.qsize() == 0:
                 App.log(0, "Next batch size on fly is waiting (queue empty).")
@@ -387,13 +390,15 @@ class Dataset:
                 if "is_augmented" in cl and cl["is_augmented"]:
                     augmentation_dictionnary[cl["name"]] = cl["is_augmented"]
 
+        App.ok(0,"Process batch onfly generator")
         while True:
             while self.queue_training.full():
                 pass
 
             count = math.ceil(batch_size / len(self.conf_data["classes"]))
-            data = []
-            labels = []
+            data        = []
+            labels      = []
+            filenames   = []
 
             for i , cl in enumerate(self.conf_data["classes"]):
                 #pick random sample (only get the indexes)
@@ -418,7 +423,7 @@ class Dataset:
                         try:
                             sound_data = blend_sound_to_background(sound_data , ambiant_sound)
                         except:
-                            App.Log(0 , "One of these 2 files are corrupted (or probably both) : " , files_cl[id] , " , " , ambiant_file)
+                            App.log(0 , "One of these 2 files are corrupted (or probably both) : " , files_cl[id] , " , " , ambiant_file)
 
 
                     try:
@@ -428,11 +433,13 @@ class Dataset:
                         label                               = self.build_output_vector(i)
 
                         try:
-                            data = np.concatenate((data, raw), axis=0)
-                            labels = np.concatenate((labels, label), axis=0)
+                            filenames.append(files_cl[id] )
+                            data        = np.concatenate((data, raw), axis=0)
+                            labels      = np.concatenate((labels, label), axis=0)
+
                         except:
-                            data   = raw
-                            labels = label
+                            data        = raw
+                            labels      = label
 
                     except Exception as e :
                         App.log(0, "Bad file" + str(e))
@@ -441,40 +448,16 @@ class Dataset:
             #Shuffle the final batch
             idx = np.arange(data.shape[0])
             np.random.shuffle(idx)
-            data   = data[idx,:]
-            labels = labels[idx,:]
 
-            data   = data[:batch_size,:]
-            labels = labels[:batch_size,:]
+            data        = data[idx,:]
+            labels      = labels[idx,:]
+            filenames   = np.array(filenames)[idx]
 
-            queue.put([data, labels])
+            data        = data[:batch_size,:]
+            labels      = labels[:batch_size,:]
+            filenames   = filenames[:batch_size]
 
-        '''
-        while True:
-            while self.queue_training.full():
-                pass
+            queue.put([data, labels, filenames ])
 
-                        try:
-                            data = np.concatenate((data, raw), axis=0)
-                            labels = np.concatenate((labels, label), axis=0)
-                        except:
-                            data   = raw
-                            labels = label
-
-                    except Exception as e :
-                        App.log(0, "Bad file" + str(e))
-                        traceback.print_exc()
-
-            #Shuffle the final batch
-            idx = np.arange(data.shape[0])
-            np.random.shuffle(idx)
-            data   = data[idx,:]
-            labels = labels[idx,:]
-
-            data   = data[:batch_size,:]
-            labels = labels[:batch_size,:]
-
-            queue.put([data, labels])
-    '''
     def get_nb_classes(self):
         return len(self.conf_data["classes"])

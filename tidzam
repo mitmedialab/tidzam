@@ -245,7 +245,7 @@ elif [ "$ACTION" == "backup" ]; then
   echo "Backup terminated"
 
 else
-  echo "tidzam (start | stop | check | restart | install | backup | database-process)"
+  echo "tidzam (start | stop | check | restart | install | backup | cron)"
 fi
 
 cd $CURRENT_PATH

@@ -2,12 +2,13 @@ import tensorflow as tf
 import src.lib as tl
 
 class DNN:
-    def __init__(self,data_size, n_classes, class_tree):
+    def __init__(self,data_size, n_classes):
         self.name = "selector"
         self.show_kernel_map = []
 
         with tf.name_scope('Input'):
             self.input = tf.placeholder(tf.float32, shape=[None, data_size[0] * data_size[1] ], name="x-input")
+            self.filenames = tf.placeholder(tf.string, shape=[None, ], name="x-input-filename")
 
         with tf.name_scope('Labels'):
             self.labels = tf.placeholder(tf.float32, shape=[None, n_classes], name="y-input")
