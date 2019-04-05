@@ -16,6 +16,7 @@ import psycopg2
 import struct, json
 from io import BytesIO
 import os, signal
+import subprocess as sp
 
 from TidzamDatabase import get_spectrogram
 import ChainAPI as ChainAPI
@@ -29,9 +30,10 @@ def convertToPNG(im):
 
 class TidzamDatabaseManager():
 
-    def __init__(self, database_folder):
+    def __init__(self, database_audio_folder= None, database_video_folder=None):
         self.chain           = ChainAPI.ChainAPI()
-        self.database_folder = database_folder
+        self.database_audio_folder = database_audio_folder
+        self.database_video_folder = database_video_folder
 
     def arrayToPNG(self, array, size):
         res = []
@@ -52,7 +54,7 @@ class TidzamDatabaseManager():
 
     async def add_recording_database_request(self, req):
         file = str(req.rel_url).replace("/add/","")
-        file = self.database_folder + "/" + file
+        file = self.database_audio_folder + "/" + file
         file = file.replace('%5B', '[').replace('%5D', ']');
         self.add_recording_database(file)
         self.conn.commit()
@@ -64,7 +66,7 @@ class TidzamDatabaseManager():
 
     async def make_fft(self,request):
         recording = str(request.rel_url).replace("/fft/","")
-        recording = self.database_folder + "/" + recording
+        recording = self.database_audio_folder + "/" + recording
         recording = recording.replace('%5B', '[').replace('%5D', ']');
         recording = recording.replace("png","wav")
         App.log(2, "FFT for " + recording)
@@ -87,39 +89,59 @@ class TidzamDatabaseManager():
         web.run_app(app, port=port)
 
 
-    def get_fileinfo(self,path):
+    def get_fileinfo(self,folder,path):
         tidzam_detection = None
         source           = None
         datetime         = None
 
-        recording    = path.replace(self.database_folder,"")
+        recording    = path.replace(folder,"")
 
-        classe       = recording.split("/")
-        classe       = classe[len(classe)-2]
-        classe       = classe.split("(")
-        origin       = classe[1][:-1] if len(classe) == 2 else None
-        classe       = classe[0]
+        #/classe(origin)/[tidzam_detection](source)_datetime.ext
+        try:
+            tmp       = recording.split("/")
+            tmp       = tmp[len(tmp)-2]
+            tmp       = tmp.split("(")
+            classe    = tmp[0]
+            origin    = tmp[1].split(")")[0]
+        except:
+            origin = None
 
         file      = recording.split("/")
         file      = file[len(file)-1]
 
-        data, samplerate = sf.read(path)
-        duration     = len(data)/samplerate
+        command = ['ffprobe', '-v' , 'error' ,'-show_format' ,'-show_streams' , path]
+        pipe  = sp.Popen(command, stdout=sp.PIPE, stderr=sp.PIPE)
+        infos = pipe.communicate()[0]
+        infos = infos.decode().split('\n')
+        dic = {}
+        metadataOI = ['duration','sample_rate','avg_frame_rate','codec_type']
+        for info in infos:
+            #print(info)
+            if info.split('=')[0] in metadataOI and dic.get(info.split('=')[0]) is None:
+                dic[info.split('=')[0]] = info.split('=')[1]
+
+        #data, samplerate = sf.read(path)
+        duration     = float(dic["duration"])
+        if dic["codec_type"] == "video":
+            samplerate = eval(dic["avg_frame_rate"])
+        else:
+            samplerate = eval(dic["sample_rate"])
+        type_r = str(dic["codec_type"])
 
         # Check filename version 3
-        file_pattern = re.compile("\['(.*?)'\]\((.*?)\)_(.*?).wav")
+        file_pattern = re.compile("\['(.*?)'\]\((.*?)\)_(.*?)\.(.*?)")
         file_matches = file_pattern.findall(file)
+
         if(len(file_matches)>0):
-            if(len(file_matches[0]) == 3):
+            if(len(file_matches[0]) > 3):
                 tidzam_detection = file_matches[0][0]
                 source           = file_matches[0][1]
                 datetime         = file_matches[0][2]
+        return "tutorials/" + recording, tidzam_detection, source, samplerate, duration, datetime,classe, origin, type_r
 
-        return recording, tidzam_detection, source, samplerate, duration, datetime,classe, origin
-
-    def add_recording_database(self,f):
+    def add_recording_database(self,folder, f):
         try:
-            recording, tidzam_detection, source, samplerate, duration, datetime, classe, origin = self.get_fileinfo(f)
+            recording, tidzam_detection, source, samplerate, duration, datetime, classe, origin, type_r = self.get_fileinfo(folder,f)
             try:
                 source_chain = source.split("-")
                 source_chain = source_chain[0] + ":"+source_chain[1]+"_"+source_chain[2]
@@ -130,30 +152,38 @@ class TidzamDatabaseManager():
             except:
                 geolocation = json.dumps({})
 
-            self.cur.execute("INSERT INTO recordings (recording, tidzam_detection, source, samplerate, duration, datetime,classe, origin,geolocation) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-                    (recording,tidzam_detection,source,samplerate, duration,datetime, classe, origin,geolocation, ))
+            self.cur.execute("INSERT INTO recordings (recording, tidzam_detection, source, samplerate, duration, datetime,classe, origin,geolocation,type) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                    (recording,tidzam_detection,source,samplerate, duration,datetime, classe, origin, geolocation, type_r, ))
 
         except:
-            print("Error adding the audio file in database ("+f+")") #(recording, tidzam_detection, source, samplerate, duration, datetime,classe, origin)
+            print("Error adding the audio file in database ("+folder+" " + f+")") #(recording, tidzam_detection, source, samplerate, duration, datetime,classe, origin)
             traceback.print_exc()
         return False
 
-    def cron_recordings_list(self,chain_url):
-        self.chain.connect(chain_url)
-        App.log(1,"Read folder " + self.database_folder)
-        files = glob.glob(self.database_folder+"**/*.wav", recursive=True)
-
+    def process_new_recordings(self,folder):
+        if folder is None:
+            return
+        App.log(1,"Read folder " + folder)
+        files = glob.glob(folder+"**/*", recursive=True)
         for f in files:
+            if "json" in f:
+                continue
             if (os.path.isfile(f)):
-                fr = f.replace(self.database_folder,"")
+                fr = f.replace(folder,"")
                 self.cur.execute("SELECT * FROM recordings WHERE recording=%s",(fr,))
                 res = self.cur.fetchone()
                 if(res is None):
-                    self.add_recording_database(f)
+                    self.add_recording_database(folder,f)
                     App.log(2,"Added " + fr)
                 else:
                     App.log(2,"Skip " + fr)
             self.conn.commit()
+
+    def cron_recordings_list(self,chain_url):
+        self.chain.connect(chain_url)
+        self.process_new_recordings(self.database_audio_folder)
+        self.process_new_recordings(self.database_video_folder)
+
 
     def pq_connect(self, db_server,db_port,db_name,db_user,db_pwd):
         try:
@@ -174,8 +204,14 @@ class TidzamDatabaseManager():
 if __name__ == "__main__":
     parser = optparse.OptionParser(usage="python src/TidzamDatabase.py")
 
-    parser.add_option("--database-folder", action="store", type="string", dest="database_folder",
-        default=None, help="Define the path to the databse .")
+    parser.add_option("--database-audio-folder", action="store", type="string", dest="database_audio_folder",
+        default=None, help="Define the path to the audio databse .")
+
+    parser.add_option("--database-video-folder", action="store", type="string", dest="database_video_folder",
+        default=None, help="Define the path to the video databse .")
+
+    parser.add_option("--database-new-recordings", action="store", type="string", dest="database_new_recordings",
+        default=None, help="Add files containing in the specified folder to the database.")
 
     parser.add_option("--port", action="store", type="int", dest="port",
         default=5678, help="SocketIO server port (default: 5678).")
@@ -195,7 +231,9 @@ if __name__ == "__main__":
     (options, args) = parser.parse_args()
     App.verbose     = options.debug
 
-manager = TidzamDatabaseManager(database_folder=options.database_folder)
+manager = TidzamDatabaseManager(
+                    database_audio_folder=options.database_audio_folder,
+                    database_video_folder=options.database_video_folder)
 
 if options.postgres is None:
     print("--postgres should be given.")
@@ -209,8 +247,8 @@ if(len(file_matches[0]) != 5):
 manager.pq_connect(file_matches[0][2], file_matches[0][3], file_matches[0][4], file_matches[0][0],file_matches[0][1])
 
 if (options.cron):
-    if options.database_folder is None:
-        print("--database-folder should be given.")
+    if options.database_audio_folder is None and options.database_video_folder is None:
+        print("--database-audio-folder and/or --database-video-folder should be given.")
         exit()
 
     if options.chainAPI is None:
@@ -219,6 +257,11 @@ if (options.cron):
 
     manager.cron_recordings_list(options.chainAPI)
     manager.pq_disconnect()
+
+elif options.database_new_recordings:
+    manager.process_new_recordings(options.database_new_recordings)
+    manager.pq_disconnect()
+
 else:
     app = web.Application()
     cors = aiohttp_cors.setup(app, defaults={

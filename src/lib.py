@@ -11,9 +11,17 @@ def bias_variable(shape):
   return tf.Variable(initial, "b")
 
 def conv2d(x, nb_kernel, kernel_size=5, stride=1):
-    W         = weight_variable([kernel_size, kernel_size, int(x.shape[3]), nb_kernel])
+
+    if (isinstance(kernel_size, int)):
+        W         = weight_variable([kernel_size, kernel_size, int(x.shape[3]), nb_kernel])
+    else:
+        W         = weight_variable([kernel_size[0], kernel_size[1], int(x.shape[3]), nb_kernel])
+
+    if (isinstance(stride, int)):
+        stride = [1, stride, stride, 1]
+
     b         = bias_variable([nb_kernel])
-    return [tf.nn.relu(tf.nn.conv2d(x, W, strides=[stride, stride, stride, stride], padding='SAME') + b), W, b]
+    return [tf.nn.relu(tf.nn.conv2d(x, W, strides=stride, padding='SAME') + b), W, b]
 
 def max_pool_2x2(x):
   return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],

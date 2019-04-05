@@ -201,7 +201,7 @@ class Dataset:
         self.labels         = []
 
         self.mode                  = None
-        self.thread_count_training = 4
+        self.thread_count_training = 7
         self.thread_count_testing  = 1
         self.threads               = []
         self.queue_training        = None

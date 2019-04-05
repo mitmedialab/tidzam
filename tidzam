@@ -11,6 +11,7 @@ cd $PATH_TIDZAM
 
 LOGS=$PATH_TIDZAM/logs/
 DATABASE=/opt/tidzam/out-tidzam/
+DATABASE_VIDEO=/mnt/tidzam-raid/tidzam-video/
 BACKUP=/mnt/tidzam-raid
 BACKUP_REMOTE=slash6475@duhart-clement.fr:~/
 
@@ -18,6 +19,7 @@ PID_FILE=/tmp/tidzam-pid
 RAM_LIMIT=25
 DEBUG=1
 JACK_NAME=tidzam
+USER=www-data
 
 ACTION=$1
 PROCESS=$2
@@ -49,18 +51,29 @@ install(){
   echo "Installation terminated."
 }
 
-cron(){
+tidstream(){
   echo -n "TidZam process database"
   python3 tidstream_split.py
   echo "terminated"
+}
 
+database_update(){
   echo -n "TidZam database update"
+  chmod 775 $DATABASE_VIDEO/*
+  chown www-data:www-data -R $DATABASE_VIDEO
+
   python3 src/TidzamDatabaseManager.py \
     --postgres tidzam:tidzam17@localhost:5432/tidzam \
     --chainAPI=https://chain-api.media.mit.edu/sites/18 \
-    --database-folder=$DATABASE \
+    --database-video-folder=$DATABASE_VIDEO \
+    --database-audio-folder=$DATABASE \
     --cron
   echo "terminated"
+}
+
+cron(){
+  tidstream > $LOGS/tidzam-tidstream.log.txt 2>&1
+  database_update > $LOGS/tidzam-database_update.log.txt 2>&1
 }
 
 start_jack(){
@@ -95,7 +108,7 @@ start_database_manager(){
     echo -n "        Starting Database Manager  "
     nohup python3 -u -W ignore src/TidzamDatabaseManager.py \
         --postgres tidzam:tidzam17@localhost:5432/tidzam \
-        --database-folder=$DATABASE  \
+        --database-audio-folder=$DATABASE  \
         > $LOGS/tidzam-database-manager.log.txt 2>&1 &
     echo $! > "$PID_FILE-database_manager"
     echo "[ok]"
@@ -166,6 +179,14 @@ tidzam_clean(){
   echo "[ok]"
 }
 
+test_running (){
+  ps acx | grep `cat $1` > /dev/null
+  if [ $? -eq 1 ]; then
+    return 1
+  fi
+  return 0
+}
+
 test_memory (){
    PID=`cat $1`
    MEM=`ps -emo %mem,pid | grep $PID`
@@ -188,6 +209,10 @@ if [ "$ACTION" == "start" ]; then
     start_analyzer
   elif [ "$PROCESS" == "cron" ]; then
     cron
+  elif [ "$PROCESS" == "tidstream" ]; then
+    tidstream
+  elif [ "$PROCESS" == "database_update" ]; then
+    database_update
   else
     echo "Tidzam booting ..."
     start_jack
@@ -228,7 +253,17 @@ elif [ "$ACTION" == "install" ]; then
 # Check RAM usage, if exceed the limit than restart (in case of memory leak)
 elif [ "$ACTION" == "check" ]; then
   test_memory $PID_FILE-analyzer
-  if [[ $? == 1 ]]; then
+  RET=$(($?))
+  test_running $PID_FILE-analyzer
+  RET=$(($RET+$?))
+  test_running $PID_FILE-jack
+  RET=$(($RET+$?))
+  test_running $PID_FILE-stream_loader
+  RET=$(($RET+$?))
+  test_running $PID_FILE-database_manager
+  RET=$(($RET+$?))
+  if [[ $RET > 0 ]]; then
+    echo "A tidzam process is stopped."
     $0 restart
   fi
 

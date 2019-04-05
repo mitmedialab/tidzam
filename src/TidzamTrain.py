@@ -192,6 +192,7 @@ if __name__ == "__main__":
 
         ## Generate summaries
         with tf.name_scope('Summaries'):
+            print(dataset.get_nb_classes())
             summaries = vizu.Summaries(net, dataset.get_nb_classes())
 
             ## Construct filter images

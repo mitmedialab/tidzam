@@ -197,9 +197,14 @@ class Analyzer(threading.Thread):
             detections_classe = []
             a = np.argsort(res[i,:])
 
-            if res[i,a[len(a)-1]] - res[i,a[len(a)-2]] > 0.5:
+            # Looking for second primary class
+            for j in range(2, len(label_dic)-2):
+                if label_dic[a[len(a)-1]] not in label_dic[a[len(a)-j]]:
+                    break
+
+            if res[i,a[len(a)-1]] - res[i,a[len(a)-j]] > 0.5: # If the primary class is twice value of the second primary class
                 # If we detect a super classe, we check if the seond best detection is the specimen
-                if label_dic[a[len(a)-1]] in label_dic[a[len(a)-2]] and res[i,a[len(a)-2]] - res[i,a[len(a)-3]] > 0.2:
+                if label_dic[a[len(a)-1]] in label_dic[a[len(a)-2]] and res[i,a[len(a)-2]] > 0.5: #- res[i,a[len(a)-3]] > 0.2:
                     detections_classe.append(label_dic[a[len(a)-2]])
                 else:
                     detections_classe.append(label_dic[a[len(a)-1]])

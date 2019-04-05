@@ -73,14 +73,14 @@ class Summaries:
         tf.summary.scalar('dropout_probability', self.net.keep_prob)
 
         precision, precision_op = tf.metrics.precision(
-                    tf.argmax(self.net.labels,1),
-                    tf.argmax(self.net.out,1))
+                    self.net.labels,
+                    self.net.out)
         tf.summary.scalar('Precision', precision)
         self.sunnaries_op.append(precision_op)
 
         recall, recall_op = tf.metrics.recall(
-                    tf.argmax(self.net.labels,1),
-                    tf.argmax(self.net.out,1))
+                    self.net.labels,
+                    self.net.out)
         tf.summary.scalar('Recall', recall)
         self.sunnaries_op.append(recall_op)
 

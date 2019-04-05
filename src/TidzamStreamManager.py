@@ -63,8 +63,10 @@ class Stream():
             App.log(1, "Save livestream " + str(self.id))
             self.file.close()
 
-class Source():
+class Source(threading.Thread):
     def __init__(self, name, url=None, channels=None, nb_channels=2, database=None, path_database=None, database_file_length=3600, format="ogg", starting_time=None,is_permanent=False):
+        threading.Thread.__init__(self)
+
         self.name           = name
         self.url            = url
         self.nb_channels    = nb_channels
@@ -81,6 +83,7 @@ class Source():
 
         self.path_database          = path_database
         self.database_file_length   = database_file_length
+        self.available_database     = []
         self.default_stream         = url
 
         if self.database is None:
@@ -88,6 +91,26 @@ class Source():
 
         if self.url is None:
             self.url = self.path_database
+
+        if self.path_database:
+            self.start()
+
+    def run(self):
+        files = sorted(glob.glob(self.path_database + "/*.opus")+glob.glob(self.path_database + "/*.ogg"))
+        nb_seconds = self.database_file_length
+        for fo in files:
+            try:
+                f = fo.split("/")
+                f = f[len(f)-1].replace(".opus", "").replace(".ogg", "").replace(self.database+"-","")
+                f = f.split("-")
+                start = datetime.datetime(int(f[0]),int(f[1]),int(f[2]),int(f[3]),int(f[4]),int(f[len(f)-1]))
+                end = start + datetime.timedelta(seconds=nb_seconds)
+                self.available_database.append([
+                    start.strftime('%Y-%m-%d-%H-%M-%S'),
+                    end.strftime('%Y-%m-%d-%H-%M-%S')
+                    ])
+            except:
+                App.warning(0, "Error during database parsing of "+ str(self.database) + " in " + str(fo))
 
 class TidzamStreamManager(threading.Thread):
     def __init__(self, available_ports=10, samplerate=48000, buffer_jack_size=50, streamer_max=100,database_path=None):
@@ -234,6 +257,7 @@ class TidzamStreamManager(threading.Thread):
                 subprocess.Popen.kill(source.process)
             else:
                 App.log(1, "No process associated with " + str(source.name))
+
             self.sources.remove(source)
             return source
         return None
@@ -249,6 +273,7 @@ class TidzamStreamManager(threading.Thread):
                 if s.database == source.database:
                     source.path_database        = s.path_database
                     source.database_file_length = s.database_file_length
+                    source.available_database   = s.available_database
                     source.nb_channels          = s.nb_channels
                     source.default_stream       = s.default_stream
                     source_ready                = True
@@ -258,6 +283,7 @@ class TidzamStreamManager(threading.Thread):
             if source_old is not None:
                 source.database                 = source_old.database
                 source.path_database            = source_old.path_database
+                source.available_database       = source_old.available_database
                 source.database_file_length     = source_old.database_file_length
                 source.default_stream           = source_old.default_stream
                 source.nb_channels              = source_old.nb_channels
@@ -279,7 +305,7 @@ class TidzamStreamManager(threading.Thread):
                 return
 
         if source is None:
-            return None
+            source = source_old
 
         logfile = open(os.devnull, 'w')
         if source.format == "ogg":
@@ -328,6 +354,7 @@ class TidzamStreamManager(threading.Thread):
                 files = sorted(glob.glob(source.path_database + "/*.opus")+glob.glob(source.path_database + "/*.ogg"))
                 audio_filename = None
 
+                source.starting_time = datetime.datetime.strptime(source.starting_time,"%Y-%m-%d-%H-%M-%S").strftime("%Y-%m-%d-%H-%M-%S")
                 for i in range(0, len(files)):
                     if files[i] > source.path_database + source.database+"-" + source.starting_time + "." + self.get_filename_extension(files[i]):
                         break
@@ -654,23 +681,23 @@ if __name__ == '__main__':
                             if source.is_permanent:
                                 rsp[source.name] = {}
                                 rsp[source.name]["nb_channels"] = source.nb_channels
-                                rsp[source.name]["database"] = []
-                                if source.path_database:
-                                    files = sorted(glob.glob(source.path_database + "/*.opus")+glob.glob(source.path_database + "/*.ogg"))
-                                    nb_seconds = source.database_file_length
-                                    for fo in files:
-                                        try:
-                                            f = fo.split("/")
-                                            f = f[len(f)-1].replace(".opus", "").replace(".ogg", "").replace(source.database+"-","")
-                                            f = f.split("-")
-                                            start = datetime.datetime(int(f[0]),int(f[1]),int(f[2]),int(f[3]),int(f[4]),int(f[len(f)-1]))
-                                            end = start + datetime.timedelta(seconds=nb_seconds)
-                                            rsp[source.name]["database"].append([
-                                                    start.strftime('%Y-%m-%d-%H-%M-%S'),
-                                                    end.strftime('%Y-%m-%d-%H-%M-%S')
-                                                    ])
-                                        except:
-                                            App.warning(0, "Error during database parsing of "+ str(source.database) + " in " + str(fo))
+                                rsp[source.name]["database"]    = source.available_database
+                                # if source.path_database:
+                                #     files = sorted(glob.glob(source.path_database + "/*.opus")+glob.glob(source.path_database + "/*.ogg"))
+                                #     nb_seconds = source.database_file_length
+                                #     for fo in files:
+                                #         try:
+                                #             f = fo.split("/")
+                                #             f = f[len(f)-1].replace(".opus", "").replace(".ogg", "").replace(source.database+"-","")
+                                #             f = f.split("-")
+                                #             start = datetime.datetime(int(f[0]),int(f[1]),int(f[2]),int(f[3]),int(f[4]),int(f[len(f)-1]))
+                                #             end = start + datetime.timedelta(seconds=nb_seconds)
+                                #             rsp[source.name]["database"].append([
+                                #                     start.strftime('%Y-%m-%d-%H-%M-%S'),
+                                #                     end.strftime('%Y-%m-%d-%H-%M-%S')
+                                #                     ])
+                                #         except:
+                                #             App.warning(0, "Error during database parsing of "+ str(source.database) + " in " + str(fo))
 
                         await sio.emit('sys', {"sys":{"database":rsp}})
                 else:
